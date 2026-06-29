@@ -6,6 +6,10 @@ services:
     command: ["npm", "run", "dev"]
     env_file:
       - .env.example
+    environment:
+      DATABASE_URL: postgresql://aptly:aptly@postgres:5432/aptly?schema=public
+      DIRECT_DATABASE_URL: postgresql://aptly:aptly@postgres:5432/aptly?schema=public
+      REDIS_URL: redis://redis:6379
     ports:
       - "3000:3000"
     depends_on:
@@ -21,6 +25,10 @@ services:
     command: ["npm", "run", "worker:dev"]
     env_file:
       - .env.example
+    environment:
+      DATABASE_URL: postgresql://aptly:aptly@postgres:5432/aptly?schema=public
+      DIRECT_DATABASE_URL: postgresql://aptly:aptly@postgres:5432/aptly?schema=public
+      REDIS_URL: redis://redis:6379
     depends_on:
       postgres:
         condition: service_healthy
