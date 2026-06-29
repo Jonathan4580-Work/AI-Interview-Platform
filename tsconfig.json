@@ -23,6 +23,6 @@
     },
     "types": ["node", "vitest/globals"]
   },
-  "include": ["next-env.d.ts", "src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "*.config.*"],
+  "include": ["next-env.d.ts", "middleware.ts", "src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "*.config.*"],
   "exclude": ["node_modules"]
 }
