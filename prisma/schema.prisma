@@ -3,9 +3,212 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
-// Business models are intentionally not defined in the scaffold.
-// Add models only when the corresponding approved implementation phase begins.
+enum CompanyStatus {
+  ACTIVE
+  SUSPENDED
+  TRIALING
+  ARCHIVED
+
+  @@map("company_status")
+}
+
+enum PlatformUserStatus {
+  ACTIVE
+  DISABLED
+
+  @@map("platform_user_status")
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+
+  @@map("user_status")
+}
+
+enum AuditActorType {
+  PLATFORM_USER
+  USER
+  SYSTEM
+
+  @@map("audit_actor_type")
+}
+
+enum AuditRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+
+  @@map("audit_risk_level")
+}
+
+enum IdempotencyStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+  EXPIRED
+
+  @@map("idempotency_status")
+}
+
+model Company {
+  id            String        @id @default(cuid())
+  name          String
+  slug          String        @unique
+  status        CompanyStatus @default(TRIALING)
+  primaryDomain String?       @map("primary_domain")
+  logoUrl       String?       @map("logo_url")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  deletedAt     DateTime?     @map("deleted_at")
+
+  users           User[]
+  roles           Role[]
+  auditEvents     AuditEvent[]
+  idempotencyKeys IdempotencyKey[]
+
+  @@index([status])
+  @@map("companies")
+}
+
+model PlatformUser {
+  id        String             @id @default(cuid())
+  email     String             @unique
+  name      String
+  status    PlatformUserStatus @default(ACTIVE)
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("platform_users")
+}
+
+model User {
+  id          String     @id @default(cuid())
+  companyId   String     @map("company_id")
+  email       String
+  name        String
+  status      UserStatus @default(INVITED)
+  lastLoginAt DateTime?  @map("last_login_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  deletedAt   DateTime?  @map("deleted_at")
+
+  company Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  roles   UserRole[]
+
+  @@unique([companyId, email])
+  @@index([companyId, status])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  companyId   String   @map("company_id")
+  name        String
+  key         String
+  description String?
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@unique([companyId, key])
+  @@index([companyId])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  description String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId    String @map("user_id")
+  roleId    String @map("role_id")
+  companyId String @map("company_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([companyId])
+  @@map("user_roles")
+}
+
+model AuditEvent {
+  id            String         @id @default(cuid())
+  companyId     String?        @map("company_id")
+  actorType     AuditActorType @map("actor_type")
+  actorId       String?        @map("actor_id")
+  requestId     String?        @map("request_id")
+  correlationId String?        @map("correlation_id")
+  sessionId     String?        @map("session_id")
+  action        String
+  resourceType  String         @map("resource_type")
+  resourceId    String?        @map("resource_id")
+  reason        String?
+  riskLevel     AuditRiskLevel @default(LOW) @map("risk_level")
+  beforeJson    Json?          @map("before_json")
+  afterJson     Json?          @map("after_json")
+  ipAddress     String?        @map("ip_address")
+  userAgent     String?        @map("user_agent")
+  metadataJson  Json?          @map("metadata_json")
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, createdAt])
+  @@index([actorType, actorId])
+  @@index([resourceType, resourceId])
+  @@index([requestId])
+  @@index([correlationId])
+  @@map("audit_events")
+}
+
+model IdempotencyKey {
+  id           String            @id @default(cuid())
+  companyId    String?           @map("company_id")
+  key          String
+  scope        String
+  requestHash  String            @map("request_hash")
+  responseHash String?           @map("response_hash")
+  status       IdempotencyStatus @default(PROCESSING)
+  expiresAt    DateTime          @map("expires_at")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([scope, key])
+  @@index([companyId])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
