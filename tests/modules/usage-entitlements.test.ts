@@ -18,24 +18,15 @@ class MemoryEntitlementStore implements EntitlementStore {
   public readonly usageCounters = new Map<string, UsageCounter>();
   public readonly featureFlags = new Map<string, FeatureFlag>();
 
-  public findEntitlement(
-    tenant: TenantContext,
-    featureKey: string,
-  ): Promise<Entitlement | null> {
+  public findEntitlement(tenant: TenantContext, featureKey: string): Promise<Entitlement | null> {
     return Promise.resolve(this.entitlements.get(key(tenant.companyId, featureKey)) ?? null);
   }
 
-  public findCurrentUsage(
-    tenant: TenantContext,
-    metricKey: string,
-  ): Promise<UsageCounter | null> {
+  public findCurrentUsage(tenant: TenantContext, metricKey: string): Promise<UsageCounter | null> {
     return Promise.resolve(this.usageCounters.get(key(tenant.companyId, metricKey)) ?? null);
   }
 
-  public findFeatureFlag(
-    tenant: TenantContext,
-    featureKey: string,
-  ): Promise<FeatureFlag | null> {
+  public findFeatureFlag(tenant: TenantContext, featureKey: string): Promise<FeatureFlag | null> {
     return Promise.resolve(this.featureFlags.get(key(tenant.companyId, featureKey)) ?? null);
   }
 

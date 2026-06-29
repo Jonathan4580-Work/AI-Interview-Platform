@@ -25,9 +25,7 @@ export class SupportAccessService {
     private readonly maxDurationMs: number = DEFAULT_MAX_DURATION_MS,
   ) {}
 
-  public async startSession(
-    input: StartSupportAccessSessionInput,
-  ): Promise<SupportAccessSession> {
+  public async startSession(input: StartSupportAccessSessionInput): Promise<SupportAccessSession> {
     const startedAt = this.now();
     this.assertValidStartInput(input, startedAt);
 
@@ -110,9 +108,7 @@ export class SupportAccessService {
     return session.status === "active" && session.endedAt === null && at < session.expiresAt;
   }
 
-  public async listCompanyHistory(
-    tenant: TenantContext,
-  ): Promise<readonly SupportAccessSession[]> {
+  public async listCompanyHistory(tenant: TenantContext): Promise<readonly SupportAccessSession[]> {
     return this.store.listForCompany(tenant);
   }
 

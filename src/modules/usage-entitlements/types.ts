@@ -42,10 +42,7 @@ export interface EntitlementDecision {
 }
 
 export interface EntitlementStore {
-  findEntitlement(
-    tenant: TenantContext,
-    featureKey: string,
-  ): Promise<Entitlement | null>;
+  findEntitlement(tenant: TenantContext, featureKey: string): Promise<Entitlement | null>;
 
   findCurrentUsage(
     tenant: TenantContext,

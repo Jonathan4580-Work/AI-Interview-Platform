@@ -7,12 +7,7 @@ import { prisma } from "@/infra/database";
 import { assertTenantRecord } from "@/shared/repositories";
 
 import type { TenantContext } from "@/modules/tenant";
-import type {
-  LegalHold,
-  LegalHoldId,
-  LegalHoldStatus,
-  LegalHoldStore,
-} from "./legal-holds";
+import type { LegalHold, LegalHoldId, LegalHoldStatus, LegalHoldStore } from "./legal-holds";
 
 export class PrismaLegalHoldStore implements LegalHoldStore {
   public async create(input: Parameters<LegalHoldStore["create"]>[0]): Promise<LegalHold> {

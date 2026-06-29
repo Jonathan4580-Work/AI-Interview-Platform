@@ -65,11 +65,7 @@ export class EntitlementService {
       return featureDecision;
     }
 
-    const usage = await this.store.findCurrentUsage(
-      input.tenant,
-      input.metricKey,
-      this.now(),
-    );
+    const usage = await this.store.findCurrentUsage(input.tenant, input.metricKey, this.now());
     const usageCount = usage?.count ?? 0;
 
     if (usageCount >= featureDecision.limitValue) {

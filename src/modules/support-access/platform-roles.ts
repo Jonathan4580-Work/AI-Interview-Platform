@@ -1,9 +1,4 @@
-export const platformSupportRoles = [
-  "support",
-  "compliance",
-  "operations",
-  "super_admin",
-] as const;
+export const platformSupportRoles = ["support", "compliance", "operations", "super_admin"] as const;
 
 export type PlatformSupportRole = (typeof platformSupportRoles)[number];
 

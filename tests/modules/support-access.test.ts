@@ -93,11 +93,7 @@ describe("support access module", () => {
     const auditStore = new RecordingAuditStore();
     const store = new MemorySupportAccessStore();
     const now = new Date("2026-06-30T00:00:00.000Z");
-    const service = new SupportAccessService(
-      store,
-      new AuditWriter(auditStore),
-      () => now,
-    );
+    const service = new SupportAccessService(store, new AuditWriter(auditStore), () => now);
 
     const session = await service.startSession({
       companyId: tenant.companyId,

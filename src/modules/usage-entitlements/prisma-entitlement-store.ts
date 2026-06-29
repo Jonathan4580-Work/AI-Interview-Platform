@@ -8,12 +8,7 @@ import { prisma } from "@/infra/database";
 import { assertTenantRecord } from "@/shared/repositories";
 
 import type { TenantContext } from "@/modules/tenant";
-import type {
-  Entitlement,
-  EntitlementStore,
-  FeatureFlag,
-  UsageCounter,
-} from "./types";
+import type { Entitlement, EntitlementStore, FeatureFlag, UsageCounter } from "./types";
 
 export class PrismaEntitlementStore implements EntitlementStore {
   public async findEntitlement(

@@ -5,10 +5,7 @@ import type {
   ExportRequestType,
 } from "./types";
 
-const resourceScopedExportTypes = new Set<ExportRequestType>([
-  "candidate_report",
-  "role_summary",
-]);
+const resourceScopedExportTypes = new Set<ExportRequestType>(["candidate_report", "role_summary"]);
 
 export class ExportRequestError extends Error {
   public constructor(message: string) {

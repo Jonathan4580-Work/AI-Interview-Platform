@@ -89,9 +89,7 @@ function mapSupportAccessSession(record: PrismaSupportAccessSession): SupportAcc
   };
 }
 
-function fromPrismaSupportAccessStatus(
-  status: PrismaSupportAccessStatus,
-): SupportAccessStatus {
+function fromPrismaSupportAccessStatus(status: PrismaSupportAccessStatus): SupportAccessStatus {
   switch (status) {
     case PrismaSupportAccessStatus.REQUESTED:
       return "requested";

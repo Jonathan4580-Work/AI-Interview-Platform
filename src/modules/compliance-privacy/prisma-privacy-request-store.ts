@@ -76,9 +76,7 @@ function fromPrismaPrivacyRequestType(type: PrismaPrivacyRequestType): PrivacyRe
   }
 }
 
-function fromPrismaPrivacyRequestStatus(
-  status: PrismaPrivacyRequestStatus,
-): PrivacyRequestStatus {
+function fromPrismaPrivacyRequestStatus(status: PrismaPrivacyRequestStatus): PrivacyRequestStatus {
   switch (status) {
     case PrismaPrivacyRequestStatus.RECEIVED:
       return "received";

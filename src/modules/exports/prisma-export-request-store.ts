@@ -14,9 +14,7 @@ import type {
 } from "./types";
 
 export class PrismaExportRequestStore implements ExportRequestStore {
-  public async create(
-    input: Parameters<ExportRequestStore["create"]>[0],
-  ): Promise<ExportRequest> {
+  public async create(input: Parameters<ExportRequestStore["create"]>[0]): Promise<ExportRequest> {
     const record = await prisma.exportRequest.create({
       data: {
         companyId: input.companyId,
@@ -77,9 +75,7 @@ function fromPrismaExportRequestType(type: PrismaExportRequestType): ExportReque
   }
 }
 
-function fromPrismaExportRequestStatus(
-  status: PrismaExportRequestStatus,
-): ExportRequestStatus {
+function fromPrismaExportRequestStatus(status: PrismaExportRequestStatus): ExportRequestStatus {
   switch (status) {
     case PrismaExportRequestStatus.PENDING:
       return "pending";

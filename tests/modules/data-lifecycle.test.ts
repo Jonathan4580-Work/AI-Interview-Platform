@@ -57,9 +57,7 @@ class MemoryLegalHoldStore implements LegalHoldStore {
 
   public hasActiveHold(tenant: TenantContext): Promise<boolean> {
     return Promise.resolve(
-      this.holds.some(
-        (hold) => hold.companyId === tenant.companyId && hold.status === "active",
-      ),
+      this.holds.some((hold) => hold.companyId === tenant.companyId && hold.status === "active"),
     );
   }
 }
