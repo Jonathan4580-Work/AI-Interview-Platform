@@ -13,6 +13,7 @@ export class AuditWriter {
       requestId: input.request.requestId,
       correlationId: input.request.correlationId,
       sessionId: input.request.sessionId,
+      supportAccessSessionId: input.supportAccessSessionId ?? null,
       action: input.action,
       resourceType: input.resourceType,
       resourceId: input.resourceId ?? null,

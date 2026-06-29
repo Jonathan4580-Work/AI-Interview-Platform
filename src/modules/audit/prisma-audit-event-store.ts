@@ -15,6 +15,7 @@ export class PrismaAuditEventStore implements AuditEventStore {
         requestId: event.requestId,
         correlationId: event.correlationId,
         sessionId: event.sessionId,
+        supportAccessSessionId: event.supportAccessSessionId,
         action: event.action,
         resourceType: event.resourceType,
         resourceId: event.resourceId,

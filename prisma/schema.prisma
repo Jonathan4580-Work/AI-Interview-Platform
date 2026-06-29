@@ -35,6 +35,7 @@ enum UserStatus {
 enum AuditActorType {
   PLATFORM_USER
   USER
+  CANDIDATE_SESSION
   SYSTEM
 
   @@map("audit_actor_type")
@@ -58,6 +59,73 @@ enum IdempotencyStatus {
   @@map("idempotency_status")
 }
 
+enum SupportAccessStatus {
+  REQUESTED
+  ACTIVE
+  EXPIRED
+  REVOKED
+  DENIED
+
+  @@map("support_access_status")
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+
+  @@map("subscription_status")
+}
+
+enum LegalHoldStatus {
+  ACTIVE
+  RELEASED
+
+  @@map("legal_hold_status")
+}
+
+enum PrivacyRequestType {
+  ACCESS
+  DELETION
+  ANONYMIZATION
+  EXPORT
+  CORRECTION
+
+  @@map("privacy_request_type")
+}
+
+enum PrivacyRequestStatus {
+  RECEIVED
+  VERIFYING
+  PROCESSING
+  COMPLETED
+  DENIED
+
+  @@map("privacy_request_status")
+}
+
+enum ExportRequestType {
+  CANDIDATE_REPORT
+  ROLE_SUMMARY
+  AUDIT_EXPORT
+  TENANT_EXPORT
+  COMPLIANCE_EXPORT
+
+  @@map("export_request_type")
+}
+
+enum ExportRequestStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+  EXPIRED
+
+  @@map("export_request_status")
+}
+
 model Company {
   id            String        @id @default(cuid())
   name          String
@@ -73,6 +141,14 @@ model Company {
   roles           Role[]
   auditEvents     AuditEvent[]
   idempotencyKeys IdempotencyKey[]
+  settings        CompanySettings?
+  subscription    Subscription?
+  entitlements    Entitlement[]
+  usageCounters   UsageCounter[]
+  supportAccess   SupportAccessSession[]
+  legalHolds      LegalHold[]
+  privacyRequests PrivacyRequest[]
+  exportRequests  ExportRequest[]
 
   @@index([status])
   @@map("companies")
@@ -85,6 +161,9 @@ model PlatformUser {
   status    PlatformUserStatus @default(ACTIVE)
   createdAt DateTime           @default(now()) @map("created_at")
   updatedAt DateTime           @updatedAt @map("updated_at")
+
+  supportAccessSessions         SupportAccessSession[] @relation("SupportAccessPlatformUser")
+  approvedSupportAccessSessions SupportAccessSession[] @relation("SupportAccessApprover")
 
   @@index([status])
   @@map("platform_users")
@@ -101,8 +180,11 @@ model User {
   updatedAt   DateTime   @updatedAt @map("updated_at")
   deletedAt   DateTime?  @map("deleted_at")
 
-  company Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  roles   UserRole[]
+  company            Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  roles              UserRole[]
+  legalHoldsCreated  LegalHold[]     @relation("LegalHoldCreator")
+  legalHoldsReleased LegalHold[]     @relation("LegalHoldReleaser")
+  exportRequests     ExportRequest[]
 
   @@unique([companyId, id])
   @@unique([companyId, email])
@@ -166,32 +248,35 @@ model UserRole {
 }
 
 model AuditEvent {
-  id            String         @id @default(cuid())
-  companyId     String?        @map("company_id")
-  actorType     AuditActorType @map("actor_type")
-  actorId       String?        @map("actor_id")
-  requestId     String?        @map("request_id")
-  correlationId String?        @map("correlation_id")
-  sessionId     String?        @map("session_id")
-  action        String
-  resourceType  String         @map("resource_type")
-  resourceId    String?        @map("resource_id")
-  reason        String?
-  riskLevel     AuditRiskLevel @default(LOW) @map("risk_level")
-  beforeJson    Json?          @map("before_json")
-  afterJson     Json?          @map("after_json")
-  ipAddress     String?        @map("ip_address")
-  userAgent     String?        @map("user_agent")
-  metadataJson  Json?          @map("metadata_json")
-  createdAt     DateTime       @default(now()) @map("created_at")
+  id                     String         @id @default(cuid())
+  companyId              String?        @map("company_id")
+  actorType              AuditActorType @map("actor_type")
+  actorId                String?        @map("actor_id")
+  requestId              String?        @map("request_id")
+  correlationId          String?        @map("correlation_id")
+  sessionId              String?        @map("session_id")
+  supportAccessSessionId String?        @map("support_access_session_id")
+  action                 String
+  resourceType           String         @map("resource_type")
+  resourceId             String?        @map("resource_id")
+  reason                 String?
+  riskLevel              AuditRiskLevel @default(LOW) @map("risk_level")
+  beforeJson             Json?          @map("before_json")
+  afterJson              Json?          @map("after_json")
+  ipAddress              String?        @map("ip_address")
+  userAgent              String?        @map("user_agent")
+  metadataJson           Json?          @map("metadata_json")
+  createdAt              DateTime       @default(now()) @map("created_at")
 
-  company Company? @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company              Company?              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  supportAccessSession SupportAccessSession? @relation(fields: [supportAccessSessionId], references: [id], onDelete: Restrict)
 
   @@index([companyId, createdAt])
   @@index([actorType, actorId])
   @@index([resourceType, resourceId])
   @@index([requestId])
   @@index([correlationId])
+  @@index([supportAccessSessionId])
   @@map("audit_events")
 }
 
@@ -213,4 +298,159 @@ model IdempotencyKey {
   @@index([companyId])
   @@index([expiresAt])
   @@map("idempotency_keys")
+}
+
+model CompanySettings {
+  id                  String   @id @default(cuid())
+  companyId           String   @unique @map("company_id")
+  brandingJson        Json     @map("branding_json")
+  retentionPolicyJson Json     @map("retention_policy_json")
+  emailSettingsJson   Json     @map("email_settings_json")
+  featureFlagsJson    Json     @map("feature_flags_json")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@map("company_settings")
+}
+
+model Subscription {
+  id                     String             @id @default(cuid())
+  companyId              String             @unique @map("company_id")
+  status                 SubscriptionStatus @default(TRIALING)
+  planKey                String             @map("plan_key")
+  billingProvider        String?            @map("billing_provider")
+  billingCustomerRef     String?            @map("billing_customer_ref")
+  billingSubscriptionRef String?            @map("billing_subscription_ref")
+  currentPeriodStart     DateTime?          @map("current_period_start")
+  currentPeriodEnd       DateTime?          @map("current_period_end")
+  usageJson              Json               @map("usage_json")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model Entitlement {
+  id             String   @id @default(cuid())
+  companyId      String   @map("company_id")
+  planKey        String   @map("plan_key")
+  featureKey     String   @map("feature_key")
+  limitValue     Int?     @map("limit_value")
+  enabled        Boolean  @default(false)
+  overrideReason String?  @map("override_reason")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, featureKey])
+  @@index([companyId, planKey])
+  @@map("entitlements")
+}
+
+model UsageCounter {
+  id           String   @id @default(cuid())
+  companyId    String   @map("company_id")
+  periodStart  DateTime @map("period_start")
+  periodEnd    DateTime @map("period_end")
+  metricKey    String   @map("metric_key")
+  count        Int      @default(0)
+  metadataJson Json     @map("metadata_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, periodStart, periodEnd, metricKey])
+  @@index([companyId, metricKey])
+  @@map("usage_counters")
+}
+
+model SupportAccessSession {
+  id                       String              @id @default(cuid())
+  companyId                String              @map("company_id")
+  platformUserId           String              @map("platform_user_id")
+  status                   SupportAccessStatus @default(REQUESTED)
+  reasonCode               String              @map("reason_code")
+  reasonText               String              @map("reason_text")
+  approvedByPlatformUserId String?             @map("approved_by_platform_user_id")
+  startedAt                DateTime?           @map("started_at")
+  expiresAt                DateTime            @map("expires_at")
+  endedAt                  DateTime?           @map("ended_at")
+  createdAt                DateTime            @default(now()) @map("created_at")
+  updatedAt                DateTime            @updatedAt @map("updated_at")
+
+  company                Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  platformUser           PlatformUser  @relation("SupportAccessPlatformUser", fields: [platformUserId], references: [id], onDelete: Restrict)
+  approvedByPlatformUser PlatformUser? @relation("SupportAccessApprover", fields: [approvedByPlatformUserId], references: [id], onDelete: Restrict)
+  auditEvents            AuditEvent[]
+
+  @@index([companyId, status])
+  @@index([platformUserId, status])
+  @@index([expiresAt])
+  @@map("support_access_sessions")
+}
+
+model LegalHold {
+  id               String          @id @default(cuid())
+  companyId        String          @map("company_id")
+  name             String
+  description      String?
+  status           LegalHoldStatus @default(ACTIVE)
+  createdByUserId  String          @map("created_by_user_id")
+  releasedByUserId String?         @map("released_by_user_id")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  releasedAt       DateTime?       @map("released_at")
+
+  company        Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdByUser  User    @relation("LegalHoldCreator", fields: [companyId, createdByUserId], references: [companyId, id], onDelete: Restrict)
+  releasedByUser User?   @relation("LegalHoldReleaser", fields: [companyId, releasedByUserId], references: [companyId, id], onDelete: Restrict)
+
+  @@index([companyId, status])
+  @@map("legal_holds")
+}
+
+model PrivacyRequest {
+  id             String               @id @default(cuid())
+  companyId      String               @map("company_id")
+  candidateId    String?              @map("candidate_id")
+  type           PrivacyRequestType
+  status         PrivacyRequestStatus @default(RECEIVED)
+  requesterEmail String               @map("requester_email")
+  reason         String?
+  completedAt    DateTime?            @map("completed_at")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, candidateId])
+  @@index([companyId, status])
+  @@map("privacy_requests")
+}
+
+model ExportRequest {
+  id                String              @id @default(cuid())
+  companyId         String              @map("company_id")
+  requestedByUserId String              @map("requested_by_user_id")
+  type              ExportRequestType
+  status            ExportRequestStatus @default(PENDING)
+  resourceType      String?             @map("resource_type")
+  resourceId        String?             @map("resource_id")
+  storageKey        String?             @map("storage_key")
+  expiresAt         DateTime?           @map("expires_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  company         Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  requestedByUser User    @relation(fields: [companyId, requestedByUserId], references: [companyId, id], onDelete: Restrict)
+
+  @@index([companyId, status])
+  @@index([companyId, requestedByUserId])
+  @@map("export_requests")
 }

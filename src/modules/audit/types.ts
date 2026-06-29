@@ -1,6 +1,6 @@
 import type { TenantId } from "@/modules/tenant";
 
-export const auditActorTypes = ["platform_user", "user", "system"] as const;
+export const auditActorTypes = ["platform_user", "user", "candidate_session", "system"] as const;
 export const auditRiskLevels = ["low", "medium", "high", "critical"] as const;
 
 export type AuditActorType = (typeof auditActorTypes)[number];
@@ -23,6 +23,7 @@ export interface AuditEventInput {
   readonly companyId?: TenantId | null;
   readonly actor: AuditActor;
   readonly request: AuditRequestContext;
+  readonly supportAccessSessionId?: string | null;
   readonly action: string;
   readonly resourceType: string;
   readonly resourceId?: string | null;
@@ -40,6 +41,7 @@ export interface PersistedAuditEventInput {
   readonly requestId: string | null;
   readonly correlationId: string | null;
   readonly sessionId: string | null;
+  readonly supportAccessSessionId: string | null;
   readonly action: string;
   readonly resourceType: string;
   readonly resourceId: string | null;

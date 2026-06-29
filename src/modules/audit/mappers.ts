@@ -11,6 +11,8 @@ export function toPrismaAuditActorType(actorType: AuditActorType): PrismaAuditAc
       return PrismaAuditActorType.PLATFORM_USER;
     case "user":
       return PrismaAuditActorType.USER;
+    case "candidate_session":
+      return PrismaAuditActorType.CANDIDATE_SESSION;
     case "system":
       return PrismaAuditActorType.SYSTEM;
   }
