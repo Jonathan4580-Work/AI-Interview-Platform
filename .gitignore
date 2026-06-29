@@ -1,0 +1,10 @@
+node_modules/
+.next/
+coverage/
+dist/
+.env
+.env.local
+.env.*.local
+*.log
+*.tsbuildinfo
+Dockerfile.local

@@ -1,0 +1,11 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Business models are intentionally not defined in the scaffold.
+// Add models only when the corresponding approved implementation phase begins.
