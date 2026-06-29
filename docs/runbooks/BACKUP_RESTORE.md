@@ -104,4 +104,3 @@ For Phase 1:
 - Define object storage backup and versioning settings.
 - Automate restore verification.
 - Add incident communication procedure.
-

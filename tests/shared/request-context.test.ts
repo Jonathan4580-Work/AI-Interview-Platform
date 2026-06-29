@@ -7,10 +7,12 @@ describe("request context", () => {
     const context = createRequestContext(
       {
         get(name: string) {
-          return {
-            "x-request-id": "req-1",
-            "x-correlation-id": "corr-1",
-          }[name] ?? null;
+          return (
+            {
+              "x-request-id": "req-1",
+              "x-correlation-id": "corr-1",
+            }[name] ?? null
+          );
         },
       },
       {

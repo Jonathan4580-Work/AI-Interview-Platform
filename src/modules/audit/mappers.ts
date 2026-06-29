@@ -1,4 +1,7 @@
-import { AuditActorType as PrismaAuditActorType, AuditRiskLevel as PrismaAuditRiskLevel } from "@prisma/client";
+import {
+  AuditActorType as PrismaAuditActorType,
+  AuditRiskLevel as PrismaAuditRiskLevel,
+} from "@prisma/client";
 
 import type { AuditActorType, AuditRiskLevel } from "./types";
 
