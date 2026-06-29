@@ -104,4 +104,24 @@ describe("idempotency module", () => {
       }),
     ).rejects.toThrow("Idempotency key reused with a different request payload.");
   });
+
+  it("rejects replay after idempotency key expiration", async () => {
+    const service = new IdempotencyService(new RecordingIdempotencyStore());
+
+    await service.begin({
+      key: "key-1",
+      scope: "test",
+      payload: { a: 1 },
+      expiresAt: new Date("2000-01-01T00:00:00.000Z"),
+    });
+
+    await expect(
+      service.begin({
+        key: "key-1",
+        scope: "test",
+        payload: { a: 1 },
+        expiresAt: new Date("2000-01-01T00:00:00.000Z"),
+      }),
+    ).rejects.toThrow("Idempotency key has expired.");
+  });
 });

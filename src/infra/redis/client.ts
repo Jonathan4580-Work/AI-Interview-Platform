@@ -9,6 +9,8 @@ const globalForRedis = globalThis as unknown as {
 export const redis =
   globalForRedis.redis ??
   new IORedis(env.REDIS_URL, {
+    connectTimeout: 2_000,
+    commandTimeout: 2_000,
     maxRetriesPerRequest: null,
   });
 

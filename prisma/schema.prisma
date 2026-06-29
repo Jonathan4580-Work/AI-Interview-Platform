@@ -104,6 +104,7 @@ model User {
   company Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
   roles   UserRole[]
 
+  @@unique([companyId, id])
   @@unique([companyId, email])
   @@index([companyId, status])
   @@map("users")
@@ -123,6 +124,7 @@ model Role {
   permissions RolePermission[]
   users       UserRole[]
 
+  @@unique([companyId, id])
   @@unique([companyId, key])
   @@index([companyId])
   @@map("roles")
@@ -155,8 +157,8 @@ model UserRole {
   roleId    String @map("role_id")
   companyId String @map("company_id")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [companyId, userId], references: [companyId, id], onDelete: Cascade)
+  role Role @relation(fields: [companyId, roleId], references: [companyId, id], onDelete: Cascade)
 
   @@id([userId, roleId])
   @@index([companyId])

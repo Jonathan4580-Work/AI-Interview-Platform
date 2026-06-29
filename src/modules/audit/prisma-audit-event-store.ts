@@ -3,7 +3,7 @@ import { prisma } from "@/infra/database";
 import { toPrismaAuditActorType, toPrismaAuditRiskLevel } from "./mappers";
 
 import type { AuditEventStore, PersistedAuditEventInput } from "./types";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 export class PrismaAuditEventStore implements AuditEventStore {
   public async append(event: PersistedAuditEventInput): Promise<void> {
@@ -20,12 +20,16 @@ export class PrismaAuditEventStore implements AuditEventStore {
         resourceId: event.resourceId,
         reason: event.reason,
         riskLevel: toPrismaAuditRiskLevel(event.riskLevel),
-        beforeJson: event.before as Prisma.InputJsonValue,
-        afterJson: event.after as Prisma.InputJsonValue,
+        beforeJson: toNullableJson(event.before),
+        afterJson: toNullableJson(event.after),
         ipAddress: event.ipAddress,
         userAgent: event.userAgent,
-        metadataJson: event.metadata as Prisma.InputJsonValue,
+        metadataJson: toNullableJson(event.metadata),
       },
     });
   }
+}
+
+function toNullableJson(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
+  return value === null ? Prisma.JsonNull : (value as Prisma.InputJsonValue);
 }

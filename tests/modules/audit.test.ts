@@ -19,14 +19,14 @@ describe("audit module", () => {
     expect(
       redactAuditValue({
         safe: "value",
-        token: "secret-token",
+        Token: "secret-token",
         nested: {
           signedUrl: "https://example.com/private",
         },
       }),
     ).toEqual({
       safe: "value",
-      token: "[redacted]",
+      Token: "[redacted]",
       nested: {
         signedUrl: "[redacted]",
       },

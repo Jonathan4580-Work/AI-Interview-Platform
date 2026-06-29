@@ -131,9 +131,11 @@ CREATE UNIQUE INDEX "platform_users_email_key" ON "platform_users"("email");
 CREATE INDEX "platform_users_status_idx" ON "platform_users"("status");
 
 CREATE UNIQUE INDEX "users_company_id_email_key" ON "users"("company_id", "email");
+CREATE UNIQUE INDEX "users_company_id_id_key" ON "users"("company_id", "id");
 CREATE INDEX "users_company_id_status_idx" ON "users"("company_id", "status");
 
 CREATE UNIQUE INDEX "roles_company_id_key_key" ON "roles"("company_id", "key");
+CREATE UNIQUE INDEX "roles_company_id_id_key" ON "roles"("company_id", "id");
 CREATE INDEX "roles_company_id_idx" ON "roles"("company_id");
 
 CREATE UNIQUE INDEX "permissions_key_key" ON "permissions"("key");
@@ -168,11 +170,11 @@ ALTER TABLE "role_permissions"
 
 ALTER TABLE "user_roles"
     ADD CONSTRAINT "user_roles_user_id_fkey"
-    FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    FOREIGN KEY ("company_id", "user_id") REFERENCES "users"("company_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "user_roles"
     ADD CONSTRAINT "user_roles_role_id_fkey"
-    FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    FOREIGN KEY ("company_id", "role_id") REFERENCES "roles"("company_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "audit_events"
     ADD CONSTRAINT "audit_events_company_id_fkey"

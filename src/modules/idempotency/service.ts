@@ -17,6 +17,10 @@ export class IdempotencyService {
     const existing = await this.store.find(input.scope, input.key);
 
     if (existing !== null) {
+      if (existing.expiresAt <= new Date()) {
+        throw new Error("Idempotency key has expired.");
+      }
+
       if (existing.requestHash !== requestHash) {
         throw new Error("Idempotency key reused with a different request payload.");
       }

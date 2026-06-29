@@ -62,4 +62,21 @@ describe("request context", () => {
     expect(context.requestId).toHaveLength(36);
     expect(context.correlationId).toBe(context.requestId);
   });
+
+  it("replaces unsafe inbound context ids", () => {
+    const context = createRequestContext(
+      {
+        get(name: string) {
+          return name === "x-request-id" ? "bad id with spaces" : null;
+        },
+      },
+      {
+        requestIdHeader: "x-request-id",
+        correlationIdHeader: "x-correlation-id",
+      },
+    );
+
+    expect(context.requestId).toHaveLength(36);
+    expect(context.requestId).not.toBe("bad id with spaces");
+  });
 });

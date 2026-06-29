@@ -3,10 +3,10 @@ const sensitiveKeys = new Set([
   "cookie",
   "password",
   "secret",
-  "secretRef",
-  "signedUrl",
+  "secretref",
+  "signedurl",
   "token",
-  "tokenHash",
+  "tokenhash",
 ]);
 
 export function redactAuditValue(value: unknown): unknown {
@@ -18,7 +18,7 @@ export function redactAuditValue(value: unknown): unknown {
     return Object.fromEntries(
       Object.entries(value).map(([key, entry]) => [
         key,
-        sensitiveKeys.has(key) ? "[redacted]" : redactAuditValue(entry),
+        sensitiveKeys.has(key.toLowerCase()) ? "[redacted]" : redactAuditValue(entry),
       ]),
     );
   }
