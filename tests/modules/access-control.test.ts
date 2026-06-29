@@ -4,8 +4,10 @@ import {
   createPermissionSet,
   evaluateAccess,
   hasPermission,
+  permissionKeys,
   requirePermission,
 } from "@/modules/access-control";
+import { supportAccessPermissions } from "@/modules/support-access";
 import { createTenantContext } from "@/modules/tenant";
 
 describe("access control module", () => {
@@ -48,5 +50,10 @@ describe("access control module", () => {
     expect(() => {
       requirePermission(permissions, "roles:manage");
     }).toThrow("Permission denied: roles:manage");
+  });
+
+  it("keeps support access permissions inside the central permission catalog", () => {
+    expect(permissionKeys).toContain(supportAccessPermissions.read);
+    expect(permissionKeys).toContain(supportAccessPermissions.manage);
   });
 });

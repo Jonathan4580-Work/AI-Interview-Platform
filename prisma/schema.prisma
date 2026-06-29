@@ -312,6 +312,7 @@ model CompanySettings {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
+  @@unique([companyId, id])
   @@map("company_settings")
 }
 
@@ -331,6 +332,7 @@ model Subscription {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
+  @@unique([companyId, id])
   @@index([status])
   @@map("subscriptions")
 }
@@ -348,6 +350,7 @@ model Entitlement {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
+  @@unique([companyId, id])
   @@unique([companyId, featureKey])
   @@index([companyId, planKey])
   @@map("entitlements")
@@ -366,6 +369,7 @@ model UsageCounter {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
+  @@unique([companyId, id])
   @@unique([companyId, periodStart, periodEnd, metricKey])
   @@index([companyId, metricKey])
   @@map("usage_counters")
@@ -390,6 +394,7 @@ model SupportAccessSession {
   approvedByPlatformUser PlatformUser? @relation("SupportAccessApprover", fields: [approvedByPlatformUserId], references: [id], onDelete: Restrict)
   auditEvents            AuditEvent[]
 
+  @@unique([companyId, id])
   @@index([companyId, status])
   @@index([platformUserId, status])
   @@index([expiresAt])
@@ -411,6 +416,7 @@ model LegalHold {
   createdByUser  User    @relation("LegalHoldCreator", fields: [companyId, createdByUserId], references: [companyId, id], onDelete: Restrict)
   releasedByUser User?   @relation("LegalHoldReleaser", fields: [companyId, releasedByUserId], references: [companyId, id], onDelete: Restrict)
 
+  @@unique([companyId, id])
   @@index([companyId, status])
   @@map("legal_holds")
 }
@@ -429,6 +435,7 @@ model PrivacyRequest {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
+  @@unique([companyId, id])
   @@index([companyId, candidateId])
   @@index([companyId, status])
   @@map("privacy_requests")
@@ -450,6 +457,7 @@ model ExportRequest {
   company         Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   requestedByUser User    @relation(fields: [companyId, requestedByUserId], references: [companyId, id], onDelete: Restrict)
 
+  @@unique([companyId, id])
   @@index([companyId, status])
   @@index([companyId, requestedByUserId])
   @@map("export_requests")
