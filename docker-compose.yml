@@ -1,4 +1,32 @@
 services:
+  web:
+    build:
+      context: .
+    container_name: aptly-web
+    command: ["npm", "run", "dev"]
+    env_file:
+      - .env.example
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+    container_name: aptly-worker
+    command: ["npm", "run", "worker:dev"]
+    env_file:
+      - .env.example
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   postgres:
     image: postgres:16-alpine
     container_name: aptly-postgres
