@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   QueueHandlerNotRegisteredError,
   assertSafeQueuePayload,
+  closeWorkersGracefully,
   createLightweightNotificationWorker,
   createMediaWorker,
   createProviderBoundWorker,
@@ -58,5 +59,23 @@ describe("queue worker contracts", () => {
     expect(createMediaWorker).toBeDefined();
     expect(createProviderBoundWorker).toBeDefined();
     expect(createLightweightNotificationWorker).toBeDefined();
+  });
+
+  it("drains workers before closing and waits for active jobs", async () => {
+    const calls: string[] = [];
+    const worker = {
+      pause: (doNotWaitActive?: boolean) => {
+        calls.push(`pause:${String(doNotWaitActive)}`);
+        return Promise.resolve();
+      },
+      close: () => {
+        calls.push("close");
+        return Promise.resolve();
+      },
+    };
+
+    await closeWorkersGracefully([worker]);
+
+    expect(calls).toEqual(["pause:false", "close"]);
   });
 });

@@ -77,7 +77,7 @@ export function createManagedWorker<TPayload extends SafeQueueContext>(
   return {
     queueName: options.queueName,
     close: () => worker.close(),
-    drain: () => worker.pause(true),
+    drain: () => worker.pause(false),
   };
 }
 
@@ -92,5 +92,5 @@ function drainWorker(worker: ManagedWorker | BullMqClosableWorker): Promise<void
   if ("drain" in worker) {
     return worker.drain();
   }
-  return worker.pause(true);
+  return worker.pause(false);
 }
