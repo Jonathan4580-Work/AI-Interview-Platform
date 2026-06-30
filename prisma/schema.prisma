@@ -790,6 +790,70 @@ enum MediaUploadKind {
   @@map("media_upload_kind")
 }
 
+enum MonitoringEventType {
+  LOOKING_AWAY
+  MULTIPLE_FACES
+  FACE_NOT_DETECTED
+  LEFT_FRAME
+  CAMERA_OBSTRUCTED
+  CAMERA_PERMISSION_REMOVED
+  MICROPHONE_UNAVAILABLE
+  WINDOW_FOCUS_LOST
+  TAB_HIDDEN
+  FULLSCREEN_EXITED
+  COPY_OCCURRED
+  PASTE_OCCURRED
+  NETWORK_DEGRADED
+  CONNECTION_LOST
+  RECORDING_INTERRUPTED
+  REPEATED_RESUME
+  EXTENDED_INACTIVITY
+  MONITORING_UNAVAILABLE
+
+  @@map("monitoring_event_type")
+}
+
+enum MonitoringSeverity {
+  INFORMATIONAL
+  LOW
+  MEDIUM
+  HIGH
+
+  @@map("monitoring_severity")
+}
+
+enum MonitoringReviewState {
+  UNREVIEWED
+  ACKNOWLEDGED
+  DISMISSED
+  NOTED
+
+  @@map("monitoring_review_state")
+}
+
+enum MonitoringDetectorCategory {
+  CAMERA_PRESENCE
+  MULTIPLE_FACE
+  FACE_POSITION
+  CAMERA_OBSTRUCTION
+  PAGE_VISIBILITY
+  WINDOW_FOCUS
+  NETWORK_QUALITY
+  RECORDING_HEALTH
+  ACTIVITY
+
+  @@map("monitoring_detector_category")
+}
+
+enum MonitoringBatchStatus {
+  ACCEPTED
+  PARTIALLY_ACCEPTED
+  REJECTED
+  DUPLICATE
+
+  @@map("monitoring_batch_status")
+}
+
 model Company {
   id            String        @id @default(cuid())
   name          String
@@ -847,6 +911,9 @@ model Company {
   accommodationRequests   AccommodationRequest[]
   candidateSupportRequests CandidateSupportRequest[]
   candidateWithdrawals    CandidateWithdrawal[]
+  monitoringEvents        MonitoringEvent[]
+  monitoringEventBatches  MonitoringEventBatch[]
+  monitoringConfigurations MonitoringConfiguration[]
   scheduleEvents          ScheduleEvent[]
   scheduleParticipants    ScheduleParticipant[]
   notificationIntents     NotificationIntent[]
@@ -1268,6 +1335,7 @@ model LegalHold {
   company        Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   createdByUser  User    @relation("LegalHoldCreator", fields: [companyId, createdByUserId], references: [companyId, id], onDelete: Restrict)
   releasedByUser User?   @relation("LegalHoldReleaser", fields: [companyId, releasedByUserId], references: [companyId, id], onDelete: Restrict)
+  monitoringEvents MonitoringEvent[]
 
   @@unique([companyId, id])
   @@index([companyId, status])
@@ -1598,6 +1666,8 @@ model Candidate {
   accommodationRequests AccommodationRequest[]
   supportRequests   CandidateSupportRequest[]
   withdrawals       CandidateWithdrawal[]
+  monitoringEvents  MonitoringEvent[]
+  monitoringEventBatches MonitoringEventBatch[]
   sourceMergeEvents CandidateMergeEvent[]    @relation("CandidateMergeSource")
   targetMergeEvents CandidateMergeEvent[]    @relation("CandidateMergeTargetEvent")
   privacyRequests   PrivacyRequest[]
@@ -1826,6 +1896,8 @@ model InterviewSession {
   activityEvents         InterviewActivityEvent[]
   recoveryCheckpoints    InterviewRecoveryCheckpoint[]
   stateHistory           InterviewStateHistory[]
+  monitoringEvents       MonitoringEvent[]
+  monitoringEventBatches MonitoringEventBatch[]
 
   @@unique([companyId, id])
   @@unique([companyId, invitationId])
@@ -1981,6 +2053,102 @@ model InterviewStateHistory {
   @@index([companyId, interviewSessionId, createdAt])
   @@index([companyId, toStatus, createdAt])
   @@map("interview_state_history")
+}
+
+model MonitoringConfiguration {
+  id                String   @id @default(cuid())
+  companyId         String   @map("company_id")
+  version           String
+  thresholdVersion  String   @map("threshold_version")
+  enabled           Boolean  @default(true)
+  detectorFlagsJson Json     @map("detector_flags_json")
+  thresholdsJson    Json     @map("thresholds_json")
+  effectiveAt       DateTime @map("effective_at")
+  retiredAt         DateTime? @map("retired_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@unique([companyId, version])
+  @@index([companyId, enabled, effectiveAt])
+  @@map("monitoring_configurations")
+}
+
+model MonitoringEventBatch {
+  id                 String                @id @default(cuid())
+  companyId          String                @map("company_id")
+  interviewSessionId String                @map("interview_session_id")
+  candidateId        String                @map("candidate_id")
+  candidateSessionId String?               @map("candidate_session_id")
+  idempotencyKey     String                @map("idempotency_key")
+  status             MonitoringBatchStatus @default(ACCEPTED)
+  acceptedCount      Int                   @default(0) @map("accepted_count")
+  rejectedCount      Int                   @default(0) @map("rejected_count")
+  deduplicatedCount  Int                   @default(0) @map("deduplicated_count")
+  payloadHash        String                @map("payload_hash")
+  metadataJson       Json                  @map("metadata_json")
+  receivedAt         DateTime              @default(now()) @map("received_at")
+  createdAt          DateTime              @default(now()) @map("created_at")
+
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interviewSession InterviewSession @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  candidate        Candidate        @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  events           MonitoringEvent[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, idempotencyKey])
+  @@index([companyId, interviewSessionId, receivedAt])
+  @@index([companyId, status, receivedAt])
+  @@map("monitoring_event_batches")
+}
+
+model MonitoringEvent {
+  id                 String                @id @default(cuid())
+  companyId          String                @map("company_id")
+  interviewSessionId String                @map("interview_session_id")
+  candidateId        String                @map("candidate_id")
+  batchId            String?               @map("batch_id")
+  type               MonitoringEventType
+  severity           MonitoringSeverity
+  reviewState        MonitoringReviewState @default(UNREVIEWED) @map("review_state")
+  sourceDetector     String                @map("source_detector")
+  detectorCategory   MonitoringDetectorCategory @map("detector_category")
+  detectorVersion    String                @map("detector_version")
+  thresholdVersion   String                @map("threshold_version")
+  occurredAt         DateTime              @map("occurred_at")
+  endedAt            DateTime?             @map("ended_at")
+  durationMs         Int?                  @map("duration_ms")
+  occurrenceCount    Int                   @default(1) @map("occurrence_count")
+  confidence         Float?
+  safeMetadataJson   Json                  @map("safe_metadata_json")
+  aggregationKey     String                @map("aggregation_key")
+  idempotencyKey     String                @map("idempotency_key")
+  retentionDeleteAt  DateTime              @map("retention_delete_at")
+  legalHoldId        String?               @map("legal_hold_id")
+  legalHoldActive    Boolean               @default(false) @map("legal_hold_active")
+  reviewedByUserId   String?               @map("reviewed_by_user_id")
+  reviewedAt         DateTime?             @map("reviewed_at")
+  reviewReason       String?               @map("review_reason")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  company          Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interviewSession InterviewSession      @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  candidate        Candidate             @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  batch            MonitoringEventBatch? @relation(fields: [companyId, batchId], references: [companyId, id], onDelete: Restrict)
+  legalHold        LegalHold?            @relation(fields: [companyId, legalHoldId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@unique([companyId, idempotencyKey])
+  @@unique([companyId, interviewSessionId, aggregationKey])
+  @@index([companyId, interviewSessionId, occurredAt])
+  @@index([companyId, type, occurredAt])
+  @@index([companyId, severity, occurredAt])
+  @@index([companyId, reviewState, occurredAt])
+  @@index([companyId, retentionDeleteAt])
+  @@map("monitoring_events")
 }
 
 model CandidateSession {

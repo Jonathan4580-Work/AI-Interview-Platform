@@ -68,6 +68,8 @@ export const permissionKeys = [
   "media:delete",
   "queues:read",
   "queues:manage",
+  "monitoring_events:read",
+  "monitoring_events:review",
 ] as const;
 
 export type PermissionKey = (typeof permissionKeys)[number];
