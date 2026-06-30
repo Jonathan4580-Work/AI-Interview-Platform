@@ -6,7 +6,12 @@ export type ExportRequesterUserId = Brand<string, "ExportRequesterUserId">;
 
 export const exportRequestTypes = [
   "candidate_report",
+  "candidate_transcript",
   "role_summary",
+  "role_pipeline_csv",
+  "candidate_comparison",
+  "email_deliverability",
+  "compliance_access",
   "audit_export",
   "tenant_export",
   "compliance_export",
@@ -15,11 +20,15 @@ export const exportRequestTypes = [
 export type ExportRequestType = (typeof exportRequestTypes)[number];
 
 export const exportRequestStatuses = [
+  "requested",
   "pending",
+  "queued",
   "processing",
+  "generating",
   "ready",
   "failed",
   "expired",
+  "cancelled",
 ] as const;
 
 export type ExportRequestStatus = (typeof exportRequestStatuses)[number];

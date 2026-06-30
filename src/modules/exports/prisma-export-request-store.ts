@@ -49,8 +49,18 @@ function toPrismaExportRequestType(type: ExportRequestType): PrismaExportRequest
   switch (type) {
     case "candidate_report":
       return PrismaExportRequestType.CANDIDATE_REPORT;
+    case "candidate_transcript":
+      return PrismaExportRequestType.CANDIDATE_TRANSCRIPT;
     case "role_summary":
       return PrismaExportRequestType.ROLE_SUMMARY;
+    case "role_pipeline_csv":
+      return PrismaExportRequestType.ROLE_PIPELINE_CSV;
+    case "candidate_comparison":
+      return PrismaExportRequestType.CANDIDATE_COMPARISON;
+    case "email_deliverability":
+      return PrismaExportRequestType.EMAIL_DELIVERABILITY;
+    case "compliance_access":
+      return PrismaExportRequestType.COMPLIANCE_ACCESS;
     case "audit_export":
       return PrismaExportRequestType.AUDIT_EXPORT;
     case "tenant_export":
@@ -64,8 +74,18 @@ function fromPrismaExportRequestType(type: PrismaExportRequestType): ExportReque
   switch (type) {
     case PrismaExportRequestType.CANDIDATE_REPORT:
       return "candidate_report";
+    case PrismaExportRequestType.CANDIDATE_TRANSCRIPT:
+      return "candidate_transcript";
     case PrismaExportRequestType.ROLE_SUMMARY:
       return "role_summary";
+    case PrismaExportRequestType.ROLE_PIPELINE_CSV:
+      return "role_pipeline_csv";
+    case PrismaExportRequestType.CANDIDATE_COMPARISON:
+      return "candidate_comparison";
+    case PrismaExportRequestType.EMAIL_DELIVERABILITY:
+      return "email_deliverability";
+    case PrismaExportRequestType.COMPLIANCE_ACCESS:
+      return "compliance_access";
     case PrismaExportRequestType.AUDIT_EXPORT:
       return "audit_export";
     case PrismaExportRequestType.TENANT_EXPORT:
@@ -77,15 +97,23 @@ function fromPrismaExportRequestType(type: PrismaExportRequestType): ExportReque
 
 function fromPrismaExportRequestStatus(status: PrismaExportRequestStatus): ExportRequestStatus {
   switch (status) {
+    case PrismaExportRequestStatus.REQUESTED:
+      return "requested";
     case PrismaExportRequestStatus.PENDING:
       return "pending";
+    case PrismaExportRequestStatus.QUEUED:
+      return "queued";
     case PrismaExportRequestStatus.PROCESSING:
       return "processing";
+    case PrismaExportRequestStatus.GENERATING:
+      return "generating";
     case PrismaExportRequestStatus.READY:
       return "ready";
     case PrismaExportRequestStatus.FAILED:
       return "failed";
     case PrismaExportRequestStatus.EXPIRED:
       return "expired";
+    case PrismaExportRequestStatus.CANCELLED:
+      return "cancelled";
   }
 }

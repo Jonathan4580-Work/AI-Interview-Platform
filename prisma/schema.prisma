@@ -139,7 +139,12 @@ enum PrivacyRequestStatus {
 
 enum ExportRequestType {
   CANDIDATE_REPORT
+  CANDIDATE_TRANSCRIPT
   ROLE_SUMMARY
+  ROLE_PIPELINE_CSV
+  CANDIDATE_COMPARISON
+  EMAIL_DELIVERABILITY
+  COMPLIANCE_ACCESS
   AUDIT_EXPORT
   TENANT_EXPORT
   COMPLIANCE_EXPORT
@@ -148,13 +153,77 @@ enum ExportRequestType {
 }
 
 enum ExportRequestStatus {
+  REQUESTED
   PENDING
+  QUEUED
   PROCESSING
+  GENERATING
   READY
   FAILED
   EXPIRED
+  CANCELLED
 
   @@map("export_request_status")
+}
+
+enum AggregateReportType {
+  ROLE_PIPELINE
+  INVITATION_CONVERSION
+  INVITATION_DELIVERY
+  CANDIDATE_PORTAL_ENTRY
+  READINESS_DROPOFF
+  INTERVIEW_COMPLETION
+  INTERVIEW_INTERRUPTION
+  PROCESSING_LATENCY
+  EVALUATION_DISTRIBUTION
+  CONFIDENCE_DISTRIBUTION
+  MONITORING_WARNING_FREQUENCY
+  REVIEWER_WORKLOAD
+  TIME_TO_REVIEW
+  HUMAN_DECISION_DISTRIBUTION
+  EMAIL_DELIVERABILITY
+  COMPLIANCE_ACCESS
+  SUPPORT_ACCESS
+
+  @@map("aggregate_report_type")
+}
+
+enum AggregateReportRunStatus {
+  REQUESTED
+  RUNNING
+  READY
+  FAILED
+  EXPIRED
+  CANCELLED
+
+  @@map("aggregate_report_run_status")
+}
+
+enum ExportArtifactStatus {
+  PENDING
+  READY
+  FAILED
+  EXPIRED
+  DELETED
+
+  @@map("export_artifact_status")
+}
+
+enum ExportAccessEventType {
+  SIGNED_URL_ISSUED
+  DOWNLOADED
+  EXPIRED
+
+  @@map("export_access_event_type")
+}
+
+enum SearchProjectionStatus {
+  ACTIVE
+  STALE
+  REBUILDING
+  FAILED
+
+  @@map("search_projection_status")
 }
 
 enum DepartmentStatus {
@@ -969,6 +1038,11 @@ model Company {
   legalHolds              LegalHold[]
   privacyRequests         PrivacyRequest[]
   exportRequests          ExportRequest[]
+  analyticsEvents         AnalyticsEvent[]
+  aggregateReportRuns     AggregateReportRun[]
+  exportArtifacts         ExportArtifact[]
+  exportAccessLogs        ExportAccessLog[]
+  searchProjectionMetadata SearchProjectionMetadata[]
   departments             Department[]
   teams                   Team[]
   teamMembers             TeamMember[]
@@ -1083,6 +1157,8 @@ model User {
   legalHoldsCreated       LegalHold[]              @relation("LegalHoldCreator")
   legalHoldsReleased      LegalHold[]              @relation("LegalHoldReleaser")
   exportRequests          ExportRequest[]
+  aggregateReportRuns     AggregateReportRun[]
+  exportAccessLogs        ExportAccessLog[]
   teamMemberships         TeamMember[]
   candidateNotes          CandidateNote[]
   candidateMergeEvents    CandidateMergeEvent[]
@@ -1445,6 +1521,7 @@ model LegalHold {
   monitoringEvents MonitoringEvent[]
   transcripts      Transcript[]
   hrReports        HrReport[]
+  exportArtifacts  ExportArtifact[]
 
   @@unique([companyId, id])
   @@index([companyId, status])
@@ -1477,21 +1554,158 @@ model ExportRequest {
   companyId         String              @map("company_id")
   requestedByUserId String              @map("requested_by_user_id")
   type              ExportRequestType
-  status            ExportRequestStatus @default(PENDING)
+  status            ExportRequestStatus @default(REQUESTED)
   resourceType      String?             @map("resource_type")
   resourceId        String?             @map("resource_id")
   storageKey        String?             @map("storage_key")
+  idempotencyKey    String?             @map("idempotency_key")
+  reason            String?
+  workflowId        String?             @map("workflow_id")
   expiresAt         DateTime?           @map("expires_at")
   createdAt         DateTime            @default(now()) @map("created_at")
   updatedAt         DateTime            @updatedAt @map("updated_at")
 
   company         Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   requestedByUser User    @relation(fields: [companyId, requestedByUserId], references: [companyId, id], onDelete: Restrict)
+  artifacts       ExportArtifact[]
+  accessLogs      ExportAccessLog[]
 
   @@unique([companyId, id])
+  @@unique([companyId, idempotencyKey])
   @@index([companyId, status])
   @@index([companyId, requestedByUserId])
+  @@index([companyId, type, createdAt])
   @@map("export_requests")
+}
+
+model AnalyticsEvent {
+  id             String   @id @default(cuid())
+  companyId      String   @map("company_id")
+  eventKey       String   @map("event_key")
+  subjectType    String   @map("subject_type")
+  subjectId      String   @map("subject_id")
+  idempotencyKey String   @map("idempotency_key")
+  schemaVersion  String   @map("schema_version")
+  occurredAt     DateTime @map("occurred_at")
+  propertiesJson Json     @map("properties_json")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@unique([companyId, idempotencyKey])
+  @@index([companyId, eventKey, occurredAt])
+  @@index([companyId, subjectType, subjectId])
+  @@index([companyId, occurredAt])
+  @@map("analytics_events")
+}
+
+model AggregateReportRun {
+  id             String                   @id @default(cuid())
+  companyId      String                   @map("company_id")
+  requestedByUserId String?               @map("requested_by_user_id")
+  reportType     AggregateReportType      @map("report_type")
+  status         AggregateReportRunStatus @default(REQUESTED)
+  idempotencyKey String?                  @map("idempotency_key")
+  dateRangeStart DateTime                 @map("date_range_start")
+  dateRangeEnd   DateTime                 @map("date_range_end")
+  filtersJson    Json                     @map("filters_json")
+  dimensionsJson Json                     @map("dimensions_json")
+  resultJson     Json?                    @map("result_json")
+  rowCount       Int?                     @map("row_count")
+  generatedAt    DateTime?                @map("generated_at")
+  expiresAt      DateTime?                @map("expires_at")
+  failureReason  String?                  @map("failure_reason")
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+
+  company         Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  requestedByUser User?   @relation(fields: [companyId, requestedByUserId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@unique([companyId, idempotencyKey])
+  @@index([companyId, reportType, createdAt])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, dateRangeStart, dateRangeEnd])
+  @@map("aggregate_report_runs")
+}
+
+model ExportArtifact {
+  id              String               @id @default(cuid())
+  companyId       String               @map("company_id")
+  exportRequestId String               @map("export_request_id")
+  status          ExportArtifactStatus @default(PENDING)
+  storageProvider String               @map("storage_provider")
+  bucket          String
+  storageKey      String               @map("storage_key")
+  fileName        String               @map("file_name")
+  contentType     String               @map("content_type")
+  sizeBytes       BigInt?              @map("size_bytes")
+  checksumSha256  String?              @map("checksum_sha256")
+  retentionDeleteAt DateTime           @map("retention_delete_at")
+  expiresAt       DateTime             @map("expires_at")
+  legalHoldId     String?              @map("legal_hold_id")
+  legalHoldActive Boolean              @default(false) @map("legal_hold_active")
+  metadataJson    Json                 @map("metadata_json")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  exportRequest ExportRequest @relation(fields: [companyId, exportRequestId], references: [companyId, id], onDelete: Cascade)
+  legalHold     LegalHold?    @relation(fields: [companyId, legalHoldId], references: [companyId, id], onDelete: Restrict)
+  accessLogs    ExportAccessLog[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, storageKey])
+  @@index([companyId, exportRequestId, status])
+  @@index([companyId, status, expiresAt])
+  @@index([companyId, retentionDeleteAt])
+  @@map("export_artifacts")
+}
+
+model ExportAccessLog {
+  id              String                @id @default(cuid())
+  companyId       String                @map("company_id")
+  exportRequestId String                @map("export_request_id")
+  exportArtifactId String?              @map("export_artifact_id")
+  actorUserId     String?               @map("actor_user_id")
+  eventType       ExportAccessEventType @map("event_type")
+  requestId       String?               @map("request_id")
+  correlationId   String?               @map("correlation_id")
+  issuedAt        DateTime              @default(now()) @map("issued_at")
+  expiresAt       DateTime?             @map("expires_at")
+  metadataJson    Json                  @map("metadata_json")
+
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  exportRequest  ExportRequest  @relation(fields: [companyId, exportRequestId], references: [companyId, id], onDelete: Cascade)
+  exportArtifact ExportArtifact? @relation(fields: [companyId, exportArtifactId], references: [companyId, id], onDelete: Restrict)
+  actorUser      User?          @relation(fields: [companyId, actorUserId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@index([companyId, exportRequestId, issuedAt])
+  @@index([companyId, eventType, issuedAt])
+  @@index([companyId, actorUserId, issuedAt])
+  @@map("export_access_logs")
+}
+
+model SearchProjectionMetadata {
+  id            String                 @id @default(cuid())
+  companyId     String                 @map("company_id")
+  providerKey   String                 @map("provider_key")
+  entityType    String                 @map("entity_type")
+  status        SearchProjectionStatus @default(ACTIVE)
+  lastIndexedAt DateTime?              @map("last_indexed_at")
+  cursorValue   String?                @map("cursor_value")
+  metadataJson  Json                   @map("metadata_json")
+  createdAt     DateTime               @default(now()) @map("created_at")
+  updatedAt     DateTime               @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@unique([companyId, providerKey, entityType])
+  @@index([companyId, status, updatedAt])
+  @@map("search_projection_metadata")
 }
 
 model Department {
