@@ -86,6 +86,18 @@ export const permissionKeys = [
   "reports:comparison_read",
   "exports:create",
   "compliance_reports:read",
+  "webhooks:read",
+  "webhooks:manage",
+  "sso:read",
+  "sso:manage",
+  "scim:read",
+  "scim:manage",
+  "integrations:read",
+  "integrations:manage",
+  "integration_syncs:read",
+  "integration_syncs:manage",
+  "data_residency:read",
+  "data_residency:manage",
 ] as const;
 
 export type PermissionKey = (typeof permissionKeys)[number];

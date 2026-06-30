@@ -1010,6 +1010,131 @@ enum HumanDecisionValue {
   @@map("human_decision_value")
 }
 
+enum OutboxEventStatus {
+  PENDING
+  PROCESSING
+  DELIVERED
+  RETRY_SCHEDULED
+  DEAD_LETTERED
+  CANCELLED
+
+  @@map("outbox_event_status")
+}
+
+enum WebhookSubscriptionStatus {
+  ENABLED
+  DISABLED
+  PENDING_VERIFICATION
+  FAILED
+
+  @@map("webhook_subscription_status")
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SENDING
+  DELIVERED
+  RETRY_SCHEDULED
+  FAILED
+  DEAD_LETTERED
+  CANCELLED
+
+  @@map("webhook_delivery_status")
+}
+
+enum SsoProvider {
+  GOOGLE_OIDC
+  MICROSOFT_ENTRA_OIDC
+  DEVELOPMENT_OIDC
+  SAML_PLACEHOLDER
+
+  @@map("sso_provider")
+}
+
+enum SsoLoginPolicy {
+  LOCAL_ALLOWED
+  SSO_OPTIONAL
+  SSO_REQUIRED
+
+  @@map("sso_login_policy")
+}
+
+enum SsoConfigurationStatus {
+  DRAFT
+  ENABLED
+  DISABLED
+
+  @@map("sso_configuration_status")
+}
+
+enum ScimConfigurationStatus {
+  ENABLED
+  DISABLED
+  ROTATING_TOKEN
+
+  @@map("scim_configuration_status")
+}
+
+enum IntegrationProvider {
+  DEVELOPMENT_ATS
+  GREENHOUSE
+  LEVER
+  WORKDAY
+  ASHBY
+  SMARTRECRUITERS
+  OTHER
+
+  @@map("integration_provider")
+}
+
+enum IntegrationConnectionStatus {
+  DRAFT
+  CONNECTED
+  DISABLED
+  ERROR
+  DISCONNECTED
+
+  @@map("integration_connection_status")
+}
+
+enum IntegrationMappingType {
+  JOB
+  CANDIDATE
+  APPLICATION
+  STAGE
+  USER
+
+  @@map("integration_mapping_type")
+}
+
+enum IntegrationConflictPolicy {
+  APTLY_WINS
+  EXTERNAL_WINS
+  MANUAL_REVIEW
+  FIELD_SPECIFIC
+
+  @@map("integration_conflict_policy")
+}
+
+enum IntegrationSyncJobStatus {
+  QUEUED
+  RUNNING
+  PARTIALLY_FAILED
+  SUCCEEDED
+  FAILED
+  CANCELLED
+
+  @@map("integration_sync_job_status")
+}
+
+enum DataRegionKey {
+  US
+  EU
+  APAC
+
+  @@map("data_region_key")
+}
+
 model Company {
   id            String        @id @default(cuid())
   name          String
@@ -1116,6 +1241,18 @@ model Company {
   hrReportVersions        HrReportVersion[]
   evaluationOverrides     EvaluationOverride[]
   humanDecisionHistory    HumanDecisionHistory[]
+  outboxEvents            OutboxEvent[]
+  webhookSubscriptions    WebhookSubscription[]
+  webhookDeliveries       WebhookDelivery[]
+  webhookDeliveryAttempts WebhookDeliveryAttempt[]
+  ssoConfigurations       SsoConfiguration[]
+  ssoDomainMappings       SsoDomainMapping[]
+  scimConfigurations      ScimConfiguration[]
+  scimExternalMappings    ScimExternalMapping[]
+  integrationConnections  IntegrationConnection[]
+  integrationMappings     IntegrationMapping[]
+  integrationSyncJobs     IntegrationSyncJob[]
+  dataResidencySettings   DataResidencySetting?
 
   @@index([status])
   @@map("companies")
@@ -3769,4 +3906,301 @@ model MediaUploadPart {
   @@unique([companyId, uploadSessionId, partNumber])
   @@index([companyId, mediaObjectId])
   @@map("media_upload_parts")
+}
+
+model OutboxEvent {
+  id              String            @id @default(cuid())
+  companyId       String            @map("company_id")
+  eventKey        String            @map("event_key")
+  schemaVersion   String            @map("schema_version")
+  aggregateType   String            @map("aggregate_type")
+  aggregateId     String            @map("aggregate_id")
+  occurredAt      DateTime          @map("occurred_at")
+  availableAt     DateTime          @map("available_at")
+  status          OutboxEventStatus @default(PENDING)
+  attemptCount    Int               @default(0) @map("attempt_count")
+  nextAttemptAt   DateTime?         @map("next_attempt_at")
+  requestId       String?           @map("request_id")
+  correlationId   String?           @map("correlation_id")
+  payloadJson     Json              @map("payload_json")
+  lastErrorCode   String?           @map("last_error_code")
+  lastErrorMessage String?          @map("last_error_message")
+  deliveredAt     DateTime?         @map("delivered_at")
+  deadLetteredAt  DateTime?         @map("dead_lettered_at")
+  retentionDeleteAt DateTime        @map("retention_delete_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  webhookDeliveries WebhookDelivery[]
+
+  @@unique([companyId, id])
+  @@index([companyId, status, availableAt])
+  @@index([companyId, aggregateType, aggregateId, occurredAt])
+  @@index([companyId, eventKey, occurredAt])
+  @@index([companyId, retentionDeleteAt])
+  @@map("outbox_events")
+}
+
+model WebhookSubscription {
+  id                  String                    @id @default(cuid())
+  companyId           String                    @map("company_id")
+  name                String
+  endpointUrl         String                    @map("endpoint_url")
+  status              WebhookSubscriptionStatus @default(PENDING_VERIFICATION)
+  eventKeys           String[]                  @map("event_keys")
+  signingSecretRef    String                    @map("signing_secret_ref")
+  schemaVersion       String                    @map("schema_version")
+  maxAttempts         Int                       @default(8) @map("max_attempts")
+  createdByUserId     String?                   @map("created_by_user_id")
+  verifiedAt          DateTime?                 @map("verified_at")
+  disabledAt          DateTime?                 @map("disabled_at")
+  createdAt           DateTime                  @default(now()) @map("created_at")
+  updatedAt           DateTime                  @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  deliveries WebhookDelivery[]
+
+  @@unique([companyId, id])
+  @@index([companyId, status])
+  @@map("webhook_subscriptions")
+}
+
+model WebhookDelivery {
+  id              String                @id @default(cuid())
+  companyId       String                @map("company_id")
+  subscriptionId  String                @map("subscription_id")
+  outboxEventId   String                @map("outbox_event_id")
+  eventKey        String                @map("event_key")
+  eventId         String                @map("event_id")
+  status          WebhookDeliveryStatus @default(PENDING)
+  attemptCount    Int                   @default(0) @map("attempt_count")
+  nextAttemptAt   DateTime?             @map("next_attempt_at")
+  lastStatusCode  Int?                  @map("last_status_code")
+  lastErrorCode   String?               @map("last_error_code")
+  deliveredAt     DateTime?             @map("delivered_at")
+  deadLetteredAt  DateTime?             @map("dead_lettered_at")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  subscription WebhookSubscription @relation(fields: [companyId, subscriptionId], references: [companyId, id], onDelete: Cascade)
+  outboxEvent OutboxEvent @relation(fields: [companyId, outboxEventId], references: [companyId, id], onDelete: Cascade)
+  attempts WebhookDeliveryAttempt[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, subscriptionId, outboxEventId])
+  @@index([companyId, status, nextAttemptAt])
+  @@index([companyId, eventKey, createdAt])
+  @@map("webhook_deliveries")
+}
+
+model WebhookDeliveryAttempt {
+  id             String                @id @default(cuid())
+  companyId      String                @map("company_id")
+  deliveryId     String                @map("delivery_id")
+  attemptNumber  Int                   @map("attempt_number")
+  status         WebhookDeliveryStatus
+  statusCode     Int?                  @map("status_code")
+  errorCode      String?               @map("error_code")
+  errorMessage   String?               @map("error_message")
+  durationMs     Int?                  @map("duration_ms")
+  startedAt      DateTime              @map("started_at")
+  completedAt    DateTime?             @map("completed_at")
+  metadataJson   Json                  @map("metadata_json")
+  createdAt      DateTime              @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  delivery WebhookDelivery @relation(fields: [companyId, deliveryId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@unique([companyId, deliveryId, attemptNumber])
+  @@index([companyId, status, startedAt])
+  @@map("webhook_delivery_attempts")
+}
+
+model SsoConfiguration {
+  id                     String                 @id @default(cuid())
+  companyId              String                 @map("company_id")
+  provider               SsoProvider
+  status                 SsoConfigurationStatus @default(DRAFT)
+  loginPolicy            SsoLoginPolicy         @default(LOCAL_ALLOWED) @map("login_policy")
+  issuerUrl              String                 @map("issuer_url")
+  clientId               String                 @map("client_id")
+  clientSecretRef        String                 @map("client_secret_ref")
+  redirectUri            String                 @map("redirect_uri")
+  metadataRef            String?                @map("metadata_ref")
+  jitProvisioningEnabled Boolean                @default(false) @map("jit_provisioning_enabled")
+  breakGlassEnabled      Boolean                @default(true) @map("break_glass_enabled")
+  roleMappingJson        Json                   @map("role_mapping_json")
+  createdAt              DateTime               @default(now()) @map("created_at")
+  updatedAt              DateTime               @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  domains SsoDomainMapping[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, provider])
+  @@index([companyId, status])
+  @@map("sso_configurations")
+}
+
+model SsoDomainMapping {
+  id                 String   @id @default(cuid())
+  companyId          String   @map("company_id")
+  ssoConfigurationId String   @map("sso_configuration_id")
+  domain             String
+  normalizedDomain   String   @map("normalized_domain")
+  verifiedAt         DateTime? @map("verified_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  ssoConfiguration SsoConfiguration @relation(fields: [companyId, ssoConfigurationId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@unique([companyId, normalizedDomain])
+  @@index([companyId, ssoConfigurationId])
+  @@map("sso_domain_mappings")
+}
+
+model ScimConfiguration {
+  id                 String                  @id @default(cuid())
+  companyId          String                  @map("company_id")
+  status             ScimConfigurationStatus @default(DISABLED)
+  tokenHash          String                  @map("token_hash")
+  tokenSecretRef     String?                 @map("token_secret_ref")
+  externalTenantRef  String?                 @map("external_tenant_ref")
+  provisioningEnabled Boolean                @default(false) @map("provisioning_enabled")
+  deprovisionRevokesSessions Boolean         @default(true) @map("deprovision_revokes_sessions")
+  createdAt          DateTime                @default(now()) @map("created_at")
+  updatedAt          DateTime                @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  mappings ScimExternalMapping[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, tokenHash])
+  @@index([companyId, status])
+  @@map("scim_configurations")
+}
+
+model ScimExternalMapping {
+  id                  String   @id @default(cuid())
+  companyId           String   @map("company_id")
+  scimConfigurationId String   @map("scim_configuration_id")
+  resourceType        String   @map("resource_type")
+  externalId          String   @map("external_id")
+  aptlyResourceType   String   @map("aptly_resource_type")
+  aptlyResourceId     String   @map("aptly_resource_id")
+  active              Boolean  @default(true)
+  metadataJson        Json     @map("metadata_json")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  scimConfiguration ScimConfiguration @relation(fields: [companyId, scimConfigurationId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@unique([companyId, scimConfigurationId, resourceType, externalId])
+  @@index([companyId, aptlyResourceType, aptlyResourceId])
+  @@map("scim_external_mappings")
+}
+
+model IntegrationConnection {
+  id                   String                      @id @default(cuid())
+  companyId            String                      @map("company_id")
+  provider             IntegrationProvider
+  name                 String
+  status               IntegrationConnectionStatus @default(DRAFT)
+  secretRef            String?                     @map("secret_ref")
+  externalAccountRef   String?                     @map("external_account_ref")
+  syncMode             String                      @map("sync_mode")
+  importEnabled        Boolean                     @default(false) @map("import_enabled")
+  exportEnabled        Boolean                     @default(false) @map("export_enabled")
+  conflictPolicy       IntegrationConflictPolicy   @default(MANUAL_REVIEW) @map("conflict_policy")
+  lastSuccessfulSyncAt DateTime?                   @map("last_successful_sync_at")
+  errorState           String?                     @map("error_state")
+  rateLimitStateJson   Json                        @map("rate_limit_state_json")
+  mappingConfigJson    Json                        @map("mapping_config_json")
+  createdAt            DateTime                    @default(now()) @map("created_at")
+  updatedAt            DateTime                    @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  mappings IntegrationMapping[]
+  syncJobs IntegrationSyncJob[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, provider, name])
+  @@index([companyId, provider, status])
+  @@map("integration_connections")
+}
+
+model IntegrationMapping {
+  id                    String                 @id @default(cuid())
+  companyId             String                 @map("company_id")
+  integrationConnectionId String               @map("integration_connection_id")
+  mappingType           IntegrationMappingType @map("mapping_type")
+  externalId            String                 @map("external_id")
+  aptlyResourceType     String                 @map("aptly_resource_type")
+  aptlyResourceId       String                 @map("aptly_resource_id")
+  conflictPolicy        IntegrationConflictPolicy @map("conflict_policy")
+  lastSyncedAt          DateTime?              @map("last_synced_at")
+  metadataJson          Json                   @map("metadata_json")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  integrationConnection IntegrationConnection @relation(fields: [companyId, integrationConnectionId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@unique([companyId, integrationConnectionId, mappingType, externalId])
+  @@index([companyId, aptlyResourceType, aptlyResourceId])
+  @@map("integration_mappings")
+}
+
+model IntegrationSyncJob {
+  id                    String                   @id @default(cuid())
+  companyId             String                   @map("company_id")
+  integrationConnectionId String                 @map("integration_connection_id")
+  workflowId            String?                  @map("workflow_id")
+  status                IntegrationSyncJobStatus @default(QUEUED)
+  syncDirection         String                   @map("sync_direction")
+  cursorJson            Json                     @map("cursor_json")
+  checkpointJson        Json                     @map("checkpoint_json")
+  idempotencyKey        String                   @map("idempotency_key")
+  pagesProcessed        Int                      @default(0) @map("pages_processed")
+  recordsProcessed      Int                      @default(0) @map("records_processed")
+  conflictCount         Int                      @default(0) @map("conflict_count")
+  failureCode           String?                  @map("failure_code")
+  failureMessage        String?                  @map("failure_message")
+  startedAt             DateTime?                @map("started_at")
+  completedAt           DateTime?                @map("completed_at")
+  createdAt             DateTime                 @default(now()) @map("created_at")
+  updatedAt             DateTime                 @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  integrationConnection IntegrationConnection @relation(fields: [companyId, integrationConnectionId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@unique([companyId, idempotencyKey])
+  @@index([companyId, integrationConnectionId, status])
+  @@index([companyId, status, createdAt])
+  @@map("integration_sync_jobs")
+}
+
+model DataResidencySetting {
+  id                    String        @id @default(cuid())
+  companyId             String        @unique @map("company_id")
+  primaryRegion         DataRegionKey @map("primary_region")
+  storageRegion         DataRegionKey @map("storage_region")
+  crossRegionTransfersAllowed Boolean @default(false) @map("cross_region_transfers_allowed")
+  residencyPolicyVersion String       @map("residency_policy_version")
+  migrationPlanJson     Json          @map("migration_plan_json")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, primaryRegion])
+  @@map("data_residency_settings")
 }
