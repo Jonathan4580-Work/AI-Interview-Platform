@@ -215,6 +215,13 @@ CREATE INDEX "interview_state_history_company_id_to_status_created_at_idx" ON "i
 -- CreateIndex
 CREATE INDEX "interview_sessions_company_id_processing_workflow_id_idx" ON "interview_sessions"("company_id", "processing_workflow_id");
 
+-- Seed permissions
+INSERT INTO "permissions" ("id", "key", "description", "created_at")
+VALUES
+    ('perm_interviews_read', 'interviews:read', 'Read interview session metadata, turns, activity, recovery, and recording associations.', CURRENT_TIMESTAMP),
+    ('perm_interviews_manage', 'interviews:manage', 'Manage interview sessions and recovery operations.', CURRENT_TIMESTAMP)
+ON CONFLICT ("key") DO NOTHING;
+
 -- AddForeignKey
 ALTER TABLE "interview_question_states" ADD CONSTRAINT "interview_question_states_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "companies"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 

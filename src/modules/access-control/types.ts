@@ -33,6 +33,8 @@ export const permissionKeys = [
   "pipelines:manage",
   "interview_plans:read",
   "interview_plans:manage",
+  "interviews:read",
+  "interviews:manage",
   "candidates:read",
   "candidates:manage",
   "applications:read",

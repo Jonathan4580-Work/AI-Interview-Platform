@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 
 import { AuthenticationError, PasswordPolicyError } from "@/modules/auth";
 import { CandidatePortalError } from "@/modules/candidate-portal";
+import { InterviewDomainError } from "@/modules/interviews";
 import { MediaDomainError } from "@/modules/media";
 import { WorkflowDomainError } from "@/modules/workflows";
 
@@ -110,6 +111,15 @@ export function normalizeApiError(error: unknown): ApiError {
     return new ApiError(409, "conflict", error.message);
   }
   if (error instanceof WorkflowDomainError || error instanceof MediaDomainError) {
+    return new ApiError(409, "conflict", error.message);
+  }
+  if (error instanceof InterviewDomainError) {
+    if (error.code === "not_found") {
+      return new ApiError(404, "not_found", "Interview session was not found.");
+    }
+    if (error.code === "validation_failed") {
+      return new ApiError(422, "validation_failed", error.message);
+    }
     return new ApiError(409, "conflict", error.message);
   }
   if (isPrismaKnownError(error, "P2025")) {
