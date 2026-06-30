@@ -1,4 +1,5 @@
 import { logger } from "@/infra/logging";
+import { closeWorkersGracefully } from "@/infra/queue";
 import { assertEmailQueueRegistered, createEmailWorker } from "@/modules/email/worker";
 
 let shutdownRequested = false;
@@ -21,6 +22,6 @@ async function keepWorkerAlive(): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 1_000));
   }
 
-  await Promise.all(workers.map((worker) => worker.close()));
+  await closeWorkersGracefully(workers);
   logger.info("Worker process stopped.");
 }

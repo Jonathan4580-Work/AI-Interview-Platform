@@ -1,5 +1,6 @@
 export { PrismaWorkflowRepository } from "./prisma-workflow-repository";
 export { WorkflowDomainError, WorkflowService } from "./service";
+export { WorkflowWorkerError, createWorkflowOrchestrationWorker } from "./worker";
 export type {
   ProcessingWorkflowId,
   ProcessingWorkflowRecord,
@@ -16,3 +17,8 @@ export type {
   WorkflowStepDefinition,
   WorkflowStepStatus,
 } from "./types";
+export type {
+  WorkflowStepHandler,
+  WorkflowStepHandlerRegistry,
+  WorkflowStepHandlerResult,
+} from "./worker";
