@@ -1,1 +1,3 @@
-// Public boundary placeholder for the Interview Module.
+export * from "./prisma-interview-repository";
+export * from "./service";
+export type * from "./types";

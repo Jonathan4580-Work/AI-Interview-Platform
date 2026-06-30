@@ -362,12 +362,89 @@ enum InvitationStatus {
 enum InterviewSessionStatus {
   NOT_STARTED
   READY_CHECK
+  READY
   IN_PROGRESS
+  INTERRUPTED
+  UPLOAD_RECOVERY
   COMPLETED
+  PROCESSING
   CANCELLED
   EXPIRED
+  WITHDRAWN
 
   @@map("interview_session_status")
+}
+
+enum InterviewQuestionKind {
+  OPENING
+  MAIN
+  CLOSING
+  FOLLOW_UP
+
+  @@map("interview_question_kind")
+}
+
+enum InterviewQuestionStateStatus {
+  PENDING
+  ACTIVE
+  ANSWERED
+  SKIPPED
+
+  @@map("interview_question_state_status")
+}
+
+enum InterviewTurnSpeaker {
+  INTERVIEWER
+  CANDIDATE
+  SYSTEM
+
+  @@map("interview_turn_speaker")
+}
+
+enum InterviewTurnStatus {
+  STARTED
+  COMPLETED
+  RETRY_REQUESTED
+  SUPERSEDED
+  CANCELLED
+
+  @@map("interview_turn_status")
+}
+
+enum InterviewTurnMediaStatus {
+  PENDING
+  UPLOADED
+  VERIFIED
+  FAILED
+
+  @@map("interview_turn_media_status")
+}
+
+enum InterviewActivityType {
+  HEARTBEAT
+  CONNECTION_LOST
+  CONNECTION_RESTORED
+  INTERRUPTED
+  RESUMED
+  UPLOAD_RECOVERY_STARTED
+
+  @@map("interview_activity_type")
+}
+
+enum InterviewRecoveryType {
+  SESSION
+  INTERRUPTION
+  UPLOAD
+
+  @@map("interview_recovery_type")
+}
+
+enum InterviewRecoveryStatus {
+  OPEN
+  RESOLVED
+  EXPIRED
+
+  @@map("interview_recovery_status")
 }
 
 enum CandidateSessionStatus {
@@ -787,6 +864,12 @@ model Company {
   mediaObjects            MediaObject[]
   mediaUploadSessions     MediaUploadSession[]
   mediaUploadParts        MediaUploadPart[]
+  interviewQuestionStates InterviewQuestionState[]
+  interviewTurns          InterviewTurn[]
+  interviewTurnMedia      InterviewTurnMedia[]
+  interviewActivityEvents InterviewActivityEvent[]
+  interviewRecoveryCheckpoints InterviewRecoveryCheckpoint[]
+  interviewStateHistory   InterviewStateHistory[]
 
   @@index([status])
   @@map("companies")
@@ -1714,7 +1797,14 @@ model InterviewSession {
   interviewPlanVersionId String?                @map("interview_plan_version_id")
   status                 InterviewSessionStatus @default(NOT_STARTED)
   startedAt              DateTime?              @map("started_at")
+  interruptedAt          DateTime?              @map("interrupted_at")
   completedAt            DateTime?              @map("completed_at")
+  lastActivityAt         DateTime?              @map("last_activity_at")
+  durationSeconds        Int?                   @map("duration_seconds")
+  currentQuestionSequence Int?                  @map("current_question_sequence")
+  resumeAllowedUntil     DateTime?              @map("resume_allowed_until")
+  processingWorkflowId   String?                @map("processing_workflow_id")
+  planSnapshotJson       Json?                  @map("plan_snapshot_json")
   expiresAt              DateTime               @map("expires_at")
   metadataJson           Json                   @map("metadata_json")
   createdAt              DateTime               @default(now()) @map("created_at")
@@ -1730,14 +1820,167 @@ model InterviewSession {
   readinessChecks      ReadinessCheck[]
   identityVerifications IdentityVerification[]
   webcamSnapshots      WebcamSnapshot[]
+  interviewQuestionStates InterviewQuestionState[]
+  interviewTurns         InterviewTurn[]
+  interviewTurnMedia     InterviewTurnMedia[]
+  activityEvents         InterviewActivityEvent[]
+  recoveryCheckpoints    InterviewRecoveryCheckpoint[]
+  stateHistory           InterviewStateHistory[]
 
   @@unique([companyId, id])
   @@unique([companyId, invitationId])
   @@index([companyId, candidateId])
   @@index([companyId, applicationId])
+  @@index([companyId, processingWorkflowId])
   @@index([companyId, status])
   @@index([expiresAt])
   @@map("interview_sessions")
+}
+
+model InterviewQuestionState {
+  id                 String                       @id @default(cuid())
+  companyId          String                       @map("company_id")
+  interviewSessionId String                       @map("interview_session_id")
+  sequence           Int
+  questionKey        String                       @map("question_key")
+  kind               InterviewQuestionKind
+  prompt             String
+  required           Boolean                      @default(true)
+  status             InterviewQuestionStateStatus @default(PENDING)
+  startedAt          DateTime?                    @map("started_at")
+  completedAt        DateTime?                    @map("completed_at")
+  metadataJson       Json                         @map("metadata_json")
+  createdAt          DateTime                     @default(now()) @map("created_at")
+  updatedAt          DateTime                     @updatedAt @map("updated_at")
+
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interviewSession InterviewSession @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  turns            InterviewTurn[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, interviewSessionId, sequence])
+  @@unique([companyId, interviewSessionId, questionKey])
+  @@index([companyId, interviewSessionId, status])
+  @@map("interview_question_states")
+}
+
+model InterviewTurn {
+  id                 String              @id @default(cuid())
+  companyId          String              @map("company_id")
+  interviewSessionId String              @map("interview_session_id")
+  questionStateId    String              @map("question_state_id")
+  sequence           Int
+  attemptNumber      Int                 @default(1) @map("attempt_number")
+  speaker            InterviewTurnSpeaker
+  status             InterviewTurnStatus @default(STARTED)
+  content            String?
+  idempotencyKey     String              @map("idempotency_key")
+  startedAt          DateTime            @map("started_at")
+  endedAt            DateTime?           @map("ended_at")
+  confirmedAt        DateTime?           @map("confirmed_at")
+  metadataJson       Json                @map("metadata_json")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  company          Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interviewSession InterviewSession       @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  questionState    InterviewQuestionState @relation(fields: [companyId, questionStateId], references: [companyId, id], onDelete: Restrict)
+  media            InterviewTurnMedia[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, idempotencyKey])
+  @@unique([companyId, interviewSessionId, sequence, attemptNumber])
+  @@index([companyId, interviewSessionId, status])
+  @@index([companyId, questionStateId])
+  @@map("interview_turns")
+}
+
+model InterviewTurnMedia {
+  id                 String                   @id @default(cuid())
+  companyId          String                   @map("company_id")
+  interviewSessionId String                   @map("interview_session_id")
+  interviewTurnId    String                   @map("interview_turn_id")
+  mediaObjectId      String                   @map("media_object_id")
+  chunkSequence      Int                      @map("chunk_sequence")
+  durationMs         Int?                     @map("duration_ms")
+  status             InterviewTurnMediaStatus @default(PENDING)
+  metadataJson       Json                     @map("metadata_json")
+  createdAt          DateTime                 @default(now()) @map("created_at")
+  updatedAt          DateTime                 @updatedAt @map("updated_at")
+
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interviewSession InterviewSession @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  interviewTurn    InterviewTurn    @relation(fields: [companyId, interviewTurnId], references: [companyId, id], onDelete: Cascade)
+  mediaObject      MediaObject      @relation(fields: [companyId, mediaObjectId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@unique([companyId, interviewTurnId, chunkSequence])
+  @@unique([companyId, interviewTurnId, mediaObjectId])
+  @@index([companyId, interviewSessionId, status])
+  @@index([companyId, mediaObjectId])
+  @@map("interview_turn_media")
+}
+
+model InterviewActivityEvent {
+  id                 String                @id @default(cuid())
+  companyId          String                @map("company_id")
+  interviewSessionId String                @map("interview_session_id")
+  candidateSessionId String?               @map("candidate_session_id")
+  type               InterviewActivityType
+  occurredAt         DateTime              @default(now()) @map("occurred_at")
+  metadataJson       Json                  @map("metadata_json")
+  createdAt          DateTime              @default(now()) @map("created_at")
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interviewSession InterviewSession  @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  candidateSession CandidateSession? @relation(fields: [companyId, candidateSessionId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@index([companyId, interviewSessionId, occurredAt])
+  @@index([companyId, type, occurredAt])
+  @@map("interview_activity_events")
+}
+
+model InterviewRecoveryCheckpoint {
+  id                 String                  @id @default(cuid())
+  companyId          String                  @map("company_id")
+  interviewSessionId String                  @map("interview_session_id")
+  candidateSessionId String?                 @map("candidate_session_id")
+  type               InterviewRecoveryType
+  status             InterviewRecoveryStatus @default(OPEN)
+  checkpointJson     Json                    @map("checkpoint_json")
+  expiresAt          DateTime                @map("expires_at")
+  resolvedAt         DateTime?               @map("resolved_at")
+  createdAt          DateTime                @default(now()) @map("created_at")
+  updatedAt          DateTime                @updatedAt @map("updated_at")
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interviewSession InterviewSession  @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  candidateSession CandidateSession? @relation(fields: [companyId, candidateSessionId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@index([companyId, interviewSessionId, status])
+  @@index([companyId, status, expiresAt])
+  @@map("interview_recovery_checkpoints")
+}
+
+model InterviewStateHistory {
+  id                 String                  @id @default(cuid())
+  companyId          String                  @map("company_id")
+  interviewSessionId String                  @map("interview_session_id")
+  fromStatus         InterviewSessionStatus? @map("from_status")
+  toStatus           InterviewSessionStatus  @map("to_status")
+  reason             String?
+  metadataJson       Json                    @map("metadata_json")
+  createdAt          DateTime                @default(now()) @map("created_at")
+
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interviewSession InterviewSession @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@index([companyId, interviewSessionId, createdAt])
+  @@index([companyId, toStatus, createdAt])
+  @@map("interview_state_history")
 }
 
 model CandidateSession {
@@ -1772,6 +2015,8 @@ model CandidateSession {
   accommodationRequests AccommodationRequest[]
   supportRequests  CandidateSupportRequest[]
   withdrawals      CandidateWithdrawal[]
+  interviewActivityEvents InterviewActivityEvent[]
+  interviewRecoveryCheckpoints InterviewRecoveryCheckpoint[]
 
   @@unique([companyId, id])
   @@unique([companyId, activeLockKey])
@@ -2427,6 +2672,7 @@ model MediaObject {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   uploadSessions MediaUploadSession[]
+  interviewTurnMedia InterviewTurnMedia[]
 
   @@unique([companyId, id])
   @@unique([companyId, storageKey])
