@@ -124,6 +124,7 @@ describe("monitoring warning service", () => {
     expect(event).toBeDefined();
     const reviewed = await service.reviewEvent({
       context: internalContext,
+      interviewSessionId: "interview_1" as InterviewSessionId,
       eventId: event.id,
       reviewState: "acknowledged",
       reason: "Reviewed with the recording context.",

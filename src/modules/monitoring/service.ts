@@ -303,15 +303,26 @@ export class MonitoringService {
     });
   }
 
-  public getSummary(
+  public async getSummary(
     context: MonitoringMutationContext,
     interviewSessionId: InterviewSessionId,
   ): Promise<MonitoringSummary> {
+    await this.auditWriter.record({
+      companyId: context.tenant.companyId,
+      actor: context.actor,
+      request: context.request,
+      supportAccessSessionId: context.supportAccessSessionId,
+      action: "monitoring.summary_accessed",
+      resourceType: "interview_session",
+      resourceId: interviewSessionId,
+      riskLevel: "medium",
+    });
     return this.repository.summarize({ tenant: context.tenant, interviewSessionId });
   }
 
   public async reviewEvent(input: {
     readonly context: MonitoringMutationContext;
+    readonly interviewSessionId: InterviewSessionId;
     readonly eventId: MonitoringEventRecord["id"];
     readonly reviewState: Exclude<MonitoringReviewState, "unreviewed">;
     readonly reason: string;
@@ -319,6 +330,7 @@ export class MonitoringService {
     const reason = sanitizeReason(input.reason);
     const reviewed = await this.repository.reviewEvent({
       tenant: input.context.tenant,
+      interviewSessionId: input.interviewSessionId,
       eventId: input.eventId,
       reviewState: input.reviewState,
       reviewedByUserId: input.context.actor.type === "user" ? input.context.actor.id : null,

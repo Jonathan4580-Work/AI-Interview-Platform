@@ -208,6 +208,7 @@ export interface MonitoringRepository {
 
   reviewEvent(input: {
     readonly tenant: TenantContext;
+    readonly interviewSessionId: InterviewSessionId;
     readonly eventId: MonitoringEventId;
     readonly reviewState: Exclude<MonitoringReviewState, "unreviewed">;
     readonly reviewedByUserId: string | null;

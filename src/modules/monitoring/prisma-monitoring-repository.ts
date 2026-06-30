@@ -216,8 +216,12 @@ export class PrismaMonitoringRepository implements MonitoringRepository {
   public async reviewEvent(
     input: Parameters<MonitoringRepository["reviewEvent"]>[0],
   ): ReturnType<MonitoringRepository["reviewEvent"]> {
-    const existing = await prisma.monitoringEvent.findUnique({
-      where: { companyId_id: { companyId: input.tenant.companyId, id: input.eventId } },
+    const existing = await prisma.monitoringEvent.findFirst({
+      where: {
+        companyId: input.tenant.companyId,
+        interviewSessionId: input.interviewSessionId,
+        id: input.eventId,
+      },
     });
     if (existing === null) return null;
     const updated = await prisma.monitoringEvent.update({
