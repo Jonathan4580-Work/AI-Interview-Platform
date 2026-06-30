@@ -316,6 +316,29 @@ enum CandidateNoteStatus {
   @@map("candidate_note_status")
 }
 
+enum InvitationStatus {
+  DRAFT
+  QUEUED
+  SENT
+  OPENED
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+
+  @@map("invitation_status")
+}
+
+enum InterviewSessionStatus {
+  NOT_STARTED
+  READY_CHECK
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  EXPIRED
+
+  @@map("interview_session_status")
+}
+
 model Company {
   id            String        @id @default(cuid())
   name          String
@@ -356,6 +379,8 @@ model Company {
   candidateTagAssignments CandidateTagAssignment[]
   candidateNotes          CandidateNote[]
   candidateMergeEvents    CandidateMergeEvent[]
+  candidateInvitations    CandidateInvitation[]
+  interviewSessions       InterviewSession[]
 
   @@index([status])
   @@map("companies")
@@ -836,6 +861,7 @@ model Job {
   pipeline     HiringPipeline         @relation(fields: [companyId, pipelineId], references: [companyId, id], onDelete: Restrict)
   plans        InterviewPlan[]
   applications CandidateApplication[]
+  invitations  CandidateInvitation[]
 
   @@unique([companyId, id])
   @@unique([companyId, slug])
@@ -911,8 +937,9 @@ model InterviewPlanVersion {
   createdAt             DateTime                   @default(now()) @map("created_at")
   updatedAt             DateTime                   @updatedAt @map("updated_at")
 
-  company       Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  interviewPlan InterviewPlan @relation(fields: [companyId, interviewPlanId], references: [companyId, id], onDelete: Cascade)
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interviewPlan     InterviewPlan      @relation(fields: [companyId, interviewPlanId], references: [companyId, id], onDelete: Cascade)
+  interviewSessions InterviewSession[]
 
   @@unique([companyId, id])
   @@unique([companyId, interviewPlanId, versionNumber])
@@ -943,6 +970,8 @@ model Candidate {
   documents         CandidateDocument[]
   tagAssignments    CandidateTagAssignment[]
   notes             CandidateNote[]
+  invitations       CandidateInvitation[]
+  interviewSessions InterviewSession[]
   sourceMergeEvents CandidateMergeEvent[]    @relation("CandidateMergeSource")
   targetMergeEvents CandidateMergeEvent[]    @relation("CandidateMergeTargetEvent")
   privacyRequests   PrivacyRequest[]
@@ -969,10 +998,12 @@ model CandidateApplication {
   updatedAt      DateTime          @updatedAt @map("updated_at")
   deletedAt      DateTime?         @map("deleted_at")
 
-  company      Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  candidate    Candidate      @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
-  job          Job            @relation(fields: [companyId, jobId], references: [companyId, id], onDelete: Restrict)
-  currentStage PipelineStage? @relation(fields: [companyId, currentStageId], references: [companyId, id], onDelete: Restrict)
+  company           Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate         Candidate             @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  job               Job                   @relation(fields: [companyId, jobId], references: [companyId, id], onDelete: Restrict)
+  currentStage      PipelineStage?        @relation(fields: [companyId, currentStageId], references: [companyId, id], onDelete: Restrict)
+  invitations       CandidateInvitation[]
+  interviewSessions InterviewSession[]
 
   @@unique([companyId, id])
   @@unique([companyId, candidateId, jobId])
@@ -1084,4 +1115,65 @@ model CandidateMergeEvent {
   @@index([companyId, sourceCandidateId])
   @@index([companyId, targetCandidateId])
   @@map("candidate_merge_events")
+}
+
+model CandidateInvitation {
+  id            String           @id @default(cuid())
+  companyId     String           @map("company_id")
+  candidateId   String           @map("candidate_id")
+  applicationId String?          @map("application_id")
+  jobId         String           @map("job_id")
+  tokenHash     String           @unique @map("token_hash")
+  email         String
+  status        InvitationStatus @default(DRAFT)
+  expiresAt     DateTime         @map("expires_at")
+  sentAt        DateTime?        @map("sent_at")
+  openedAt      DateTime?        @map("opened_at")
+  acceptedAt    DateTime?        @map("accepted_at")
+  cancelledAt   DateTime?        @map("cancelled_at")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  company     Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate   Candidate             @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  application CandidateApplication? @relation(fields: [companyId, applicationId], references: [companyId, id], onDelete: Cascade)
+  job         Job                   @relation(fields: [companyId, jobId], references: [companyId, id], onDelete: Restrict)
+  sessions    InterviewSession[]
+
+  @@unique([companyId, id])
+  @@index([companyId, candidateId])
+  @@index([companyId, applicationId])
+  @@index([companyId, status])
+  @@index([expiresAt])
+  @@map("candidate_invitations")
+}
+
+model InterviewSession {
+  id                     String                 @id @default(cuid())
+  companyId              String                 @map("company_id")
+  candidateId            String                 @map("candidate_id")
+  invitationId           String                 @map("invitation_id")
+  applicationId          String?                @map("application_id")
+  interviewPlanVersionId String?                @map("interview_plan_version_id")
+  status                 InterviewSessionStatus @default(NOT_STARTED)
+  startedAt              DateTime?              @map("started_at")
+  completedAt            DateTime?              @map("completed_at")
+  expiresAt              DateTime               @map("expires_at")
+  metadataJson           Json                   @map("metadata_json")
+  createdAt              DateTime               @default(now()) @map("created_at")
+  updatedAt              DateTime               @updatedAt @map("updated_at")
+
+  company              Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate            Candidate             @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  invitation           CandidateInvitation   @relation(fields: [companyId, invitationId], references: [companyId, id], onDelete: Cascade)
+  application          CandidateApplication? @relation(fields: [companyId, applicationId], references: [companyId, id], onDelete: Cascade)
+  interviewPlanVersion InterviewPlanVersion? @relation(fields: [companyId, interviewPlanVersionId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@unique([companyId, invitationId])
+  @@index([companyId, candidateId])
+  @@index([companyId, applicationId])
+  @@index([companyId, status])
+  @@index([expiresAt])
+  @@map("interview_sessions")
 }
