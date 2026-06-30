@@ -3,9 +3,11 @@ import { ZodError } from "zod";
 
 import { AuthenticationError, PasswordPolicyError } from "@/modules/auth";
 import { CandidatePortalError } from "@/modules/candidate-portal";
+import { ExportRequestError } from "@/modules/exports";
 import { InterviewDomainError } from "@/modules/interviews";
 import { MediaDomainError } from "@/modules/media";
 import { MonitoringDomainError } from "@/modules/monitoring";
+import { AggregateReportDomainError, CandidateComparisonDomainError } from "@/modules/reporting";
 import { WorkflowDomainError } from "@/modules/workflows";
 
 import { ApiError, validationFailed } from "./errors";
@@ -134,6 +136,13 @@ export function normalizeApiError(error: unknown): ApiError {
       return new ApiError(403, "forbidden", "Monitoring is not available for this session.");
     }
     return new ApiError(409, "conflict", error.message);
+  }
+  if (
+    error instanceof AggregateReportDomainError ||
+    error instanceof CandidateComparisonDomainError ||
+    error instanceof ExportRequestError
+  ) {
+    return new ApiError(422, "validation_failed", error.message);
   }
   if (isPrismaKnownError(error, "P2025")) {
     return new ApiError(404, "not_found", "Resource was not found.");
