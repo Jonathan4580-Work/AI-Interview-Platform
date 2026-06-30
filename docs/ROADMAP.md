@@ -19,7 +19,7 @@ No feature phase may begin if its prerequisite security, tenancy, workflow, or c
 
 ## Phase 0: Architecture Approval
 
-Status: current phase.
+Status: complete.
 
 Deliverables:
 
@@ -42,6 +42,8 @@ Exit criteria:
 - Initial implementation scope selected.
 
 ## Phase 1: Foundation
+
+Status: complete.
 
 Goal:
 
@@ -85,6 +87,8 @@ Exit criteria:
 
 ## Phase 2: Enterprise Control Plane
 
+Status: complete.
+
 Goal:
 
 Build enterprise controls before sensitive candidate workflows exist.
@@ -113,6 +117,8 @@ Exit criteria:
 
 ## Phase 3: Company and HR Workspace
 
+Status: complete.
+
 Goal:
 
 Enable company setup and HR operational workflows.
@@ -140,6 +146,15 @@ Exit criteria:
 - Audit events are recorded for sensitive actions.
 
 ## Phase 4: Email System
+
+Status: ready to implement.
+
+Completed approved sub-phases before this original Phase 4:
+
+- Phase 4A: Application Layer and Authentication.
+- Phase 4B: Design System and Application Shell.
+
+These completed sub-phases do not change the dependency order below. Phase 4 Email System remains the prerequisite for Phase 5 Candidate Portal and Readiness.
 
 Goal:
 
