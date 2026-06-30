@@ -3,7 +3,12 @@ import { z } from "zod";
 import { prisma } from "@/infra/database";
 import { apiSuccess, parseJsonBody, withApiHandler } from "@/server/api";
 
-import { parseIdParam, requireTenantWithPermission, slugifyApiValue } from "../../../_shared";
+import {
+  parseIdParam,
+  requireTenantMutationPermission,
+  requireTenantWithPermission,
+  slugifyApiValue,
+} from "../../../_shared";
 
 import type { NextRequest } from "next/server";
 
@@ -37,7 +42,7 @@ export async function POST(
   context: { readonly params: Promise<{ readonly pipelineId: string }> },
 ) {
   return withApiHandler(async (innerRequest, { requestContext }) => {
-    const tenant = await requireTenantWithPermission(innerRequest, "pipelines:manage");
+    const tenant = await requireTenantMutationPermission(innerRequest, "pipelines:manage");
     const { pipelineId } = await context.params;
     const body = await parseJsonBody(innerRequest, stageSchema);
     const stage = await prisma.pipelineStage.create({

@@ -6,6 +6,7 @@ import { apiSuccess, notFound, parseJsonBody, withApiHandler } from "@/server/ap
 import {
   optionalTextSchema,
   parseIdParam,
+  requireTenantMutationPermission,
   requireTenantWithPermission,
   slugifyApiValue,
 } from "../../_shared";
@@ -40,7 +41,7 @@ export async function PUT(
   context: { readonly params: Promise<{ readonly teamId: string }> },
 ) {
   return withApiHandler(async (innerRequest, { requestContext }) => {
-    const tenant = await requireTenantWithPermission(innerRequest, "teams:manage");
+    const tenant = await requireTenantMutationPermission(innerRequest, "teams:manage");
     const { teamId } = await context.params;
     const body = await parseJsonBody(innerRequest, updateTeamSchema);
     const team = await prisma.team.update({
@@ -62,7 +63,7 @@ export async function DELETE(
   context: { readonly params: Promise<{ readonly teamId: string }> },
 ) {
   return withApiHandler(async (innerRequest, { requestContext }) => {
-    const tenant = await requireTenantWithPermission(innerRequest, "teams:manage");
+    const tenant = await requireTenantMutationPermission(innerRequest, "teams:manage");
     const { teamId } = await context.params;
     const team = await prisma.team.update({
       where: { companyId_id: { companyId: tenant.companyId, id: parseIdParam(teamId) } },

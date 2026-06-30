@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import { AuthenticationError, PasswordPolicyError } from "@/modules/auth";
 import {
   apiSuccess,
   applySecurityHeaders,
   assertCsrf,
+  authCookieNames,
   csrfCookieOptions,
   enforceRateLimit,
   MemoryRateLimiter,
+  normalizeApiError,
   parseWithSchema,
   rateLimitKey,
   secureCookieOptions,
@@ -81,7 +84,7 @@ describe("API foundation", () => {
     const request = new NextRequest("http://localhost/api/internal/v1/test", {
       method: "POST",
       headers: {
-        cookie: "__Host-aptly_csrf=token_1",
+        cookie: `${authCookieNames.csrf}=token_1`,
         "x-csrf-token": "token_1",
       },
     });
@@ -107,6 +110,19 @@ describe("API foundation", () => {
       path: "/",
       maxAge: 60,
     });
+    expect(authCookieNames.session.startsWith("__Host-")).toBe(
+      process.env.NODE_ENV === "production",
+    );
+  });
+
+  it("maps auth and password policy errors without leaking internals", () => {
+    const authError = normalizeApiError(new AuthenticationError("Session has expired."));
+    const passwordError = normalizeApiError(new PasswordPolicyError("Password is too weak."));
+
+    expect(authError.status).toBe(401);
+    expect(authError.message).toBe("Authentication failed.");
+    expect(passwordError.status).toBe(422);
+    expect(passwordError.message).toBe("Password is too weak.");
   });
 
   it("enforces rate limit rules by key", async () => {

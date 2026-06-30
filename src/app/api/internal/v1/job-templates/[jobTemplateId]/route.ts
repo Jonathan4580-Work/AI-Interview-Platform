@@ -3,7 +3,12 @@ import { z } from "zod";
 import { prisma } from "@/infra/database";
 import { apiSuccess, notFound, parseJsonBody, withApiHandler } from "@/server/api";
 
-import { parseIdParam, requireTenantWithPermission, slugifyApiValue } from "../../_shared";
+import {
+  parseIdParam,
+  requireTenantMutationPermission,
+  requireTenantWithPermission,
+  slugifyApiValue,
+} from "../../_shared";
 
 import type { NextRequest } from "next/server";
 
@@ -52,7 +57,7 @@ export async function PUT(
   context: { readonly params: Promise<{ readonly jobTemplateId: string }> },
 ) {
   return withApiHandler(async (innerRequest, { requestContext }) => {
-    const tenant = await requireTenantWithPermission(innerRequest, "job_templates:manage");
+    const tenant = await requireTenantMutationPermission(innerRequest, "job_templates:manage");
     const { jobTemplateId } = await context.params;
     const body = await parseJsonBody(innerRequest, updateTemplateSchema);
     const jobTemplate = await prisma.jobTemplate.update({
@@ -78,7 +83,7 @@ export async function DELETE(
   context: { readonly params: Promise<{ readonly jobTemplateId: string }> },
 ) {
   return withApiHandler(async (innerRequest, { requestContext }) => {
-    const tenant = await requireTenantWithPermission(innerRequest, "job_templates:manage");
+    const tenant = await requireTenantMutationPermission(innerRequest, "job_templates:manage");
     const { jobTemplateId } = await context.params;
     const jobTemplate = await prisma.jobTemplate.update({
       where: { companyId_id: { companyId: tenant.companyId, id: parseIdParam(jobTemplateId) } },

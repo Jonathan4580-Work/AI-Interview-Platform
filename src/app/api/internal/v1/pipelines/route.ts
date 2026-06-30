@@ -6,6 +6,7 @@ import { apiSuccess, parseJsonBody, parseSearchParams, withApiHandler } from "@/
 import {
   listQuerySchema,
   optionalTextSchema,
+  requireTenantMutationPermission,
   requireTenantWithPermission,
   slugifyApiValue,
 } from "../_shared";
@@ -34,7 +35,7 @@ export const GET = withApiHandler(async (request, { requestContext }) => {
 });
 
 export const POST = withApiHandler(async (request, { requestContext }) => {
-  const tenant = await requireTenantWithPermission(request, "pipelines:manage");
+  const tenant = await requireTenantMutationPermission(request, "pipelines:manage");
   const body = await parseJsonBody(request, pipelineSchema);
   const pipeline = await prisma.hiringPipeline.create({
     data: {

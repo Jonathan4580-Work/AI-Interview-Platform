@@ -190,10 +190,17 @@ export class AuthService {
       usedAt: now,
     });
 
-    return this.repository.updatePassword({
+    const credential = await this.repository.updatePassword({
       subject: token.subject,
       passwordHash: hashPassword(input.newPassword),
     });
+    await this.repository.revokeSubjectSessions({
+      subject: token.subject,
+      revokedAt: now,
+      status: "revoked",
+    });
+
+    return credential;
   }
 
   public async createEmailVerification(input: {

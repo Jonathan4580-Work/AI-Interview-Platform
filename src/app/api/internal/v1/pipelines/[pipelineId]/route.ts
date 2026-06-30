@@ -6,6 +6,7 @@ import { apiSuccess, notFound, parseJsonBody, withApiHandler } from "@/server/ap
 import {
   optionalTextSchema,
   parseIdParam,
+  requireTenantMutationPermission,
   requireTenantWithPermission,
   slugifyApiValue,
 } from "../../_shared";
@@ -39,7 +40,7 @@ export async function PUT(
   context: { readonly params: Promise<{ readonly pipelineId: string }> },
 ) {
   return withApiHandler(async (innerRequest, { requestContext }) => {
-    const tenant = await requireTenantWithPermission(innerRequest, "pipelines:manage");
+    const tenant = await requireTenantMutationPermission(innerRequest, "pipelines:manage");
     const { pipelineId } = await context.params;
     const body = await parseJsonBody(innerRequest, updatePipelineSchema);
     const pipeline = await prisma.hiringPipeline.update({
@@ -59,7 +60,7 @@ export async function DELETE(
   context: { readonly params: Promise<{ readonly pipelineId: string }> },
 ) {
   return withApiHandler(async (innerRequest, { requestContext }) => {
-    const tenant = await requireTenantWithPermission(innerRequest, "pipelines:manage");
+    const tenant = await requireTenantMutationPermission(innerRequest, "pipelines:manage");
     const { pipelineId } = await context.params;
     const pipeline = await prisma.hiringPipeline.update({
       where: { companyId_id: { companyId: tenant.companyId, id: parseIdParam(pipelineId) } },

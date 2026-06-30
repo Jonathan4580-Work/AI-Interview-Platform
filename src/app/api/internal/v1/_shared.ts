@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { forbidden } from "@/server/api";
+import { assertCsrf, forbidden } from "@/server/api";
 import {
   getAuthenticatedContext,
   requirePermissionForContext,
@@ -38,6 +38,14 @@ export async function requireTenantWithPermission(
   return requireTenantContext(auth, request);
 }
 
+export async function requireTenantMutationPermission(
+  request: NextRequest,
+  permission: PermissionKey,
+): Promise<TenantContext> {
+  assertCsrf(request);
+  return requireTenantWithPermission(request, permission);
+}
+
 export async function requirePlatformPermission(
   request: NextRequest,
   permission: PermissionKey,
@@ -47,6 +55,14 @@ export async function requirePlatformPermission(
     throw forbidden("Platform administrator access is required.");
   }
   requirePermissionForContext(auth, permission);
+}
+
+export async function requirePlatformMutationPermission(
+  request: NextRequest,
+  permission: PermissionKey,
+): Promise<void> {
+  assertCsrf(request);
+  await requirePlatformPermission(request, permission);
 }
 
 export function slugifyApiValue(value: string): string {

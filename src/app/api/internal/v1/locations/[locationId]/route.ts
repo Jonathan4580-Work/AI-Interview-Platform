@@ -4,7 +4,12 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/infra/database";
 import { apiSuccess, notFound, parseJsonBody, withApiHandler } from "@/server/api";
 
-import { parseIdParam, requireTenantWithPermission, slugifyApiValue } from "../../_shared";
+import {
+  parseIdParam,
+  requireTenantMutationPermission,
+  requireTenantWithPermission,
+  slugifyApiValue,
+} from "../../_shared";
 
 import type { NextRequest } from "next/server";
 
@@ -37,7 +42,7 @@ export async function PUT(
   context: { readonly params: Promise<{ readonly locationId: string }> },
 ) {
   return withApiHandler(async (innerRequest, { requestContext }) => {
-    const tenant = await requireTenantWithPermission(innerRequest, "locations:manage");
+    const tenant = await requireTenantMutationPermission(innerRequest, "locations:manage");
     const { locationId } = await context.params;
     const body = await parseJsonBody(innerRequest, updateLocationSchema);
     const location = await prisma.location.update({
@@ -67,7 +72,7 @@ export async function DELETE(
   context: { readonly params: Promise<{ readonly locationId: string }> },
 ) {
   return withApiHandler(async (innerRequest, { requestContext }) => {
-    const tenant = await requireTenantWithPermission(innerRequest, "locations:manage");
+    const tenant = await requireTenantMutationPermission(innerRequest, "locations:manage");
     const { locationId } = await context.params;
     const location = await prisma.location.update({
       where: { companyId_id: { companyId: tenant.companyId, id: parseIdParam(locationId) } },

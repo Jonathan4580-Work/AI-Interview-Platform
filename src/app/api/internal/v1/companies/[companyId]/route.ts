@@ -3,7 +3,11 @@ import { z } from "zod";
 import { prisma } from "@/infra/database";
 import { apiSuccess, notFound, parseJsonBody, withApiHandler } from "@/server/api";
 
-import { parseIdParam, requirePlatformPermission } from "../../_shared";
+import {
+  parseIdParam,
+  requirePlatformMutationPermission,
+  requirePlatformPermission,
+} from "../../_shared";
 
 import type { NextRequest } from "next/server";
 
@@ -37,7 +41,7 @@ export async function PUT(
   context: { readonly params: Promise<{ readonly companyId: string }> },
 ) {
   return withApiHandler(async (innerRequest, { requestContext }) => {
-    await requirePlatformPermission(innerRequest, "tenant:manage");
+    await requirePlatformMutationPermission(innerRequest, "tenant:manage");
     const { companyId } = await context.params;
     const body = await parseJsonBody(innerRequest, updateCompanySchema);
     const company = await prisma.company.update({
@@ -59,7 +63,7 @@ export async function DELETE(
   context: { readonly params: Promise<{ readonly companyId: string }> },
 ) {
   return withApiHandler(async (innerRequest, { requestContext }) => {
-    await requirePlatformPermission(innerRequest, "tenant:manage");
+    await requirePlatformMutationPermission(innerRequest, "tenant:manage");
     const { companyId } = await context.params;
     const company = await prisma.company.update({
       where: { id: parseIdParam(companyId) },

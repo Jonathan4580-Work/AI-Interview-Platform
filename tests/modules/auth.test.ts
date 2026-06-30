@@ -100,6 +100,12 @@ describe("authentication foundation", () => {
       userId: "user_1" as UserId,
     });
     repository.addCredential(subject, "CorrectHorse42");
+    await service.authenticateCompanyUser({
+      companyId: subject.companyId,
+      email: "member@example.com",
+      password: "CorrectHorse42",
+      security: securityContext,
+    });
 
     const reset = await service.createCompanyPasswordReset({
       companyId: subject.companyId,
@@ -121,6 +127,9 @@ describe("authentication foundation", () => {
       newPassword: "NewCorrect42",
     });
 
+    expect([...repository.sessions.values()].every((session) => session.status === "revoked")).toBe(
+      true,
+    );
     await expect(
       service.resetPassword({
         token: reset.token,
@@ -345,6 +354,23 @@ class MemoryAuthRepository implements AuthRepository {
     const updated = { ...existing, status: input.status, revokedAt: input.revokedAt };
     this.sessions.set(updated.id, updated);
     return Promise.resolve(updated);
+  }
+
+  public revokeSubjectSessions(input: {
+    readonly subject: AuthSubject;
+    readonly revokedAt: Date;
+    readonly status: AuthSessionStatus;
+  }): Promise<void> {
+    for (const session of this.sessions.values()) {
+      if (session.status === "active" && sameSubject(session.subject, input.subject)) {
+        this.sessions.set(session.id, {
+          ...session,
+          status: input.status,
+          revokedAt: input.revokedAt,
+        });
+      }
+    }
+    return Promise.resolve();
   }
 
   public createPasswordResetToken(input: {

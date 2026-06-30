@@ -122,6 +122,11 @@ export interface AuthRepository {
     readonly revokedAt: Date;
     readonly status: AuthSessionStatus;
   }): Promise<AuthSessionRecord>;
+  revokeSubjectSessions(input: {
+    readonly subject: AuthSubject;
+    readonly revokedAt: Date;
+    readonly status: AuthSessionStatus;
+  }): Promise<void>;
   createPasswordResetToken(input: {
     readonly subject: AuthSubject;
     readonly tokenHash: string;

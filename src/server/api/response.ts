@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
+import { AuthenticationError, PasswordPolicyError } from "@/modules/auth";
+
 import { ApiError, validationFailed } from "./errors";
 
 import type { RequestContext } from "@/shared";
@@ -83,6 +85,27 @@ export function normalizeApiError(error: unknown): ApiError {
   if (error instanceof ZodError) {
     return validationFailed(error.flatten());
   }
+  if (error instanceof AuthenticationError) {
+    return new ApiError(401, "unauthenticated", "Authentication failed.");
+  }
+  if (error instanceof PasswordPolicyError) {
+    return new ApiError(422, "validation_failed", error.message);
+  }
+  if (isPrismaKnownError(error, "P2025")) {
+    return new ApiError(404, "not_found", "Resource was not found.");
+  }
+  if (isPrismaKnownError(error, "P2002")) {
+    return new ApiError(409, "conflict", "Resource conflicts with an existing record.");
+  }
 
   return new ApiError(500, "internal_error", "An unexpected error occurred.");
+}
+
+function isPrismaKnownError(error: unknown, code: string): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { readonly code?: unknown }).code === code
+  );
 }

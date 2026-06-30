@@ -1,11 +1,13 @@
+import { timingSafeEqual } from "node:crypto";
+
 import { csrfFailed } from "./errors";
 
 import type { NextRequest, NextResponse } from "next/server";
 
 export const authCookieNames = {
-  session: "__Host-aptly_session",
-  refresh: "__Host-aptly_refresh",
-  csrf: "__Host-aptly_csrf",
+  session: `${cookiePrefix()}aptly_session`,
+  refresh: `${cookiePrefix()}aptly_refresh`,
+  csrf: `${cookiePrefix()}aptly_csrf`,
 } as const;
 
 const unsafeMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -19,7 +21,7 @@ export function secureCookieOptions(maxAgeSeconds: number): {
 } {
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureCookies(),
     sameSite: "lax",
     path: "/",
     maxAge: maxAgeSeconds,
@@ -35,7 +37,7 @@ export function csrfCookieOptions(maxAgeSeconds: number): {
 } {
   return {
     httpOnly: false,
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureCookies(),
     sameSite: "lax",
     path: "/",
     maxAge: maxAgeSeconds,
@@ -49,7 +51,11 @@ export function assertCsrf(request: NextRequest): void {
 
   const cookieToken = request.cookies.get(authCookieNames.csrf)?.value;
   const headerToken = request.headers.get("x-csrf-token");
-  if (cookieToken === undefined || headerToken === null || cookieToken !== headerToken) {
+  if (
+    cookieToken === undefined ||
+    headerToken === null ||
+    !timingSafeStringEqual(cookieToken, headerToken)
+  ) {
     throw csrfFailed();
   }
 }
@@ -73,4 +79,21 @@ export function applySecurityHeaders(response: NextResponse): void {
       "max-age=63072000; includeSubDomains; preload",
     );
   }
+}
+
+function shouldUseSecureCookies(): boolean {
+  return process.env.NODE_ENV === "production";
+}
+
+function cookiePrefix(): "" | "__Host-" {
+  return shouldUseSecureCookies() ? "__Host-" : "";
+}
+
+function timingSafeStringEqual(left: string, right: string): boolean {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  if (leftBuffer.byteLength !== rightBuffer.byteLength) {
+    return false;
+  }
+  return timingSafeEqual(leftBuffer, rightBuffer);
 }

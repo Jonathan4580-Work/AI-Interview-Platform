@@ -6,6 +6,7 @@ import { apiSuccess, notFound, parseJsonBody, withApiHandler } from "@/server/ap
 import {
   optionalTextSchema,
   parseIdParam,
+  requireTenantMutationPermission,
   requireTenantWithPermission,
   slugifyApiValue,
 } from "../../_shared";
@@ -44,7 +45,7 @@ export async function PUT(
   context: { readonly params: Promise<{ readonly departmentId: string }> },
 ) {
   return withApiHandler(async (innerRequest, { requestContext }) => {
-    const tenant = await requireTenantWithPermission(innerRequest, "departments:manage");
+    const tenant = await requireTenantMutationPermission(innerRequest, "departments:manage");
     const { departmentId } = await context.params;
     const body = await parseJsonBody(innerRequest, updateDepartmentSchema);
     const department = await prisma.department.update({
@@ -70,7 +71,7 @@ export async function DELETE(
   context: { readonly params: Promise<{ readonly departmentId: string }> },
 ) {
   return withApiHandler(async (innerRequest, { requestContext }) => {
-    const tenant = await requireTenantWithPermission(innerRequest, "departments:manage");
+    const tenant = await requireTenantMutationPermission(innerRequest, "departments:manage");
     const { departmentId } = await context.params;
     const department = await prisma.department.update({
       where: {

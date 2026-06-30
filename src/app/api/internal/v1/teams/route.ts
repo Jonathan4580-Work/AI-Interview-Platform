@@ -6,6 +6,7 @@ import { apiSuccess, parseJsonBody, parseSearchParams, withApiHandler } from "@/
 import {
   listQuerySchema,
   optionalTextSchema,
+  requireTenantMutationPermission,
   requireTenantWithPermission,
   slugifyApiValue,
 } from "../_shared";
@@ -35,7 +36,7 @@ export const GET = withApiHandler(async (request, { requestContext }) => {
 });
 
 export const POST = withApiHandler(async (request, { requestContext }) => {
-  const tenant = await requireTenantWithPermission(request, "teams:manage");
+  const tenant = await requireTenantMutationPermission(request, "teams:manage");
   const body = await parseJsonBody(request, teamSchema);
   const team = await prisma.team.create({
     data: {

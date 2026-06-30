@@ -271,6 +271,32 @@ export class PrismaAuthStore implements AuthRepository {
     return mapSession(session);
   }
 
+  public async revokeSubjectSessions(input: {
+    readonly subject: AuthSubject;
+    readonly revokedAt: Date;
+    readonly status: AuthSessionStatus;
+  }): Promise<void> {
+    await this.prisma.authSession.updateMany({
+      where:
+        input.subject.type === "user"
+          ? {
+              subjectType: "USER",
+              companyId: input.subject.companyId,
+              userId: input.subject.userId,
+              status: "ACTIVE",
+            }
+          : {
+              subjectType: "PLATFORM_USER",
+              platformUserId: input.subject.platformUserId,
+              status: "ACTIVE",
+            },
+      data: {
+        status: mapSessionStatusToPrisma(input.status),
+        revokedAt: input.revokedAt,
+      },
+    });
+  }
+
   public async createPasswordResetToken(input: {
     readonly subject: AuthSubject;
     readonly tokenHash: string;

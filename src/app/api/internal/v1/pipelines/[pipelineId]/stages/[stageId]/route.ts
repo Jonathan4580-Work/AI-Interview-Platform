@@ -3,7 +3,12 @@ import { z } from "zod";
 import { prisma } from "@/infra/database";
 import { apiSuccess, notFound, parseJsonBody, withApiHandler } from "@/server/api";
 
-import { parseIdParam, requireTenantWithPermission, slugifyApiValue } from "../../../../_shared";
+import {
+  parseIdParam,
+  requireTenantMutationPermission,
+  requireTenantWithPermission,
+  slugifyApiValue,
+} from "../../../../_shared";
 
 import type { NextRequest } from "next/server";
 
@@ -42,9 +47,14 @@ export async function PUT(
   context: { readonly params: Promise<{ readonly pipelineId: string; readonly stageId: string }> },
 ) {
   return withApiHandler(async (innerRequest, { requestContext }) => {
-    const tenant = await requireTenantWithPermission(innerRequest, "pipelines:manage");
-    const { stageId } = await context.params;
+    const tenant = await requireTenantMutationPermission(innerRequest, "pipelines:manage");
+    const { pipelineId, stageId } = await context.params;
     const body = await parseJsonBody(innerRequest, updateStageSchema);
+    await requireStageInPipeline({
+      companyId: tenant.companyId,
+      pipelineId: parseIdParam(pipelineId),
+      stageId: parseIdParam(stageId),
+    });
     const stage = await prisma.pipelineStage.update({
       where: { companyId_id: { companyId: tenant.companyId, id: parseIdParam(stageId) } },
       data: {
@@ -64,12 +74,35 @@ export async function DELETE(
   context: { readonly params: Promise<{ readonly pipelineId: string; readonly stageId: string }> },
 ) {
   return withApiHandler(async (innerRequest, { requestContext }) => {
-    const tenant = await requireTenantWithPermission(innerRequest, "pipelines:manage");
-    const { stageId } = await context.params;
+    const tenant = await requireTenantMutationPermission(innerRequest, "pipelines:manage");
+    const { pipelineId, stageId } = await context.params;
+    await requireStageInPipeline({
+      companyId: tenant.companyId,
+      pipelineId: parseIdParam(pipelineId),
+      stageId: parseIdParam(stageId),
+    });
     const stage = await prisma.pipelineStage.update({
       where: { companyId_id: { companyId: tenant.companyId, id: parseIdParam(stageId) } },
       data: { status: "ARCHIVED", deletedAt: new Date() },
     });
     return apiSuccess(requestContext, { stage });
   })(request);
+}
+
+async function requireStageInPipeline(input: {
+  readonly companyId: string;
+  readonly pipelineId: string;
+  readonly stageId: string;
+}): Promise<void> {
+  const stage = await prisma.pipelineStage.findFirst({
+    where: {
+      companyId: input.companyId,
+      pipelineId: input.pipelineId,
+      id: input.stageId,
+    },
+    select: { id: true },
+  });
+  if (stage === null) {
+    throw notFound("Pipeline stage was not found.");
+  }
 }

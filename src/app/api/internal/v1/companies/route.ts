@@ -3,7 +3,12 @@ import { z } from "zod";
 import { prisma } from "@/infra/database";
 import { apiSuccess, parseJsonBody, parseSearchParams, withApiHandler } from "@/server/api";
 
-import { listQuerySchema, requirePlatformPermission, slugifyApiValue } from "../_shared";
+import {
+  listQuerySchema,
+  requirePlatformMutationPermission,
+  requirePlatformPermission,
+  slugifyApiValue,
+} from "../_shared";
 
 const createCompanySchema = z.object({
   name: z.string().trim().min(2).max(160),
@@ -26,7 +31,7 @@ export const GET = withApiHandler(async (request, { requestContext }) => {
 });
 
 export const POST = withApiHandler(async (request, { requestContext }) => {
-  await requirePlatformPermission(request, "tenant:manage");
+  await requirePlatformMutationPermission(request, "tenant:manage");
   const body = await parseJsonBody(request, createCompanySchema);
   const company = await prisma.company.create({
     data: {

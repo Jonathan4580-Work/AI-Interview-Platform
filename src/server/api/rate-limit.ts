@@ -25,6 +25,7 @@ export class MemoryRateLimiter implements RateLimiter {
 
   public check(key: string, rule: RateLimitRule, now = new Date()): Promise<RateLimitResult> {
     const currentTime = now.getTime();
+    this.pruneExpiredBuckets(currentTime);
     const bucket = this.buckets.get(key);
 
     if (bucket === undefined || bucket.resetAt <= currentTime) {
@@ -43,6 +44,14 @@ export class MemoryRateLimiter implements RateLimiter {
       remaining: Math.max(rule.max - bucket.count, 0),
       resetAt: new Date(bucket.resetAt),
     });
+  }
+
+  private pruneExpiredBuckets(currentTime: number): void {
+    for (const [key, bucket] of this.buckets) {
+      if (bucket.resetAt <= currentTime) {
+        this.buckets.delete(key);
+      }
+    }
   }
 }
 

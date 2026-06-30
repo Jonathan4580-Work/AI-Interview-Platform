@@ -3,7 +3,12 @@ import { z } from "zod";
 import { prisma } from "@/infra/database";
 import { apiSuccess, parseJsonBody, parseSearchParams, withApiHandler } from "@/server/api";
 
-import { listQuerySchema, requireTenantWithPermission, slugifyApiValue } from "../_shared";
+import {
+  listQuerySchema,
+  requireTenantMutationPermission,
+  requireTenantWithPermission,
+  slugifyApiValue,
+} from "../_shared";
 
 const templateSchema = z.object({
   title: z.string().trim().min(2).max(120),
@@ -41,7 +46,7 @@ export const GET = withApiHandler(async (request, { requestContext }) => {
 });
 
 export const POST = withApiHandler(async (request, { requestContext }) => {
-  const tenant = await requireTenantWithPermission(request, "job_templates:manage");
+  const tenant = await requireTenantMutationPermission(request, "job_templates:manage");
   const body = await parseJsonBody(request, templateSchema);
   const jobTemplate = await prisma.jobTemplate.create({
     data: {

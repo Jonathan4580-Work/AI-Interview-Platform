@@ -3,7 +3,12 @@ import { z } from "zod";
 import { prisma } from "@/infra/database";
 import { apiSuccess, notFound, parseJsonBody, withApiHandler } from "@/server/api";
 
-import { parseIdParam, requireTenantWithPermission, slugifyApiValue } from "../../_shared";
+import {
+  parseIdParam,
+  requireTenantMutationPermission,
+  requireTenantWithPermission,
+  slugifyApiValue,
+} from "../../_shared";
 
 import type { NextRequest } from "next/server";
 
@@ -54,7 +59,7 @@ export async function PUT(
   context: { readonly params: Promise<{ readonly jobId: string }> },
 ) {
   return withApiHandler(async (innerRequest, { requestContext }) => {
-    const tenant = await requireTenantWithPermission(innerRequest, "jobs:manage");
+    const tenant = await requireTenantMutationPermission(innerRequest, "jobs:manage");
     const { jobId } = await context.params;
     const body = await parseJsonBody(innerRequest, updateJobSchema);
     const job = await prisma.job.update({
@@ -85,7 +90,7 @@ export async function DELETE(
   context: { readonly params: Promise<{ readonly jobId: string }> },
 ) {
   return withApiHandler(async (innerRequest, { requestContext }) => {
-    const tenant = await requireTenantWithPermission(innerRequest, "jobs:manage");
+    const tenant = await requireTenantMutationPermission(innerRequest, "jobs:manage");
     const { jobId } = await context.params;
     const job = await prisma.job.update({
       where: { companyId_id: { companyId: tenant.companyId, id: parseIdParam(jobId) } },
