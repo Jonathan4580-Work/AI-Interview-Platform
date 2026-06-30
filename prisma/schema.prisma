@@ -370,6 +370,106 @@ enum InterviewSessionStatus {
   @@map("interview_session_status")
 }
 
+enum CandidateSessionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  COMPLETED
+
+  @@map("candidate_session_status")
+}
+
+enum CandidateTokenAttemptOutcome {
+  SUCCESS
+  MALFORMED
+  NOT_FOUND
+  EXPIRED
+  REVOKED
+  CONSUMED
+  COMPLETED
+  RATE_LIMITED
+
+  @@map("candidate_token_attempt_outcome")
+}
+
+enum CandidateConsentType {
+  INTERVIEW_PARTICIPATION
+  CAMERA_USE
+  MICROPHONE_USE
+  WEBCAM_SNAPSHOT
+  FUTURE_AUDIO_VIDEO_RECORDING
+  FUTURE_BROWSER_MONITORING
+  PRIVACY_NOTICE
+  DATA_PROCESSING_RETENTION
+
+  @@map("candidate_consent_type")
+}
+
+enum ReadinessCheckType {
+  CAMERA
+  MICROPHONE
+  BROWSER
+  SECURE_CONTEXT
+  MEDIA_DEVICES
+  NETWORK
+  DEVICE
+  SCREEN_SIZE
+  AUDIO_OUTPUT
+
+  @@map("readiness_check_type")
+}
+
+enum ReadinessCheckStatus {
+  PASS
+  WARNING
+  FAIL
+
+  @@map("readiness_check_status")
+}
+
+enum IdentityVerificationProvider {
+  INTERNAL_SELF_ATTESTATION
+
+  @@map("identity_verification_provider")
+}
+
+enum IdentityVerificationStatus {
+  PENDING
+  SELF_ATTESTED
+  SNAPSHOT_SUBMITTED
+  NEEDS_REVIEW
+
+  @@map("identity_verification_status")
+}
+
+enum AccommodationRequestType {
+  WEBCAM_ALTERNATIVE
+  TIME_EXTENSION
+  ACCESSIBILITY_SUPPORT
+  OTHER
+
+  @@map("accommodation_request_type")
+}
+
+enum CandidateRequestStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  CANCELLED
+
+  @@map("candidate_request_status")
+}
+
+enum CandidateSupportCategory {
+  TECHNICAL
+  ACCESSIBILITY
+  SCHEDULING
+  PRIVACY
+  OTHER
+
+  @@map("candidate_support_category")
+}
+
 enum ScheduleEventType {
   INTERVIEW
   DEADLINE
@@ -558,6 +658,16 @@ model Company {
   candidateMergeEvents    CandidateMergeEvent[]
   candidateInvitations    CandidateInvitation[]
   interviewSessions       InterviewSession[]
+  candidateSessions       CandidateSession[]
+  candidateSessionContinuations CandidateSessionContinuation[]
+  candidateTokenAttempts  CandidateTokenAttempt[]
+  candidateConsentRecords CandidateConsentRecord[]
+  readinessChecks         ReadinessCheck[]
+  identityVerifications   IdentityVerification[]
+  webcamSnapshots         WebcamSnapshot[]
+  accommodationRequests   AccommodationRequest[]
+  candidateSupportRequests CandidateSupportRequest[]
+  candidateWithdrawals    CandidateWithdrawal[]
   scheduleEvents          ScheduleEvent[]
   scheduleParticipants    ScheduleParticipant[]
   notificationIntents     NotificationIntent[]
@@ -1288,6 +1398,14 @@ model Candidate {
   notes             CandidateNote[]
   invitations       CandidateInvitation[]
   interviewSessions InterviewSession[]
+  candidateSessions CandidateSession[]
+  consentRecords    CandidateConsentRecord[]
+  readinessChecks   ReadinessCheck[]
+  identityVerifications IdentityVerification[]
+  webcamSnapshots   WebcamSnapshot[]
+  accommodationRequests AccommodationRequest[]
+  supportRequests   CandidateSupportRequest[]
+  withdrawals       CandidateWithdrawal[]
   sourceMergeEvents CandidateMergeEvent[]    @relation("CandidateMergeSource")
   targetMergeEvents CandidateMergeEvent[]    @relation("CandidateMergeTargetEvent")
   privacyRequests   PrivacyRequest[]
@@ -1446,6 +1564,10 @@ model CandidateInvitation {
   sentAt        DateTime?        @map("sent_at")
   openedAt      DateTime?        @map("opened_at")
   acceptedAt    DateTime?        @map("accepted_at")
+  tokenConsumedAt DateTime?      @map("token_consumed_at")
+  tokenRevokedAt  DateTime?      @map("token_revoked_at")
+  tokenRotatedAt  DateTime?      @map("token_rotated_at")
+  resendCount     Int            @default(0) @map("resend_count")
   cancelledAt   DateTime?        @map("cancelled_at")
   createdAt     DateTime         @default(now()) @map("created_at")
   updatedAt     DateTime         @updatedAt @map("updated_at")
@@ -1455,11 +1577,21 @@ model CandidateInvitation {
   application CandidateApplication? @relation(fields: [companyId, applicationId], references: [companyId, id], onDelete: Cascade)
   job         Job                   @relation(fields: [companyId, jobId], references: [companyId, id], onDelete: Restrict)
   sessions    InterviewSession[]
+  candidateSessions CandidateSession[]
+  tokenAttempts CandidateTokenAttempt[]
+  consentRecords CandidateConsentRecord[]
+  readinessChecks ReadinessCheck[]
+  identityVerifications IdentityVerification[]
+  webcamSnapshots WebcamSnapshot[]
+  accommodationRequests AccommodationRequest[]
+  supportRequests CandidateSupportRequest[]
+  withdrawals CandidateWithdrawal[]
 
   @@unique([companyId, id])
   @@index([companyId, candidateId])
   @@index([companyId, applicationId])
   @@index([companyId, status])
+  @@index([companyId, tokenConsumedAt])
   @@index([expiresAt])
   @@map("candidate_invitations")
 }
@@ -1484,6 +1616,11 @@ model InterviewSession {
   invitation           CandidateInvitation   @relation(fields: [companyId, invitationId], references: [companyId, id], onDelete: Cascade)
   application          CandidateApplication? @relation(fields: [companyId, applicationId], references: [companyId, id], onDelete: Cascade)
   interviewPlanVersion InterviewPlanVersion? @relation(fields: [companyId, interviewPlanVersionId], references: [companyId, id], onDelete: Restrict)
+  candidateSessions    CandidateSession[]
+  consentRecords       CandidateConsentRecord[]
+  readinessChecks      ReadinessCheck[]
+  identityVerifications IdentityVerification[]
+  webcamSnapshots      WebcamSnapshot[]
 
   @@unique([companyId, id])
   @@unique([companyId, invitationId])
@@ -1492,6 +1629,272 @@ model InterviewSession {
   @@index([companyId, status])
   @@index([expiresAt])
   @@map("interview_sessions")
+}
+
+model CandidateSession {
+  id                 String                 @id @default(cuid())
+  companyId          String                 @map("company_id")
+  candidateId        String                 @map("candidate_id")
+  invitationId       String                 @map("invitation_id")
+  interviewSessionId String?                @map("interview_session_id")
+  sessionTokenHash   String                 @unique @map("session_token_hash")
+  csrfTokenHash      String                 @map("csrf_token_hash")
+  activeLockKey      String?                @map("active_lock_key")
+  status             CandidateSessionStatus @default(ACTIVE)
+  createdFromIpHash  String?                @map("created_from_ip_hash")
+  createdFromUserAgent String?              @map("created_from_user_agent")
+  lastSeenAt         DateTime               @default(now()) @map("last_seen_at")
+  expiresAt          DateTime               @map("expires_at")
+  revokedAt          DateTime?              @map("revoked_at")
+  completedAt        DateTime?              @map("completed_at")
+  metadataJson       Json                   @map("metadata_json")
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+
+  company          Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate        Candidate           @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  invitation       CandidateInvitation @relation(fields: [companyId, invitationId], references: [companyId, id], onDelete: Cascade)
+  interviewSession InterviewSession?   @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Restrict)
+  continuations    CandidateSessionContinuation[]
+  consentRecords   CandidateConsentRecord[]
+  readinessChecks  ReadinessCheck[]
+  identityVerifications IdentityVerification[]
+  webcamSnapshots  WebcamSnapshot[]
+  accommodationRequests AccommodationRequest[]
+  supportRequests  CandidateSupportRequest[]
+  withdrawals      CandidateWithdrawal[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, activeLockKey])
+  @@index([companyId, invitationId, status])
+  @@index([companyId, candidateId])
+  @@index([expiresAt])
+  @@map("candidate_sessions")
+}
+
+model CandidateSessionContinuation {
+  id                String   @id @default(cuid())
+  companyId         String   @map("company_id")
+  candidateSessionId String  @map("candidate_session_id")
+  resumeTokenHash   String   @unique @map("resume_token_hash")
+  consumedAt        DateTime? @map("consumed_at")
+  expiresAt         DateTime @map("expires_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidateSession CandidateSession @relation(fields: [companyId, candidateSessionId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@index([companyId, candidateSessionId])
+  @@index([expiresAt])
+  @@map("candidate_session_continuations")
+}
+
+model CandidateTokenAttempt {
+  id              String                       @id @default(cuid())
+  companyId       String?                      @map("company_id")
+  invitationId    String?                      @map("invitation_id")
+  tokenHashPrefix String?                      @map("token_hash_prefix")
+  ipAddressHash   String?                      @map("ip_address_hash")
+  outcome         CandidateTokenAttemptOutcome
+  attemptedAt     DateTime                     @default(now()) @map("attempted_at")
+  metadataJson    Json                         @map("metadata_json")
+
+  company    Company?             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  invitation CandidateInvitation? @relation(fields: [companyId, invitationId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@index([companyId, invitationId, attemptedAt])
+  @@index([ipAddressHash, attemptedAt])
+  @@index([tokenHashPrefix, attemptedAt])
+  @@map("candidate_token_attempts")
+}
+
+model CandidateConsentRecord {
+  id                 String               @id @default(cuid())
+  companyId          String               @map("company_id")
+  candidateId        String               @map("candidate_id")
+  invitationId       String               @map("invitation_id")
+  candidateSessionId String               @map("candidate_session_id")
+  interviewSessionId String?              @map("interview_session_id")
+  type               CandidateConsentType
+  consentVersion     String               @map("consent_version")
+  policyVersion      String               @map("policy_version")
+  accepted           Boolean
+  acceptedAt         DateTime?            @map("accepted_at")
+  deniedAt           DateTime?            @map("denied_at")
+  ipAddressHash      String?              @map("ip_address_hash")
+  userAgent          String?              @map("user_agent")
+  metadataJson       Json                 @map("metadata_json")
+  createdAt          DateTime             @default(now()) @map("created_at")
+
+  company          Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate        Candidate            @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  invitation       CandidateInvitation  @relation(fields: [companyId, invitationId], references: [companyId, id], onDelete: Cascade)
+  candidateSession CandidateSession     @relation(fields: [companyId, candidateSessionId], references: [companyId, id], onDelete: Cascade)
+  interviewSession InterviewSession?    @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@index([companyId, candidateSessionId, type])
+  @@index([companyId, invitationId])
+  @@map("candidate_consent_records")
+}
+
+model ReadinessCheck {
+  id                 String               @id @default(cuid())
+  companyId          String               @map("company_id")
+  candidateId        String               @map("candidate_id")
+  invitationId       String               @map("invitation_id")
+  candidateSessionId String               @map("candidate_session_id")
+  interviewSessionId String?              @map("interview_session_id")
+  type               ReadinessCheckType
+  status             ReadinessCheckStatus
+  detailsJson        Json                 @map("details_json")
+  checkedAt          DateTime             @map("checked_at")
+  createdAt          DateTime             @default(now()) @map("created_at")
+
+  company          Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate        Candidate           @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  invitation       CandidateInvitation @relation(fields: [companyId, invitationId], references: [companyId, id], onDelete: Cascade)
+  candidateSession CandidateSession    @relation(fields: [companyId, candidateSessionId], references: [companyId, id], onDelete: Cascade)
+  interviewSession InterviewSession?   @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@index([companyId, candidateSessionId, type, checkedAt])
+  @@index([companyId, invitationId])
+  @@map("readiness_checks")
+}
+
+model IdentityVerification {
+  id                 String                       @id @default(cuid())
+  companyId          String                       @map("company_id")
+  candidateId        String                       @map("candidate_id")
+  invitationId       String                       @map("invitation_id")
+  candidateSessionId String                       @map("candidate_session_id")
+  interviewSessionId String?                      @map("interview_session_id")
+  provider           IdentityVerificationProvider @default(INTERNAL_SELF_ATTESTATION)
+  status             IdentityVerificationStatus   @default(PENDING)
+  selfAttestedName   String                       @map("self_attested_name")
+  confirmedName      String?                      @map("confirmed_name")
+  consentedAt        DateTime?                    @map("consented_at")
+  metadataJson       Json                         @map("metadata_json")
+  createdAt          DateTime                     @default(now()) @map("created_at")
+  updatedAt          DateTime                     @updatedAt @map("updated_at")
+
+  company          Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate        Candidate           @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  invitation       CandidateInvitation @relation(fields: [companyId, invitationId], references: [companyId, id], onDelete: Cascade)
+  candidateSession CandidateSession    @relation(fields: [companyId, candidateSessionId], references: [companyId, id], onDelete: Cascade)
+  interviewSession InterviewSession?   @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Restrict)
+  snapshots        WebcamSnapshot[]
+
+  @@unique([companyId, id])
+  @@index([companyId, candidateSessionId])
+  @@index([companyId, candidateId, status])
+  @@map("identity_verifications")
+}
+
+model WebcamSnapshot {
+  id                     String   @id @default(cuid())
+  companyId              String   @map("company_id")
+  candidateId            String   @map("candidate_id")
+  invitationId           String   @map("invitation_id")
+  candidateSessionId     String   @map("candidate_session_id")
+  interviewSessionId     String?  @map("interview_session_id")
+  identityVerificationId String?  @map("identity_verification_id")
+  storageRef             String   @map("storage_ref")
+  contentType            String   @map("content_type")
+  sizeBytes              Int      @map("size_bytes")
+  checksumSha256         String   @map("checksum_sha256")
+  capturedAt             DateTime @map("captured_at")
+  metadataJson           Json     @map("metadata_json")
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  company              Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate            Candidate             @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  invitation           CandidateInvitation   @relation(fields: [companyId, invitationId], references: [companyId, id], onDelete: Cascade)
+  candidateSession     CandidateSession      @relation(fields: [companyId, candidateSessionId], references: [companyId, id], onDelete: Cascade)
+  interviewSession     InterviewSession?     @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Restrict)
+  identityVerification IdentityVerification? @relation(fields: [companyId, identityVerificationId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@index([companyId, candidateSessionId])
+  @@index([companyId, identityVerificationId])
+  @@map("webcam_snapshots")
+}
+
+model AccommodationRequest {
+  id                 String                   @id @default(cuid())
+  companyId          String                   @map("company_id")
+  candidateId        String                   @map("candidate_id")
+  invitationId       String                   @map("invitation_id")
+  candidateSessionId String                   @map("candidate_session_id")
+  type               AccommodationRequestType
+  status             CandidateRequestStatus   @default(OPEN)
+  contactEmail       String                   @map("contact_email")
+  message            String
+  metadataJson       Json                     @map("metadata_json")
+  createdAt          DateTime                 @default(now()) @map("created_at")
+  updatedAt          DateTime                 @updatedAt @map("updated_at")
+  resolvedAt         DateTime?                @map("resolved_at")
+
+  company          Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate        Candidate           @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  invitation       CandidateInvitation @relation(fields: [companyId, invitationId], references: [companyId, id], onDelete: Cascade)
+  candidateSession CandidateSession    @relation(fields: [companyId, candidateSessionId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@index([companyId, invitationId, status])
+  @@index([companyId, candidateSessionId])
+  @@map("accommodation_requests")
+}
+
+model CandidateSupportRequest {
+  id                 String                   @id @default(cuid())
+  companyId          String                   @map("company_id")
+  candidateId        String                   @map("candidate_id")
+  invitationId       String                   @map("invitation_id")
+  candidateSessionId String                   @map("candidate_session_id")
+  category           CandidateSupportCategory
+  status             CandidateRequestStatus   @default(OPEN)
+  contactEmail       String                   @map("contact_email")
+  message            String
+  metadataJson       Json                     @map("metadata_json")
+  createdAt          DateTime                 @default(now()) @map("created_at")
+  updatedAt          DateTime                 @updatedAt @map("updated_at")
+  resolvedAt         DateTime?                @map("resolved_at")
+
+  company          Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate        Candidate           @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  invitation       CandidateInvitation @relation(fields: [companyId, invitationId], references: [companyId, id], onDelete: Cascade)
+  candidateSession CandidateSession    @relation(fields: [companyId, candidateSessionId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@index([companyId, invitationId, status])
+  @@index([companyId, candidateSessionId])
+  @@map("candidate_support_requests")
+}
+
+model CandidateWithdrawal {
+  id                 String                 @id @default(cuid())
+  companyId          String                 @map("company_id")
+  candidateId        String                 @map("candidate_id")
+  invitationId       String                 @map("invitation_id")
+  candidateSessionId String                 @map("candidate_session_id")
+  reason             String?
+  confirmedAt        DateTime               @map("confirmed_at")
+  metadataJson       Json                   @map("metadata_json")
+  createdAt          DateTime               @default(now()) @map("created_at")
+
+  company          Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate        Candidate           @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  invitation       CandidateInvitation @relation(fields: [companyId, invitationId], references: [companyId, id], onDelete: Cascade)
+  candidateSession CandidateSession    @relation(fields: [companyId, candidateSessionId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@unique([companyId, invitationId])
+  @@index([companyId, candidateSessionId])
+  @@map("candidate_withdrawals")
 }
 
 model ScheduleEvent {
