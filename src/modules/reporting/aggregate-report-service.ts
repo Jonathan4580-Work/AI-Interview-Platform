@@ -60,6 +60,31 @@ export class AggregateReportService {
     private readonly now: () => Date = () => new Date(),
   ) {}
 
+  public async request(input: AggregateReportRequest): Promise<AggregateReportRunRecord> {
+    validateReportRequest(input);
+    if (input.idempotencyKey !== null && input.idempotencyKey !== undefined) {
+      const existing = await this.store.findRunByIdempotencyKey({
+        companyId: input.tenant.companyId,
+        idempotencyKey: input.idempotencyKey,
+      });
+      if (existing !== null) {
+        return existing;
+      }
+    }
+
+    return this.store.createRun({
+      companyId: input.tenant.companyId,
+      requestedByUserId: input.requestedByUserId ?? null,
+      reportType: input.reportType,
+      dateRangeStart: input.dateRangeStart,
+      dateRangeEnd: input.dateRangeEnd,
+      filters: normalizeFilters(input.filters),
+      dimensions: input.dimensions ?? {},
+      idempotencyKey: input.idempotencyKey ?? null,
+      expiresAt: addDays(this.now(), REPORT_TTL_DAYS),
+    });
+  }
+
   public async generate(input: AggregateReportRequest): Promise<AggregateReportRunRecord> {
     validateReportRequest(input);
     if (input.idempotencyKey !== null && input.idempotencyKey !== undefined) {

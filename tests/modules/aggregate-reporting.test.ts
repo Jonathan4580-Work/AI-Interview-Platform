@@ -83,6 +83,25 @@ describe("AggregateReportService", () => {
     expect(store.runs).toHaveLength(1);
   });
 
+  it("requests aggregate reports without running expensive calculations inline", async () => {
+    const store = new InMemoryAggregateReportStore([
+      event("interview.completed", "interview_session", "interview_1"),
+    ]);
+    const service = new AggregateReportService(store);
+
+    const run = await service.request({
+      tenant,
+      reportType: "interview_completion",
+      dateRangeStart: start,
+      dateRangeEnd: end,
+      idempotencyKey: "aggregate-key-3",
+    });
+
+    expect(run.status).toBe("requested");
+    expect(run.result).toBeNull();
+    expect(store.listEventsCalls).toBe(0);
+  });
+
   it("keeps monitoring warning summaries separate from score calculations", async () => {
     const store = new InMemoryAggregateReportStore([
       event("monitoring.warning_aggregated", "interview_session", "interview_1", {
@@ -107,6 +126,7 @@ describe("AggregateReportService", () => {
 
 class InMemoryAggregateReportStore implements AggregateReportStore {
   public readonly runs: AggregateReportRunRecord[] = [];
+  public listEventsCalls = 0;
 
   public constructor(private readonly events: readonly AggregateSourceEvent[]) {}
 
@@ -171,6 +191,7 @@ class InMemoryAggregateReportStore implements AggregateReportStore {
   public listEvents(
     input: Parameters<AggregateReportStore["listEvents"]>[0],
   ): Promise<readonly AggregateSourceEvent[]> {
+    this.listEventsCalls += 1;
     return Promise.resolve(
       this.events
         .filter((record) => input.eventKeys.includes(record.eventKey))

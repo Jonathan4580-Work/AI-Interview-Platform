@@ -33,7 +33,7 @@ export const POST = withApiHandler(async (request, { requestContext }) => {
   const tenant = await requireTenantMutationPermission(request, "reports:aggregate_read");
   const body = await parseJsonBody(request, aggregateRunSchema);
   const service = new AggregateReportService(new PrismaAggregateReportStore());
-  const run = await service.generate({
+  const run = await service.request({
     tenant,
     requestedByUserId: body.requestedByUserId ?? null,
     reportType: body.reportType as never,
