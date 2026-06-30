@@ -1,0 +1,38 @@
+"use client";
+
+import { useState } from "react";
+
+import { candidatePost } from "@/components/candidate/candidate-api";
+import { CandidateShell } from "@/components/candidate/candidate-shell";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+
+export function ReadyClient() {
+  const [confirmed, setConfirmed] = useState(false);
+
+  async function confirm() {
+    const result = await candidatePost("/api/candidate/ready");
+    setConfirmed(result.ok);
+  }
+
+  return (
+    <CandidateShell
+      title="Ready to start"
+      description="This confirms preparation is complete. The live interview room is intentionally not part of this phase."
+      actions={<Button onClick={() => void confirm()}>Confirm readiness</Button>}
+    >
+      {confirmed ? (
+        <Alert variant="success">
+          <AlertTitle>Readiness confirmed</AlertTitle>
+          <AlertDescription>
+            The interview room will become available in a later phase.
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Confirm when your camera, microphone, and environment are ready.
+        </p>
+      )}
+    </CandidateShell>
+  );
+}
