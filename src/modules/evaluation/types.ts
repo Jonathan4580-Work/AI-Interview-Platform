@@ -99,6 +99,7 @@ export interface EvaluationVersionRecord {
   readonly summary: string;
   readonly recommendation: string | null;
   readonly completedAt: Date | null;
+  readonly reviewedAt?: Date | null;
 }
 
 export type EvaluationOverrideTarget = "overall" | "competency";

@@ -1,7 +1,11 @@
-import { prisma } from "@/infra/database";
 import { apiSuccess, notFound, parseSearchParams, withApiHandler } from "@/server/api";
+import { prisma } from "@/infra/database";
 
-import { phase9IdSchema, requirePhase9Context } from "../../../phase9/_shared";
+import {
+  createInternalTranscriptionService,
+  phase9IdSchema,
+  requirePhase9Context,
+} from "../../../phase9/_shared";
 
 import { z } from "zod";
 import type { NextRequest } from "next/server";
@@ -31,33 +35,11 @@ export async function GET(
     if (transcript?.activeVersionId === undefined || transcript.activeVersionId === null) {
       throw notFound("Transcript was not found.");
     }
-    const segments = await prisma.transcriptSegment.findMany({
-      where: {
-        companyId: phase9Context.tenant.companyId,
-        transcriptVersionId: transcript.activeVersionId,
-      },
-      orderBy: { sequence: "asc" },
-      take: query.limit,
-      ...(query.cursor === undefined
-        ? {}
-        : {
-            cursor: {
-              companyId_id: { companyId: phase9Context.tenant.companyId, id: query.cursor },
-            },
-            skip: 1,
-          }),
-      select: {
-        id: true,
-        transcriptVersionId: true,
-        interviewTurnId: true,
-        sequence: true,
-        speaker: true,
-        startMs: true,
-        endMs: true,
-        text: true,
-        confidence: true,
-        language: true,
-      },
+    const segments = await createInternalTranscriptionService().listSegments({
+      context: phase9Context,
+      transcriptVersionId: transcript.activeVersionId as never,
+      limit: query.limit,
+      cursor: query.cursor ?? null,
     });
     return apiSuccess(apiContext.requestContext, { segments });
   })(request);

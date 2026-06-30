@@ -44,11 +44,43 @@ export class EvaluationService {
     readonly context: EvaluationMutationContext;
     readonly interviewSessionId: InterviewSessionId;
   }): Promise<EvaluationVersionRecord> {
+    return this.runEvaluation({
+      context: input.context,
+      interviewSessionId: input.interviewSessionId,
+      reuseExisting: true,
+      auditAction: "evaluation.created",
+    });
+  }
+
+  public async reprocessInterview(input: {
+    readonly context: EvaluationMutationContext;
+    readonly interviewSessionId: InterviewSessionId;
+    readonly reason: string;
+  }): Promise<EvaluationVersionRecord> {
+    const reason = normalizeReason(input.reason);
+    requireUserActorId(input.context);
+    const created = await this.runEvaluation({
+      context: input.context,
+      interviewSessionId: input.interviewSessionId,
+      reuseExisting: false,
+      auditAction: "evaluation.reprocessed",
+      reason,
+    });
+    return created;
+  }
+
+  private async runEvaluation(input: {
+    readonly context: EvaluationMutationContext;
+    readonly interviewSessionId: InterviewSessionId;
+    readonly reuseExisting: boolean;
+    readonly auditAction: "evaluation.created" | "evaluation.reprocessed";
+    readonly reason?: string;
+  }): Promise<EvaluationVersionRecord> {
     const existing = await this.repository.findReadyEvaluation({
       tenant: input.context.tenant,
       interviewSessionId: input.interviewSessionId,
     });
-    if (existing !== null) {
+    if (existing !== null && input.reuseExisting) {
       return existing;
     }
     const bundle = await this.repository.loadTranscriptBundle({
@@ -87,9 +119,10 @@ export class EvaluationService {
       actor: input.context.actor,
       request: input.context.request,
       supportAccessSessionId: input.context.supportAccessSessionId ?? null,
-      action: "evaluation.created",
+      action: input.auditAction,
       resourceType: "evaluation_version",
       resourceId: created.id,
+      reason: input.reason,
       riskLevel: "high",
       after: {
         evaluationVersionId: created.id,
@@ -129,7 +162,7 @@ export class EvaluationService {
       resourceId: reviewed.id,
       reason,
       riskLevel: "high",
-      after: { evaluationVersionId: reviewed.id, reviewedAt: reviewed.completedAt },
+      after: { evaluationVersionId: reviewed.id, reviewedAt: reviewed.reviewedAt ?? null },
     });
     return reviewed;
   }

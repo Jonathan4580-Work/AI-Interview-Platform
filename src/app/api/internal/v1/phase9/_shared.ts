@@ -8,6 +8,11 @@ import {
 } from "@/modules/evaluation";
 import { PrismaAiGovernanceRepository } from "@/modules/ai-governance";
 import { PrismaReportingRepository, ReportingService } from "@/modules/reporting";
+import {
+  PrismaTranscriptRepository,
+  TranscriptionService,
+  createTranscriptionProvider,
+} from "@/modules/transcription";
 import { assertCsrf } from "@/server/api";
 import {
   getAuthenticatedContext,
@@ -63,6 +68,14 @@ export function createInternalEvaluationService(): EvaluationService {
 export function createInternalReportingService(): ReportingService {
   return new ReportingService(
     new PrismaReportingRepository(),
+    new AuditWriter(new PrismaAuditEventStore()),
+  );
+}
+
+export function createInternalTranscriptionService(): TranscriptionService {
+  return new TranscriptionService(
+    new PrismaTranscriptRepository(),
+    createTranscriptionProvider(),
     new AuditWriter(new PrismaAuditEventStore()),
   );
 }

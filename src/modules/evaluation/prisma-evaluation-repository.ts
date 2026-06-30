@@ -337,6 +337,7 @@ function mapEvaluationVersion(
     summary: version.summary,
     recommendation: version.recommendation,
     completedAt: version.completedAt,
+    reviewedAt: version.reviewedAt,
   };
 }
 

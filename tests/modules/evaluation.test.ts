@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   AI_OUTPUT_NORMALIZATION_VERSION,
@@ -8,7 +8,9 @@ import {
   type AiGovernanceRepository,
 } from "@/modules/ai-governance";
 import { AuditWriter, type AuditEventStore, type PersistedAuditEventInput } from "@/modules/audit";
+import { env } from "@/config";
 import {
+  DeepSeekEvaluationProvider,
   DevelopmentEvaluationProvider,
   EvaluationDomainError,
   EvaluationService,
@@ -29,6 +31,12 @@ import type {
 } from "@/modules/transcription";
 
 describe("evaluation foundation", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    env.DEEPSEEK_API_KEY = originalDeepSeekApiKey;
+    env.EVALUATION_PROVIDER_TIMEOUT_MS = originalProviderTimeoutMs;
+  });
+
   it("redacts direct identifiers before provider evaluation", () => {
     const redacted = redactEvaluationInput({
       interviewSessionId,
@@ -61,6 +69,93 @@ describe("evaluation foundation", () => {
     expect(first.provider).toBe("development");
     expect(first.providerResponseHash).toBe(second.providerResponseHash);
     expect(first.competencies[0]?.evidence[0]?.transcriptSegmentId).toBe("segment_1");
+  });
+
+  it("development provider marks missing transcript evidence as insufficient", async () => {
+    const provider = new DevelopmentEvaluationProvider();
+    const redactedInput = redactEvaluationInput({
+      interviewSessionId,
+      transcriptVersionId,
+      rubric: governance.rubric,
+      segments: [],
+    });
+
+    const result = await provider.evaluate({ redactedInput, governance });
+
+    expect(result.overallScore).toBeNull();
+    expect(result.overallConfidence).toBe("insufficient_evidence");
+    expect(result.competencies[0]?.score).toBeNull();
+  });
+
+  it("DeepSeek adapter remains optional without an API key", async () => {
+    env.DEEPSEEK_API_KEY = undefined;
+
+    await expect(
+      new DeepSeekEvaluationProvider().evaluate({
+        redactedInput: redactEvaluationInput({
+          interviewSessionId,
+          transcriptVersionId,
+          rubric: governance.rubric,
+          segments: [createSegment()],
+        }),
+        governance,
+      }),
+    ).rejects.toMatchObject({ code: "provider_unavailable" });
+  });
+
+  it("normalizes malformed DeepSeek output", async () => {
+    env.DEEPSEEK_API_KEY = "test-key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              choices: [{ message: { content: "{not-json" } }],
+              usage: { total_tokens: 12 },
+            }),
+        }),
+      ),
+    );
+
+    await expect(
+      new DeepSeekEvaluationProvider().evaluate({
+        redactedInput: redactEvaluationInput({
+          interviewSessionId,
+          transcriptVersionId,
+          rubric: governance.rubric,
+          segments: [createSegment()],
+        }),
+        governance,
+      }),
+    ).rejects.toMatchObject({ code: "malformed_output" });
+  });
+
+  it("normalizes DeepSeek provider timeouts", async () => {
+    env.DEEPSEEK_API_KEY = "test-key";
+    env.EVALUATION_PROVIDER_TIMEOUT_MS = 1_000;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_url: unknown, init: { readonly signal?: AbortSignal }) => {
+        init.signal?.dispatchEvent(new Event("abort"));
+        const error = new Error("aborted");
+        error.name = "AbortError";
+        return Promise.reject(error);
+      }),
+    );
+
+    await expect(
+      new DeepSeekEvaluationProvider().evaluate({
+        redactedInput: redactEvaluationInput({
+          interviewSessionId,
+          transcriptVersionId,
+          rubric: governance.rubric,
+          segments: [createSegment()],
+        }),
+        governance,
+      }),
+    ).rejects.toMatchObject({ code: "provider_timeout" });
   });
 
   it("rejects fabricated evidence excerpts", () => {
@@ -107,6 +202,27 @@ describe("evaluation foundation", () => {
     expect(repo.createdVersions).toHaveLength(1);
   });
 
+  it("reprocessing creates a new evaluation version instead of mutating the reviewed result", async () => {
+    const repo = new InMemoryEvaluationRepository();
+    const audit = new InMemoryAuditStore();
+    const service = createService(repo, audit);
+    const first = await service.evaluateInterview({ context, interviewSessionId });
+    const userContext = {
+      ...context,
+      actor: { type: "user" as const, id: "user_1" },
+    };
+
+    const second = await service.reprocessInterview({
+      context: userContext,
+      interviewSessionId,
+      reason: "Transcript correction was approved.",
+    });
+
+    expect(second.id).not.toBe(first.id);
+    expect(repo.createdVersions).toHaveLength(2);
+    expect(audit.events.at(-1)?.action).toBe("evaluation.reprocessed");
+  });
+
   it("records human overrides and decisions separately from AI results", async () => {
     const repo = new InMemoryEvaluationRepository();
     const audit = new InMemoryAuditStore();
@@ -138,6 +254,8 @@ describe("evaluation foundation", () => {
 });
 
 const tenant: TenantContext = { companyId: "company_test" as TenantId };
+const originalDeepSeekApiKey = env.DEEPSEEK_API_KEY;
+const originalProviderTimeoutMs = env.EVALUATION_PROVIDER_TIMEOUT_MS;
 const interviewSessionId = "interview_1" as InterviewSessionId;
 const transcriptId = "transcript_1" as TranscriptId;
 const transcriptVersionId = "transcript_version_1" as TranscriptVersionId;
@@ -229,13 +347,13 @@ class InMemoryEvaluationRepository implements EvaluationRepository {
   ): Promise<EvaluationVersionRecord> {
     this.outputNormalizationVersion = input.outputNormalizationVersion;
     const version: EvaluationVersionRecord = {
-      id: "evaluation_version_1" as never,
+      id: `evaluation_version_${String(this.createdVersions.length + 1)}` as never,
       companyId: tenant.companyId,
       evaluationRunId: "evaluation_run_1" as never,
       interviewSessionId,
       transcriptId,
       transcriptVersionId,
-      versionNumber: 1,
+      versionNumber: this.createdVersions.length + 1,
       status: "ready",
       overallScore: input.result.overallScore,
       overallConfidence: input.result.overallConfidence,

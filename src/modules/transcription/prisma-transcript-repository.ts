@@ -145,6 +145,26 @@ export class PrismaTranscriptRepository implements TranscriptRepository {
           },
           include: { versions: true },
         }));
+      if (input.correctionOfVersionId !== undefined && input.correctionOfVersionId !== null) {
+        const correctionSource = await tx.transcriptVersion.findUnique({
+          where: {
+            companyId_id: {
+              companyId: input.tenant.companyId,
+              id: input.correctionOfVersionId,
+            },
+          },
+          select: {
+            transcriptId: true,
+            interviewSessionId: true,
+          },
+        });
+        if (
+          correctionSource?.transcriptId !== transcript.id ||
+          correctionSource.interviewSessionId !== input.interviewSessionId
+        ) {
+          throw new Error("Transcript correction source must belong to the same interview.");
+        }
+      }
       const versionNumber = transcript.versions.length + 1;
       const version = await tx.transcriptVersion.create({
         data: {

@@ -1,3 +1,4 @@
+import { AuditWriter, PrismaAuditEventStore } from "@/modules/audit";
 import { prisma } from "@/infra/database";
 import { apiSuccess, notFound, withApiHandler } from "@/server/api";
 
@@ -37,6 +38,20 @@ export async function GET(
     if (transcript === null) {
       throw notFound("Transcript was not found.");
     }
+    await new AuditWriter(new PrismaAuditEventStore()).record({
+      companyId: phase9Context.tenant.companyId,
+      actor: phase9Context.actor,
+      request: phase9Context.request,
+      supportAccessSessionId: phase9Context.supportAccessSessionId ?? null,
+      action: "transcription.metadata_accessed",
+      resourceType: "transcript",
+      resourceId: transcript.id,
+      riskLevel: "high",
+      metadata: {
+        interviewSessionId: transcript.interviewSessionId,
+        activeVersionId: transcript.activeVersionId,
+      },
+    });
     return apiSuccess(apiContext.requestContext, { transcript });
   })(request);
 }
