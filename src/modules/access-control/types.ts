@@ -70,6 +70,16 @@ export const permissionKeys = [
   "queues:manage",
   "monitoring_events:read",
   "monitoring_events:review",
+  "transcripts:read",
+  "transcripts:manage",
+  "evaluations:read",
+  "evaluations:manage",
+  "reports:read",
+  "reports:manage",
+  "candidate_decisions:read",
+  "candidate_decisions:manage",
+  "ai_governance:read",
+  "ai_governance:manage",
 ] as const;
 
 export type PermissionKey = (typeof permissionKeys)[number];

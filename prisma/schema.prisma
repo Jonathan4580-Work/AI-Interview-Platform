@@ -596,6 +596,7 @@ enum NotificationIntentType {
   CANDIDATE_ACCOMMODATION_REQUESTED
   CANDIDATE_SUPPORT_REQUESTED
   CANDIDATE_WITHDRAWN
+  RESULTS_READY
 
   @@map("notification_intent_type")
 }
@@ -854,6 +855,92 @@ enum MonitoringBatchStatus {
   @@map("monitoring_batch_status")
 }
 
+enum TranscriptStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+  SUPERSEDED
+
+  @@map("transcript_status")
+}
+
+enum TranscriptSpeaker {
+  INTERVIEWER
+  CANDIDATE
+  SYSTEM
+  UNKNOWN
+
+  @@map("transcript_speaker")
+}
+
+enum AiArtifactStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+
+  @@map("ai_artifact_status")
+}
+
+enum EvaluationProviderKey {
+  DEVELOPMENT
+  DEEPSEEK
+
+  @@map("evaluation_provider_key")
+}
+
+enum EvaluationStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+  SUPERSEDED
+
+  @@map("evaluation_status")
+}
+
+enum EvaluationReviewStatus {
+  UNREVIEWED
+  REVIEWED
+  DISPUTED
+
+  @@map("evaluation_review_status")
+}
+
+enum ConfidenceLevel {
+  HIGH
+  MODERATE
+  LIMITED
+  INSUFFICIENT_EVIDENCE
+
+  @@map("confidence_level")
+}
+
+enum HrReportStatus {
+  PENDING
+  READY
+  FAILED
+  SUPERSEDED
+
+  @@map("hr_report_status")
+}
+
+enum EvaluationOverrideTarget {
+  OVERALL
+  COMPETENCY
+
+  @@map("evaluation_override_target")
+}
+
+enum HumanDecisionValue {
+  ADVANCE
+  HOLD
+  REJECT
+  UNDECIDED
+
+  @@map("human_decision_value")
+}
+
 model Company {
   id            String        @id @default(cuid())
   name          String
@@ -937,6 +1024,24 @@ model Company {
   interviewActivityEvents InterviewActivityEvent[]
   interviewRecoveryCheckpoints InterviewRecoveryCheckpoint[]
   interviewStateHistory   InterviewStateHistory[]
+  transcripts             Transcript[]
+  transcriptVersions      TranscriptVersion[]
+  transcriptSegments      TranscriptSegment[]
+  aiPromptTemplates       AiPromptTemplate[]
+  aiPromptVersions        AiPromptVersion[]
+  aiRubricTemplates       AiRubricTemplate[]
+  aiRubricVersions        AiRubricVersion[]
+  evaluationRuns          EvaluationRun[]
+  evaluationVersions      EvaluationVersion[]
+  evaluationCompetencyScores EvaluationCompetencyScore[]
+  evaluationEvidenceCitations EvaluationEvidenceCitation[]
+  evaluationObservations  EvaluationObservation[]
+  evaluationLimitations   EvaluationLimitation[]
+  evaluationProviderPayloads EvaluationProviderPayload[]
+  hrReports               HrReport[]
+  hrReportVersions        HrReportVersion[]
+  evaluationOverrides     EvaluationOverride[]
+  humanDecisionHistory    HumanDecisionHistory[]
 
   @@index([status])
   @@map("companies")
@@ -986,6 +1091,8 @@ model User {
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
   mfaFactors              MfaFactor[]
+  evaluationOverrides     EvaluationOverride[]
+  humanDecisionHistory    HumanDecisionHistory[]
 
   @@unique([companyId, id])
   @@unique([companyId, email])
@@ -1336,6 +1443,8 @@ model LegalHold {
   createdByUser  User    @relation("LegalHoldCreator", fields: [companyId, createdByUserId], references: [companyId, id], onDelete: Restrict)
   releasedByUser User?   @relation("LegalHoldReleaser", fields: [companyId, releasedByUserId], references: [companyId, id], onDelete: Restrict)
   monitoringEvents MonitoringEvent[]
+  transcripts      Transcript[]
+  hrReports        HrReport[]
 
   @@unique([companyId, id])
   @@index([companyId, status])
@@ -1898,6 +2007,19 @@ model InterviewSession {
   stateHistory           InterviewStateHistory[]
   monitoringEvents       MonitoringEvent[]
   monitoringEventBatches MonitoringEventBatch[]
+  transcripts            Transcript[]
+  transcriptVersions     TranscriptVersion[]
+  transcriptSegments     TranscriptSegment[]
+  evaluationRuns         EvaluationRun[]
+  evaluationVersions     EvaluationVersion[]
+  evaluationCompetencyScores EvaluationCompetencyScore[]
+  evaluationEvidenceCitations EvaluationEvidenceCitation[]
+  evaluationObservations EvaluationObservation[]
+  evaluationLimitations  EvaluationLimitation[]
+  hrReports              HrReport[]
+  hrReportVersions       HrReportVersion[]
+  evaluationOverrides    EvaluationOverride[]
+  humanDecisionHistory   HumanDecisionHistory[]
 
   @@unique([companyId, id])
   @@unique([companyId, invitationId])
@@ -1958,6 +2080,8 @@ model InterviewTurn {
   interviewSession InterviewSession       @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
   questionState    InterviewQuestionState @relation(fields: [companyId, questionStateId], references: [companyId, id], onDelete: Restrict)
   media            InterviewTurnMedia[]
+  transcriptSegments TranscriptSegment[]
+  evidenceCitations EvaluationEvidenceCitation[]
 
   @@unique([companyId, id])
   @@unique([companyId, idempotencyKey])
@@ -2149,6 +2273,533 @@ model MonitoringEvent {
   @@index([companyId, reviewState, occurredAt])
   @@index([companyId, retentionDeleteAt])
   @@map("monitoring_events")
+}
+
+model Transcript {
+  id                     String           @id @default(cuid())
+  companyId              String           @map("company_id")
+  interviewSessionId     String           @map("interview_session_id")
+  status                 TranscriptStatus @default(PENDING)
+  activeVersionId        String?          @map("active_version_id")
+  language               String           @default("en")
+  provider               String
+  providerModel          String?          @map("provider_model")
+  providerVersion        String?          @map("provider_version")
+  transcriptQuality      ConfidenceLevel  @default(MODERATE) @map("transcript_quality")
+  retentionDeleteAt      DateTime         @map("retention_delete_at")
+  legalHoldId            String?          @map("legal_hold_id")
+  legalHoldActive        Boolean          @default(false) @map("legal_hold_active")
+  reviewedAt             DateTime?        @map("reviewed_at")
+  reviewedByUserId       String?          @map("reviewed_by_user_id")
+  reviewReason           String?          @map("review_reason")
+  failureCode            String?          @map("failure_code")
+  failureMessage         String?          @map("failure_message")
+  metadataJson           Json             @map("metadata_json")
+  createdAt              DateTime         @default(now()) @map("created_at")
+  updatedAt              DateTime         @updatedAt @map("updated_at")
+
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interviewSession InterviewSession @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  activeVersion    TranscriptVersion? @relation("ActiveTranscriptVersion", fields: [companyId, activeVersionId], references: [companyId, id], onDelete: Restrict)
+  legalHold        LegalHold?       @relation(fields: [companyId, legalHoldId], references: [companyId, id], onDelete: Restrict)
+  versions         TranscriptVersion[] @relation("TranscriptVersions")
+  segments         TranscriptSegment[]
+  evaluationRuns   EvaluationRun[]
+  evaluationVersions EvaluationVersion[]
+  reports          HrReport[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, interviewSessionId])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, retentionDeleteAt])
+  @@map("transcripts")
+}
+
+model TranscriptVersion {
+  id                     String           @id @default(cuid())
+  companyId              String           @map("company_id")
+  transcriptId           String           @map("transcript_id")
+  interviewSessionId     String           @map("interview_session_id")
+  versionNumber          Int              @map("version_number")
+  status                 TranscriptStatus @default(PROCESSING)
+  source                 String
+  language               String           @default("en")
+  provider               String
+  providerModel          String?          @map("provider_model")
+  providerVersion        String?          @map("provider_version")
+  providerReference      String?          @map("provider_reference")
+  confidence             Float?
+  transcriptQuality      ConfidenceLevel  @default(MODERATE) @map("transcript_quality")
+  correctionOfVersionId  String?          @map("correction_of_version_id")
+  correctionReason       String?          @map("correction_reason")
+  correctedByUserId      String?          @map("corrected_by_user_id")
+  supersededByVersionId  String?          @map("superseded_by_version_id")
+  startedAt              DateTime?        @map("started_at")
+  completedAt            DateTime?        @map("completed_at")
+  failureCode            String?          @map("failure_code")
+  failureMessage         String?          @map("failure_message")
+  metadataJson           Json             @map("metadata_json")
+  createdAt              DateTime         @default(now()) @map("created_at")
+  updatedAt              DateTime         @updatedAt @map("updated_at")
+
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  transcript       Transcript       @relation("TranscriptVersions", fields: [companyId, transcriptId], references: [companyId, id], onDelete: Cascade)
+  activeForTranscript Transcript[]  @relation("ActiveTranscriptVersion")
+  interviewSession InterviewSession @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  segments         TranscriptSegment[]
+  evaluationRuns   EvaluationRun[]
+  evaluationVersions EvaluationVersion[]
+  correctionOfVersion TranscriptVersion? @relation("TranscriptCorrection", fields: [companyId, correctionOfVersionId], references: [companyId, id], onDelete: Restrict)
+  corrections      TranscriptVersion[] @relation("TranscriptCorrection")
+  supersededByVersion TranscriptVersion? @relation("TranscriptSupersession", fields: [companyId, supersededByVersionId], references: [companyId, id], onDelete: Restrict)
+  supersededVersions TranscriptVersion[] @relation("TranscriptSupersession")
+
+  @@unique([companyId, id])
+  @@unique([companyId, transcriptId, versionNumber])
+  @@index([companyId, interviewSessionId, status])
+  @@index([companyId, transcriptId, createdAt])
+  @@map("transcript_versions")
+}
+
+model TranscriptSegment {
+  id                    String            @id @default(cuid())
+  companyId             String            @map("company_id")
+  transcriptId          String            @map("transcript_id")
+  transcriptVersionId   String            @map("transcript_version_id")
+  interviewSessionId    String            @map("interview_session_id")
+  interviewTurnId       String?           @map("interview_turn_id")
+  sequence              Int
+  speaker               TranscriptSpeaker
+  startMs               Int?              @map("start_ms")
+  endMs                 Int?              @map("end_ms")
+  text                  String
+  confidence            Float?
+  language              String            @default("en")
+  providerMetadataJson  Json              @map("provider_metadata_json")
+  createdAt             DateTime          @default(now()) @map("created_at")
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  transcript        Transcript        @relation(fields: [companyId, transcriptId], references: [companyId, id], onDelete: Cascade)
+  transcriptVersion TranscriptVersion @relation(fields: [companyId, transcriptVersionId], references: [companyId, id], onDelete: Cascade)
+  interviewSession  InterviewSession  @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  interviewTurn     InterviewTurn?    @relation(fields: [companyId, interviewTurnId], references: [companyId, id], onDelete: Restrict)
+  evidenceCitations EvaluationEvidenceCitation[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, transcriptVersionId, sequence])
+  @@index([companyId, interviewSessionId, sequence])
+  @@index([companyId, transcriptVersionId, sequence])
+  @@index([companyId, interviewTurnId])
+  @@map("transcript_segments")
+}
+
+model AiPromptTemplate {
+  id          String           @id @default(cuid())
+  companyId   String?          @map("company_id")
+  key         String
+  name        String
+  status      AiArtifactStatus @default(DRAFT)
+  description String?
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  archivedAt  DateTime?        @map("archived_at")
+
+  company  Company? @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  versions AiPromptVersion[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, key])
+  @@index([companyId, status])
+  @@map("ai_prompt_templates")
+}
+
+model AiPromptVersion {
+  id                    String           @id @default(cuid())
+  companyId             String?          @map("company_id")
+  promptTemplateId      String           @map("prompt_template_id")
+  versionNumber         Int              @map("version_number")
+  status                AiArtifactStatus @default(DRAFT)
+  promptHash            String           @map("prompt_hash")
+  systemPrompt          String           @map("system_prompt")
+  userPromptTemplate    String           @map("user_prompt_template")
+  evaluationSchemaJson  Json             @map("evaluation_schema_json")
+  redactionPolicyVersion String          @map("redaction_policy_version")
+  publishedAt           DateTime?        @map("published_at")
+  archivedAt            DateTime?        @map("archived_at")
+  createdAt             DateTime         @default(now()) @map("created_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
+
+  company        Company?         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  promptTemplate AiPromptTemplate @relation(fields: [promptTemplateId], references: [id], onDelete: Restrict)
+  evaluationRuns EvaluationRun[]
+  evaluationVersions EvaluationVersion[]
+
+  @@unique([companyId, id])
+  @@unique([promptTemplateId, versionNumber])
+  @@index([companyId, status])
+  @@map("ai_prompt_versions")
+}
+
+model AiRubricTemplate {
+  id          String           @id @default(cuid())
+  companyId   String?          @map("company_id")
+  key         String
+  name        String
+  status      AiArtifactStatus @default(DRAFT)
+  description String?
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  archivedAt  DateTime?        @map("archived_at")
+
+  company  Company? @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  versions AiRubricVersion[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, key])
+  @@index([companyId, status])
+  @@map("ai_rubric_templates")
+}
+
+model AiRubricVersion {
+  id                   String           @id @default(cuid())
+  companyId            String?          @map("company_id")
+  rubricTemplateId     String           @map("rubric_template_id")
+  versionNumber        Int              @map("version_number")
+  status               AiArtifactStatus @default(DRAFT)
+  rubricHash           String           @map("rubric_hash")
+  scoreMin             Int              @default(1) @map("score_min")
+  scoreMax             Int              @default(5) @map("score_max")
+  competencySchemaJson Json             @map("competency_schema_json")
+  publishedAt          DateTime?        @map("published_at")
+  archivedAt           DateTime?        @map("archived_at")
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+
+  company        Company?         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  rubricTemplate AiRubricTemplate @relation(fields: [rubricTemplateId], references: [id], onDelete: Restrict)
+  evaluationRuns EvaluationRun[]
+  evaluationVersions EvaluationVersion[]
+
+  @@unique([companyId, id])
+  @@unique([rubricTemplateId, versionNumber])
+  @@index([companyId, status])
+  @@map("ai_rubric_versions")
+}
+
+model EvaluationRun {
+  id                     String                @id @default(cuid())
+  companyId              String                @map("company_id")
+  interviewSessionId     String                @map("interview_session_id")
+  transcriptId           String                @map("transcript_id")
+  transcriptVersionId    String                @map("transcript_version_id")
+  promptVersionId        String                @map("prompt_version_id")
+  rubricVersionId        String                @map("rubric_version_id")
+  provider               EvaluationProviderKey
+  providerModel          String                @map("provider_model")
+  providerModelVersion   String?               @map("provider_model_version")
+  status                 EvaluationStatus      @default(PENDING)
+  redactionPolicyVersion String                 @map("redaction_policy_version")
+  outputNormalizationVersion String            @map("output_normalization_version")
+  requestStartedAt       DateTime?             @map("request_started_at")
+  responseReceivedAt     DateTime?             @map("response_received_at")
+  latencyMs              Int?                  @map("latency_ms")
+  usageJson              Json                  @map("usage_json")
+  estimatedCostCents     Int?                  @map("estimated_cost_cents")
+  failureKind            WorkflowFailureKind?  @map("failure_kind")
+  failureCode            String?               @map("failure_code")
+  failureMessage         String?               @map("failure_message")
+  metadataJson           Json                  @map("metadata_json")
+  createdAt              DateTime              @default(now()) @map("created_at")
+  updatedAt              DateTime              @updatedAt @map("updated_at")
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interviewSession  InterviewSession  @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  transcript        Transcript        @relation(fields: [companyId, transcriptId], references: [companyId, id], onDelete: Restrict)
+  transcriptVersion TranscriptVersion @relation(fields: [companyId, transcriptVersionId], references: [companyId, id], onDelete: Restrict)
+  promptVersion     AiPromptVersion   @relation(fields: [promptVersionId], references: [id], onDelete: Restrict)
+  rubricVersion     AiRubricVersion   @relation(fields: [rubricVersionId], references: [id], onDelete: Restrict)
+  versions          EvaluationVersion[]
+  providerPayloads  EvaluationProviderPayload[]
+
+  @@unique([companyId, id])
+  @@index([companyId, interviewSessionId, status])
+  @@index([companyId, status, createdAt])
+  @@map("evaluation_runs")
+}
+
+model EvaluationVersion {
+  id                     String                 @id @default(cuid())
+  companyId              String                 @map("company_id")
+  evaluationRunId        String                 @map("evaluation_run_id")
+  interviewSessionId     String                 @map("interview_session_id")
+  transcriptId           String                 @map("transcript_id")
+  transcriptVersionId    String                 @map("transcript_version_id")
+  promptVersionId        String                 @map("prompt_version_id")
+  rubricVersionId        String                 @map("rubric_version_id")
+  versionNumber          Int                    @map("version_number")
+  status                 EvaluationStatus       @default(PROCESSING)
+  reviewStatus           EvaluationReviewStatus @default(UNREVIEWED) @map("review_status")
+  overallScore           Float?                 @map("overall_score")
+  scoreMin               Int                    @map("score_min")
+  scoreMax               Int                    @map("score_max")
+  overallConfidence      ConfidenceLevel        @default(MODERATE) @map("overall_confidence")
+  transcriptConfidence   ConfidenceLevel        @default(MODERATE) @map("transcript_confidence")
+  summary                String
+  recommendation         String?
+  decisionSupportDisclaimer String              @map("decision_support_disclaimer")
+  supersededByVersionId  String?                @map("superseded_by_version_id")
+  reviewedAt             DateTime?              @map("reviewed_at")
+  reviewedByUserId       String?                @map("reviewed_by_user_id")
+  reviewReason           String?                @map("review_reason")
+  completedAt            DateTime?              @map("completed_at")
+  failureCode            String?                @map("failure_code")
+  failureMessage         String?                @map("failure_message")
+  metadataJson           Json                   @map("metadata_json")
+  createdAt              DateTime               @default(now()) @map("created_at")
+  updatedAt              DateTime               @updatedAt @map("updated_at")
+
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  evaluationRun    EvaluationRun    @relation(fields: [companyId, evaluationRunId], references: [companyId, id], onDelete: Cascade)
+  interviewSession InterviewSession @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  transcript       Transcript       @relation(fields: [companyId, transcriptId], references: [companyId, id], onDelete: Restrict)
+  transcriptVersion TranscriptVersion @relation(fields: [companyId, transcriptVersionId], references: [companyId, id], onDelete: Restrict)
+  promptVersion    AiPromptVersion  @relation(fields: [promptVersionId], references: [id], onDelete: Restrict)
+  rubricVersion    AiRubricVersion  @relation(fields: [rubricVersionId], references: [id], onDelete: Restrict)
+  scores           EvaluationCompetencyScore[]
+  evidenceCitations EvaluationEvidenceCitation[]
+  observations     EvaluationObservation[]
+  limitations      EvaluationLimitation[]
+  reports          HrReport[]
+  reportVersions   HrReportVersion[]
+  overrides        EvaluationOverride[]
+  supersededByVersion EvaluationVersion? @relation("EvaluationSupersession", fields: [companyId, supersededByVersionId], references: [companyId, id], onDelete: Restrict)
+  supersededVersions EvaluationVersion[] @relation("EvaluationSupersession")
+
+  @@unique([companyId, id])
+  @@unique([companyId, evaluationRunId, versionNumber])
+  @@index([companyId, interviewSessionId, status])
+  @@index([companyId, reviewStatus, createdAt])
+  @@map("evaluation_versions")
+}
+
+model EvaluationCompetencyScore {
+  id                  String          @id @default(cuid())
+  companyId           String          @map("company_id")
+  evaluationVersionId String          @map("evaluation_version_id")
+  interviewSessionId  String          @map("interview_session_id")
+  competencyKey       String          @map("competency_key")
+  label               String
+  score               Float?
+  maxScore            Int             @map("max_score")
+  confidence          ConfidenceLevel
+  rationale           String
+  incomplete          Boolean         @default(false)
+  createdAt           DateTime        @default(now()) @map("created_at")
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  evaluationVersion EvaluationVersion @relation(fields: [companyId, evaluationVersionId], references: [companyId, id], onDelete: Cascade)
+  interviewSession  InterviewSession  @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  evidenceCitations EvaluationEvidenceCitation[]
+  overrides         EvaluationOverride[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, evaluationVersionId, competencyKey])
+  @@index([companyId, interviewSessionId, competencyKey])
+  @@map("evaluation_competency_scores")
+}
+
+model EvaluationEvidenceCitation {
+  id                    String   @id @default(cuid())
+  companyId             String   @map("company_id")
+  evaluationVersionId   String   @map("evaluation_version_id")
+  competencyScoreId     String?  @map("competency_score_id")
+  interviewSessionId    String   @map("interview_session_id")
+  transcriptSegmentId   String?  @map("transcript_segment_id")
+  interviewTurnId       String?  @map("interview_turn_id")
+  competencyKey         String   @map("competency_key")
+  claim                 String
+  excerpt               String
+  startMs               Int?     @map("start_ms")
+  endMs                 Int?     @map("end_ms")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  evaluationVersion EvaluationVersion @relation(fields: [companyId, evaluationVersionId], references: [companyId, id], onDelete: Cascade)
+  competencyScore   EvaluationCompetencyScore? @relation(fields: [companyId, competencyScoreId], references: [companyId, id], onDelete: Cascade)
+  interviewSession  InterviewSession  @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  transcriptSegment TranscriptSegment? @relation(fields: [companyId, transcriptSegmentId], references: [companyId, id], onDelete: Restrict)
+  interviewTurn     InterviewTurn?    @relation(fields: [companyId, interviewTurnId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@index([companyId, evaluationVersionId, competencyKey])
+  @@index([companyId, transcriptSegmentId])
+  @@index([companyId, interviewTurnId])
+  @@map("evaluation_evidence_citations")
+}
+
+model EvaluationObservation {
+  id                  String   @id @default(cuid())
+  companyId           String   @map("company_id")
+  evaluationVersionId String   @map("evaluation_version_id")
+  interviewSessionId  String   @map("interview_session_id")
+  kind                String
+  text                String
+  confidence          ConfidenceLevel
+  acceptedAt          DateTime? @map("accepted_at")
+  disputedAt          DateTime? @map("disputed_at")
+  reviewedByUserId    String?   @map("reviewed_by_user_id")
+  reviewReason        String?   @map("review_reason")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  evaluationVersion EvaluationVersion @relation(fields: [companyId, evaluationVersionId], references: [companyId, id], onDelete: Cascade)
+  interviewSession  InterviewSession  @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@index([companyId, evaluationVersionId, kind])
+  @@map("evaluation_observations")
+}
+
+model EvaluationLimitation {
+  id                  String          @id @default(cuid())
+  companyId           String          @map("company_id")
+  evaluationVersionId String          @map("evaluation_version_id")
+  interviewSessionId  String          @map("interview_session_id")
+  code                String
+  message             String
+  confidenceImpact    ConfidenceLevel @map("confidence_impact")
+  createdAt           DateTime        @default(now()) @map("created_at")
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  evaluationVersion EvaluationVersion @relation(fields: [companyId, evaluationVersionId], references: [companyId, id], onDelete: Cascade)
+  interviewSession  InterviewSession  @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@index([companyId, evaluationVersionId])
+  @@map("evaluation_limitations")
+}
+
+model EvaluationProviderPayload {
+  id               String                @id @default(cuid())
+  companyId        String                @map("company_id")
+  evaluationRunId  String                @map("evaluation_run_id")
+  provider         EvaluationProviderKey
+  requestHash      String                @map("request_hash")
+  responseHash     String?               @map("response_hash")
+  payloadRef       String?               @map("payload_ref")
+  metadataJson     Json                  @map("metadata_json")
+  createdAt        DateTime              @default(now()) @map("created_at")
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  evaluationRun EvaluationRun @relation(fields: [companyId, evaluationRunId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@index([companyId, evaluationRunId])
+  @@map("evaluation_provider_payloads")
+}
+
+model HrReport {
+  id                  String         @id @default(cuid())
+  companyId           String         @map("company_id")
+  interviewSessionId  String         @map("interview_session_id")
+  transcriptId        String         @map("transcript_id")
+  evaluationVersionId String         @map("evaluation_version_id")
+  activeVersionId     String?        @map("active_version_id")
+  status              HrReportStatus @default(PENDING)
+  retentionDeleteAt   DateTime       @map("retention_delete_at")
+  legalHoldId         String?        @map("legal_hold_id")
+  legalHoldActive     Boolean        @default(false) @map("legal_hold_active")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interviewSession  InterviewSession  @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  transcript        Transcript        @relation(fields: [companyId, transcriptId], references: [companyId, id], onDelete: Restrict)
+  evaluationVersion EvaluationVersion @relation(fields: [companyId, evaluationVersionId], references: [companyId, id], onDelete: Restrict)
+  activeVersion     HrReportVersion?  @relation("ActiveHrReportVersion", fields: [companyId, activeVersionId], references: [companyId, id], onDelete: Restrict)
+  legalHold         LegalHold?        @relation(fields: [companyId, legalHoldId], references: [companyId, id], onDelete: Restrict)
+  versions          HrReportVersion[] @relation("HrReportVersions")
+
+  @@unique([companyId, id])
+  @@unique([companyId, interviewSessionId])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, retentionDeleteAt])
+  @@map("hr_reports")
+}
+
+model HrReportVersion {
+  id                  String         @id @default(cuid())
+  companyId           String         @map("company_id")
+  hrReportId          String         @map("hr_report_id")
+  interviewSessionId  String         @map("interview_session_id")
+  evaluationVersionId String         @map("evaluation_version_id")
+  versionNumber       Int            @map("version_number")
+  status              HrReportStatus @default(PENDING)
+  reportJson          Json           @map("report_json")
+  executiveSummary    String         @map("executive_summary")
+  disclaimer          String
+  supersededByVersionId String?      @map("superseded_by_version_id")
+  completedAt         DateTime?      @map("completed_at")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  hrReport          HrReport          @relation("HrReportVersions", fields: [companyId, hrReportId], references: [companyId, id], onDelete: Cascade)
+  activeForReport   HrReport[]        @relation("ActiveHrReportVersion")
+  interviewSession  InterviewSession  @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  evaluationVersion EvaluationVersion @relation(fields: [companyId, evaluationVersionId], references: [companyId, id], onDelete: Restrict)
+  supersededByVersion HrReportVersion? @relation("HrReportSupersession", fields: [companyId, supersededByVersionId], references: [companyId, id], onDelete: Restrict)
+  supersededVersions HrReportVersion[] @relation("HrReportSupersession")
+
+  @@unique([companyId, id])
+  @@unique([companyId, hrReportId, versionNumber])
+  @@index([companyId, interviewSessionId, status])
+  @@map("hr_report_versions")
+}
+
+model EvaluationOverride {
+  id                    String                   @id @default(cuid())
+  companyId             String                   @map("company_id")
+  interviewSessionId    String                   @map("interview_session_id")
+  evaluationVersionId   String                   @map("evaluation_version_id")
+  competencyScoreId     String?                  @map("competency_score_id")
+  target                EvaluationOverrideTarget
+  previousScore         Float?                   @map("previous_score")
+  newScore              Float                    @map("new_score")
+  reason                String
+  createdByUserId       String                   @map("created_by_user_id")
+  createdAt             DateTime                 @default(now()) @map("created_at")
+
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interviewSession  InterviewSession  @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  evaluationVersion EvaluationVersion @relation(fields: [companyId, evaluationVersionId], references: [companyId, id], onDelete: Restrict)
+  competencyScore   EvaluationCompetencyScore? @relation(fields: [companyId, competencyScoreId], references: [companyId, id], onDelete: Restrict)
+  createdByUser     User              @relation(fields: [companyId, createdByUserId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@index([companyId, interviewSessionId, createdAt])
+  @@index([companyId, evaluationVersionId])
+  @@map("evaluation_overrides")
+}
+
+model HumanDecisionHistory {
+  id                 String             @id @default(cuid())
+  companyId          String             @map("company_id")
+  interviewSessionId String             @map("interview_session_id")
+  fromDecision       HumanDecisionValue? @map("from_decision")
+  toDecision         HumanDecisionValue  @map("to_decision")
+  reason             String
+  createdByUserId    String             @map("created_by_user_id")
+  createdAt          DateTime           @default(now()) @map("created_at")
+
+  company          Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interviewSession InterviewSession @relation(fields: [companyId, interviewSessionId], references: [companyId, id], onDelete: Cascade)
+  createdByUser    User             @relation(fields: [companyId, createdByUserId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@index([companyId, interviewSessionId, createdAt])
+  @@map("human_decision_history")
 }
 
 model CandidateSession {

@@ -38,6 +38,12 @@ const environmentSchema = z.object({
   WORKER_MEDIA_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(3),
   WORKER_PROVIDER_BOUND_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(2),
   WORKER_NOTIFICATIONS_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(5),
+  TRANSCRIPTION_PROVIDER: z.enum(["development"]).default("development"),
+  EVALUATION_PROVIDER: z.enum(["development", "deepseek"]).default("development"),
+  DEEPSEEK_API_URL: z.string().url().default("https://api.deepseek.com/chat/completions"),
+  DEEPSEEK_API_KEY: z.string().min(1).optional(),
+  DEEPSEEK_MODEL: z.string().min(1).default("deepseek-chat"),
+  EVALUATION_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;
