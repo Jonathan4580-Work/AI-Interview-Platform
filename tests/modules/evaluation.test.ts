@@ -13,10 +13,12 @@ import {
   EvaluationDomainError,
   EvaluationService,
   validateProviderResult,
+  type EvaluationOverrideRecord,
   type EvaluationProviderResult,
   type EvaluationRepository,
   type EvaluationTranscriptBundle,
   type EvaluationVersionRecord,
+  type HumanDecisionRecord,
 } from "@/modules/evaluation";
 import type { InterviewSessionId } from "@/modules/invitations";
 import type { TenantContext, TenantId } from "@/modules/tenant";
@@ -103,6 +105,35 @@ describe("evaluation foundation", () => {
 
     expect(second.id).toBe(first.id);
     expect(repo.createdVersions).toHaveLength(1);
+  });
+
+  it("records human overrides and decisions separately from AI results", async () => {
+    const repo = new InMemoryEvaluationRepository();
+    const audit = new InMemoryAuditStore();
+    const service = createService(repo, audit);
+    const userContext = {
+      ...context,
+      actor: { type: "user" as const, id: "user_1" },
+    };
+
+    const override = await service.createOverride({
+      context: userContext,
+      evaluationVersionId: "evaluation_version_1" as never,
+      target: "overall",
+      newScore: 4,
+      reason: "Human reviewer found stronger evidence.",
+    });
+    const decision = await service.recordHumanDecision({
+      context: userContext,
+      interviewSessionId,
+      decision: "hold",
+      reason: "Needs hiring team review.",
+    });
+
+    expect(override.target).toBe("overall");
+    expect(decision.toDecision).toBe("hold");
+    expect(audit.events.map((event) => event.action)).toContain("evaluation.override_created");
+    expect(audit.events.map((event) => event.action)).toContain("candidate_decision.recorded");
   });
 });
 
@@ -215,6 +246,39 @@ class InMemoryEvaluationRepository implements EvaluationRepository {
     };
     this.createdVersions.push(version);
     return Promise.resolve(version);
+  }
+
+  public markEvaluationReviewed(): Promise<EvaluationVersionRecord | null> {
+    return Promise.resolve(this.createdVersions[0] ?? null);
+  }
+
+  public createOverride(): Promise<EvaluationOverrideRecord> {
+    return Promise.resolve({
+      id: "override_1",
+      companyId: tenant.companyId,
+      interviewSessionId,
+      evaluationVersionId: "evaluation_version_1" as never,
+      target: "overall",
+      competencyScoreId: null,
+      previousScore: 3,
+      newScore: 4,
+      reason: "Human reviewer adjustment.",
+      createdByUserId: "user_1",
+      createdAt: new Date("2026-07-01T00:00:00.000Z"),
+    });
+  }
+
+  public createHumanDecision(): Promise<HumanDecisionRecord> {
+    return Promise.resolve({
+      id: "decision_1",
+      companyId: tenant.companyId,
+      interviewSessionId,
+      fromDecision: null,
+      toDecision: "hold",
+      reason: "Needs team review.",
+      createdByUserId: "user_1",
+      createdAt: new Date("2026-07-01T00:00:00.000Z"),
+    });
   }
 }
 

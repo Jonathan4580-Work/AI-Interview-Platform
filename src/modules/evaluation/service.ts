@@ -7,10 +7,14 @@ import {
 
 import type {
   EvaluationMutationContext,
+  EvaluationOverrideRecord,
+  EvaluationOverrideTarget,
   EvaluationProvider,
   EvaluationProviderResult,
   EvaluationRepository,
   EvaluationVersionRecord,
+  HumanDecisionRecord,
+  HumanDecisionValue,
   ProviderCompetencyResult,
 } from "./types";
 import type { InterviewSessionId } from "@/modules/invitations";
@@ -97,6 +101,133 @@ export class EvaluationService {
     });
     return created;
   }
+
+  public async markReviewed(input: {
+    readonly context: EvaluationMutationContext;
+    readonly evaluationVersionId: EvaluationVersionRecord["id"];
+    readonly reason: string;
+  }): Promise<EvaluationVersionRecord> {
+    const userId = requireUserActorId(input.context);
+    const reason = normalizeReason(input.reason);
+    const reviewed = await this.repository.markEvaluationReviewed({
+      tenant: input.context.tenant,
+      evaluationVersionId: input.evaluationVersionId,
+      reviewedByUserId: userId,
+      reason,
+      reviewedAt: this.now(),
+    });
+    if (reviewed === null) {
+      throw new EvaluationDomainError("Evaluation was not found for this company.");
+    }
+    await this.auditWriter.record({
+      companyId: input.context.tenant.companyId,
+      actor: input.context.actor,
+      request: input.context.request,
+      supportAccessSessionId: input.context.supportAccessSessionId ?? null,
+      action: "evaluation.reviewed",
+      resourceType: "evaluation_version",
+      resourceId: reviewed.id,
+      reason,
+      riskLevel: "high",
+      after: { evaluationVersionId: reviewed.id, reviewedAt: reviewed.completedAt },
+    });
+    return reviewed;
+  }
+
+  public async createOverride(input: {
+    readonly context: EvaluationMutationContext;
+    readonly evaluationVersionId: EvaluationVersionRecord["id"];
+    readonly target: EvaluationOverrideTarget;
+    readonly competencyScoreId?: EvaluationOverrideRecord["competencyScoreId"];
+    readonly newScore: number;
+    readonly reason: string;
+  }): Promise<EvaluationOverrideRecord> {
+    const userId = requireUserActorId(input.context);
+    const reason = normalizeReason(input.reason);
+    if (!Number.isFinite(input.newScore) || input.newScore < 1 || input.newScore > 5) {
+      throw new EvaluationDomainError("Override score must be between 1 and 5.");
+    }
+    if (input.target === "competency" && !input.competencyScoreId) {
+      throw new EvaluationDomainError("Competency overrides require a competency score.");
+    }
+    const created = await this.repository.createOverride({
+      tenant: input.context.tenant,
+      evaluationVersionId: input.evaluationVersionId,
+      target: input.target,
+      competencyScoreId: input.competencyScoreId ?? null,
+      newScore: input.newScore,
+      reason,
+      createdByUserId: userId,
+    });
+    await this.auditWriter.record({
+      companyId: input.context.tenant.companyId,
+      actor: input.context.actor,
+      request: input.context.request,
+      supportAccessSessionId: input.context.supportAccessSessionId ?? null,
+      action: "evaluation.override_created",
+      resourceType: "evaluation_override",
+      resourceId: created.id,
+      reason,
+      riskLevel: "high",
+      after: {
+        evaluationVersionId: created.evaluationVersionId,
+        target: created.target,
+        competencyScoreId: created.competencyScoreId,
+        previousScore: created.previousScore,
+        newScore: created.newScore,
+      },
+    });
+    return created;
+  }
+
+  public async recordHumanDecision(input: {
+    readonly context: EvaluationMutationContext;
+    readonly interviewSessionId: InterviewSessionId;
+    readonly decision: HumanDecisionValue;
+    readonly reason: string;
+  }): Promise<HumanDecisionRecord> {
+    const userId = requireUserActorId(input.context);
+    const reason = normalizeReason(input.reason);
+    const created = await this.repository.createHumanDecision({
+      tenant: input.context.tenant,
+      interviewSessionId: input.interviewSessionId,
+      decision: input.decision,
+      reason,
+      createdByUserId: userId,
+    });
+    await this.auditWriter.record({
+      companyId: input.context.tenant.companyId,
+      actor: input.context.actor,
+      request: input.context.request,
+      supportAccessSessionId: input.context.supportAccessSessionId ?? null,
+      action: "candidate_decision.recorded",
+      resourceType: "human_decision",
+      resourceId: created.id,
+      reason,
+      riskLevel: "high",
+      after: {
+        interviewSessionId: created.interviewSessionId,
+        fromDecision: created.fromDecision,
+        toDecision: created.toDecision,
+      },
+    });
+    return created;
+  }
+}
+
+function requireUserActorId(context: EvaluationMutationContext): string {
+  if (context.actor.type !== "user" || context.actor.id === null) {
+    throw new EvaluationDomainError("A company user actor is required.");
+  }
+  return context.actor.id;
+}
+
+function normalizeReason(value: string): string {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (normalized.length < 3 || normalized.length > 500) {
+    throw new EvaluationDomainError("Reason must be between 3 and 500 characters.");
+  }
+  return normalized;
 }
 
 export function validateProviderResult(

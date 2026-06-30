@@ -101,6 +101,34 @@ export interface EvaluationVersionRecord {
   readonly completedAt: Date | null;
 }
 
+export type EvaluationOverrideTarget = "overall" | "competency";
+export type HumanDecisionValue = "advance" | "hold" | "reject" | "undecided";
+
+export interface EvaluationOverrideRecord {
+  readonly id: string;
+  readonly companyId: TenantId;
+  readonly interviewSessionId: InterviewSessionId;
+  readonly evaluationVersionId: EvaluationVersionId;
+  readonly target: EvaluationOverrideTarget;
+  readonly competencyScoreId: EvaluationCompetencyScoreId | null;
+  readonly previousScore: number | null;
+  readonly newScore: number;
+  readonly reason: string;
+  readonly createdByUserId: string;
+  readonly createdAt: Date;
+}
+
+export interface HumanDecisionRecord {
+  readonly id: string;
+  readonly companyId: TenantId;
+  readonly interviewSessionId: InterviewSessionId;
+  readonly fromDecision: HumanDecisionValue | null;
+  readonly toDecision: HumanDecisionValue;
+  readonly reason: string;
+  readonly createdByUserId: string;
+  readonly createdAt: Date;
+}
+
 export interface EvaluationRepository {
   findReadyEvaluation(input: {
     readonly tenant: TenantContext;
@@ -120,4 +148,30 @@ export interface EvaluationRepository {
     readonly outputNormalizationVersion: string;
     readonly retentionDeleteAt: Date;
   }): Promise<EvaluationVersionRecord>;
+
+  markEvaluationReviewed(input: {
+    readonly tenant: TenantContext;
+    readonly evaluationVersionId: EvaluationVersionId;
+    readonly reviewedByUserId: string;
+    readonly reason: string;
+    readonly reviewedAt: Date;
+  }): Promise<EvaluationVersionRecord | null>;
+
+  createOverride(input: {
+    readonly tenant: TenantContext;
+    readonly evaluationVersionId: EvaluationVersionId;
+    readonly target: EvaluationOverrideTarget;
+    readonly competencyScoreId?: EvaluationCompetencyScoreId | null;
+    readonly newScore: number;
+    readonly reason: string;
+    readonly createdByUserId: string;
+  }): Promise<EvaluationOverrideRecord>;
+
+  createHumanDecision(input: {
+    readonly tenant: TenantContext;
+    readonly interviewSessionId: InterviewSessionId;
+    readonly decision: HumanDecisionValue;
+    readonly reason: string;
+    readonly createdByUserId: string;
+  }): Promise<HumanDecisionRecord>;
 }

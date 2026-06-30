@@ -10,6 +10,8 @@ export type {
   ConfidenceLevel,
   EvaluationCompetencyScoreId,
   EvaluationMutationContext,
+  EvaluationOverrideRecord,
+  EvaluationOverrideTarget,
   EvaluationProvider,
   EvaluationProviderKey,
   EvaluationProviderResult,
@@ -19,6 +21,8 @@ export type {
   EvaluationTranscriptBundle,
   EvaluationVersionId,
   EvaluationVersionRecord,
+  HumanDecisionRecord,
+  HumanDecisionValue,
   ProviderCompetencyResult,
   ProviderEvidenceCitation,
 } from "./types";

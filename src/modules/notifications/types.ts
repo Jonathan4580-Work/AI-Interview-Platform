@@ -4,7 +4,11 @@ import type { Brand } from "@/shared";
 
 export type NotificationIntentId = Brand<string, "NotificationIntentId">;
 export type NotificationIntentType =
-  "invitation_created" | "invitation_reminder" | "schedule_created" | "schedule_updated";
+  | "invitation_created"
+  | "invitation_reminder"
+  | "schedule_created"
+  | "schedule_updated"
+  | "results_ready";
 export type NotificationChannel = "email";
 export type NotificationIntentStatus = "pending" | "cancelled" | "dispatched" | "failed";
 
