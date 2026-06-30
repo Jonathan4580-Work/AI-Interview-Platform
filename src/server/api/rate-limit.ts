@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { rateLimited } from "./errors";
 
 export interface RateLimitRule {
@@ -18,19 +20,26 @@ export interface RateLimiter {
 interface Bucket {
   count: number;
   resetAt: number;
+  lastSeenAt: number;
 }
 
 export class MemoryRateLimiter implements RateLimiter {
+  private readonly maxBuckets: number;
   private readonly buckets = new Map<string, Bucket>();
+
+  public constructor(options: { readonly maxBuckets?: number } = {}) {
+    this.maxBuckets = options.maxBuckets ?? 10_000;
+  }
 
   public check(key: string, rule: RateLimitRule, now = new Date()): Promise<RateLimitResult> {
     const currentTime = now.getTime();
     this.pruneExpiredBuckets(currentTime);
+    this.pruneToCapacity();
     const bucket = this.buckets.get(key);
 
     if (bucket === undefined || bucket.resetAt <= currentTime) {
       const resetAt = currentTime + rule.windowMs;
-      this.buckets.set(key, { count: 1, resetAt });
+      this.buckets.set(key, { count: 1, resetAt, lastSeenAt: currentTime });
       return Promise.resolve({
         allowed: true,
         remaining: rule.max - 1,
@@ -39,6 +48,7 @@ export class MemoryRateLimiter implements RateLimiter {
     }
 
     bucket.count += 1;
+    bucket.lastSeenAt = currentTime;
     return Promise.resolve({
       allowed: bucket.count <= rule.max,
       remaining: Math.max(rule.max - bucket.count, 0),
@@ -51,6 +61,20 @@ export class MemoryRateLimiter implements RateLimiter {
       if (bucket.resetAt <= currentTime) {
         this.buckets.delete(key);
       }
+    }
+  }
+
+  private pruneToCapacity(): void {
+    if (this.buckets.size < this.maxBuckets) {
+      return;
+    }
+
+    const bucketsByAge = [...this.buckets.entries()].sort(
+      ([, left], [, right]) => left.lastSeenAt - right.lastSeenAt,
+    );
+    const bucketsToDelete = Math.max(1, this.buckets.size - this.maxBuckets + 1);
+    for (const [key] of bucketsByAge.slice(0, bucketsToDelete)) {
+      this.buckets.delete(key);
     }
   }
 }
@@ -72,7 +96,12 @@ export function rateLimitKey(parts: readonly (string | null | undefined)[]): str
   return parts
     .map((part) => {
       const trimmed = part?.trim();
-      return trimmed === undefined || trimmed.length === 0 ? "unknown" : trimmed;
+      if (trimmed === undefined || trimmed.length === 0) {
+        return "unknown";
+      }
+      return trimmed.length > 128
+        ? `sha256:${createHash("sha256").update(trimmed).digest("hex")}`
+        : trimmed;
     })
     .join(":");
 }

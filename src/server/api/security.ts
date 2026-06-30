@@ -66,7 +66,10 @@ export function applySecurityHeaders(
 ): void {
   response.headers.set("x-content-type-options", "nosniff");
   response.headers.set("x-frame-options", "DENY");
+  response.headers.set("x-dns-prefetch-control", "off");
   response.headers.set("referrer-policy", "no-referrer");
+  response.headers.set("cross-origin-opener-policy", "same-origin");
+  response.headers.set("cross-origin-resource-policy", "same-origin");
   response.headers.set(
     "permissions-policy",
     options.allowCandidateMedia === true
@@ -75,7 +78,7 @@ export function applySecurityHeaders(
   );
   response.headers.set(
     "content-security-policy",
-    "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'",
+    createContentSecurityPolicy(options.allowCandidateMedia === true),
   );
 
   if (process.env.NODE_ENV === "production") {
@@ -86,12 +89,40 @@ export function applySecurityHeaders(
   }
 }
 
+export function applySensitiveNoStoreHeaders(response: NextResponse): void {
+  response.headers.set("cache-control", "no-store");
+  response.headers.set("pragma", "no-cache");
+  response.headers.set("expires", "0");
+}
+
 function shouldUseSecureCookies(): boolean {
   return process.env.NODE_ENV === "production";
 }
 
 function cookiePrefix(): "" | "__Host-" {
   return shouldUseSecureCookies() ? "__Host-" : "";
+}
+
+function createContentSecurityPolicy(allowCandidateMedia: boolean): string {
+  const directives = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    "form-action 'self'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "style-src 'self' 'unsafe-inline'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    "connect-src 'self'",
+    allowCandidateMedia ? "media-src 'self' blob:" : "media-src 'none'",
+  ];
+
+  if (process.env.NODE_ENV === "production") {
+    directives.push("upgrade-insecure-requests");
+  }
+
+  return directives.join("; ");
 }
 
 function timingSafeStringEqual(left: string, right: string): boolean {

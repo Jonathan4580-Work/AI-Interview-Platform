@@ -1,6 +1,7 @@
 import { env } from "@/config";
 import { createRequestContext } from "@/shared";
 
+import { applySensitiveNoStoreHeaders } from "./security";
 import { apiErrorResponse } from "./response";
 
 import type { NextRequest, NextResponse } from "next/server";
@@ -26,11 +27,13 @@ export function withApiHandler(
       const response = await handler(request, { requestContext });
       response.headers.set(env.REQUEST_ID_HEADER, requestContext.requestId);
       response.headers.set(env.CORRELATION_ID_HEADER, requestContext.correlationId);
+      applySensitiveNoStoreHeaders(response);
       return response;
     } catch (error) {
       const response = apiErrorResponse(error, requestContext);
       response.headers.set(env.REQUEST_ID_HEADER, requestContext.requestId);
       response.headers.set(env.CORRELATION_ID_HEADER, requestContext.correlationId);
+      applySensitiveNoStoreHeaders(response);
       return response;
     }
   };

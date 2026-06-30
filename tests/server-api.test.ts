@@ -62,6 +62,8 @@ describe("API foundation", () => {
       requestId: "req_abc",
       correlationId: "corr_abc",
     });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("pragma")).toBe("no-cache");
   });
 
   it("validates request input through schemas", () => {
@@ -138,6 +140,26 @@ describe("API foundation", () => {
     ).rejects.toThrow("Too many requests.");
   });
 
+  it("bounds in-memory rate limit buckets to avoid unbounded growth", async () => {
+    const limiter = new MemoryRateLimiter({ maxBuckets: 2 });
+    const now = new Date("2026-06-30T00:00:00.000Z");
+
+    await enforceRateLimit({ limiter, key: "one", rule: { windowMs: 60_000, max: 5 }, now });
+    await enforceRateLimit({ limiter, key: "two", rule: { windowMs: 60_000, max: 5 }, now });
+    await enforceRateLimit({ limiter, key: "three", rule: { windowMs: 60_000, max: 5 }, now });
+
+    await expect(
+      enforceRateLimit({ limiter, key: "one", rule: { windowMs: 60_000, max: 1 }, now }),
+    ).resolves.toBeDefined();
+  });
+
+  it("hashes oversized rate limit key components", () => {
+    const key = rateLimitKey(["auth", "a".repeat(200)]);
+
+    expect(key).toMatch(/^auth:sha256:[a-f0-9]{64}$/);
+    expect(key).not.toContain("a".repeat(129));
+  });
+
   it("applies baseline security headers", () => {
     const response = NextResponse.next();
 
@@ -145,7 +167,10 @@ describe("API foundation", () => {
 
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
     expect(response.headers.get("x-frame-options")).toBe("DENY");
+    expect(response.headers.get("cross-origin-opener-policy")).toBe("same-origin");
+    expect(response.headers.get("cross-origin-resource-policy")).toBe("same-origin");
     expect(response.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+    expect(response.headers.get("content-security-policy")).toContain("media-src 'none'");
     expect(response.headers.get("permissions-policy")).toContain("camera=()");
   });
 
@@ -156,5 +181,6 @@ describe("API foundation", () => {
 
     expect(response.headers.get("permissions-policy")).toContain("camera=(self)");
     expect(response.headers.get("permissions-policy")).toContain("microphone=(self)");
+    expect(response.headers.get("content-security-policy")).toContain("media-src 'self' blob:");
   });
 });

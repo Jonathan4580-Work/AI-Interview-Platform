@@ -22,6 +22,7 @@ export {
 export { apiErrorResponse, apiSuccess, normalizeApiError } from "./response";
 export { enforceRateLimit, MemoryRateLimiter, rateLimitKey } from "./rate-limit";
 export {
+  applySensitiveNoStoreHeaders,
   applySecurityHeaders,
   assertCsrf,
   authCookieNames,
