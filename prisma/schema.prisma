@@ -162,6 +162,92 @@ enum LocationMode {
   @@map("location_mode")
 }
 
+enum HiringPipelineStatus {
+  ACTIVE
+  ARCHIVED
+
+  @@map("hiring_pipeline_status")
+}
+
+enum PipelineStageStatus {
+  ACTIVE
+  ARCHIVED
+
+  @@map("pipeline_stage_status")
+}
+
+enum PipelineStageCategory {
+  APPLICATION_REVIEW
+  SCREEN
+  INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+
+  @@map("pipeline_stage_category")
+}
+
+enum JobStatus {
+  DRAFT
+  OPEN
+  PAUSED
+  CLOSED
+  ARCHIVED
+
+  @@map("job_status")
+}
+
+enum JobTemplateStatus {
+  ACTIVE
+  ARCHIVED
+
+  @@map("job_template_status")
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  TEMPORARY
+  INTERNSHIP
+
+  @@map("employment_type")
+}
+
+enum WorkplaceType {
+  ONSITE
+  HYBRID
+  REMOTE
+
+  @@map("workplace_type")
+}
+
+enum SeniorityLevel {
+  ENTRY
+  MID
+  SENIOR
+  STAFF
+  EXECUTIVE
+
+  @@map("seniority_level")
+}
+
+enum InterviewPlanStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+
+  @@map("interview_plan_status")
+}
+
+enum InterviewPlanVersionStatus {
+  DRAFT
+  PUBLISHED
+  RETIRED
+
+  @@map("interview_plan_version_status")
+}
+
 model Company {
   id            String        @id @default(cuid())
   name          String
@@ -173,22 +259,28 @@ model Company {
   updatedAt     DateTime      @updatedAt @map("updated_at")
   deletedAt     DateTime?     @map("deleted_at")
 
-  users           User[]
-  roles           Role[]
-  auditEvents     AuditEvent[]
-  idempotencyKeys IdempotencyKey[]
-  settings        CompanySettings?
-  subscription    Subscription?
-  entitlements    Entitlement[]
-  usageCounters   UsageCounter[]
-  supportAccess   SupportAccessSession[]
-  legalHolds      LegalHold[]
-  privacyRequests PrivacyRequest[]
-  exportRequests  ExportRequest[]
-  departments     Department[]
-  teams           Team[]
-  teamMembers     TeamMember[]
-  locations       Location[]
+  users                 User[]
+  roles                 Role[]
+  auditEvents           AuditEvent[]
+  idempotencyKeys       IdempotencyKey[]
+  settings              CompanySettings?
+  subscription          Subscription?
+  entitlements          Entitlement[]
+  usageCounters         UsageCounter[]
+  supportAccess         SupportAccessSession[]
+  legalHolds            LegalHold[]
+  privacyRequests       PrivacyRequest[]
+  exportRequests        ExportRequest[]
+  departments           Department[]
+  teams                 Team[]
+  teamMembers           TeamMember[]
+  locations             Location[]
+  hiringPipelines       HiringPipeline[]
+  pipelineStages        PipelineStage[]
+  jobs                  Job[]
+  jobTemplates          JobTemplate[]
+  interviewPlans        InterviewPlan[]
+  interviewPlanVersions InterviewPlanVersion[]
 
   @@index([status])
   @@map("companies")
@@ -517,6 +609,7 @@ model Department {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   teams   Team[]
+  jobs    Job[]
 
   @@unique([companyId, id])
   @@unique([companyId, slug])
@@ -539,6 +632,7 @@ model Team {
   company    Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
   department Department?  @relation(fields: [companyId, departmentId], references: [companyId, id], onDelete: Restrict)
   members    TeamMember[]
+  jobs       Job[]
 
   @@unique([companyId, id])
   @@unique([companyId, slug])
@@ -580,10 +674,168 @@ model Location {
   deletedAt   DateTime?      @map("deleted_at")
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  jobs    Job[]
 
   @@unique([companyId, id])
   @@unique([companyId, slug])
   @@index([companyId, status])
   @@index([companyId, mode])
   @@map("locations")
+}
+
+model HiringPipeline {
+  id          String               @id @default(cuid())
+  companyId   String               @map("company_id")
+  name        String
+  slug        String
+  description String?
+  status      HiringPipelineStatus @default(ACTIVE)
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+  deletedAt   DateTime?            @map("deleted_at")
+
+  company      Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  stages       PipelineStage[]
+  jobs         Job[]
+  jobTemplates JobTemplate[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, slug])
+  @@index([companyId, status])
+  @@map("hiring_pipelines")
+}
+
+model PipelineStage {
+  id         String                @id @default(cuid())
+  companyId  String                @map("company_id")
+  pipelineId String                @map("pipeline_id")
+  name       String
+  slug       String
+  category   PipelineStageCategory
+  position   Int
+  isTerminal Boolean               @default(false) @map("is_terminal")
+  status     PipelineStageStatus   @default(ACTIVE)
+  createdAt  DateTime              @default(now()) @map("created_at")
+  updatedAt  DateTime              @updatedAt @map("updated_at")
+  deletedAt  DateTime?             @map("deleted_at")
+
+  company  Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  pipeline HiringPipeline @relation(fields: [companyId, pipelineId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@unique([companyId, pipelineId, slug])
+  @@unique([companyId, pipelineId, position])
+  @@index([companyId, pipelineId, status])
+  @@map("pipeline_stages")
+}
+
+model Job {
+  id               String         @id @default(cuid())
+  companyId        String         @map("company_id")
+  departmentId     String?        @map("department_id")
+  teamId           String?        @map("team_id")
+  locationId       String?        @map("location_id")
+  pipelineId       String         @map("pipeline_id")
+  title            String
+  slug             String
+  descriptionJson  Json           @map("description_json")
+  requirementsJson Json           @map("requirements_json")
+  employmentType   EmploymentType @map("employment_type")
+  workplaceType    WorkplaceType  @map("workplace_type")
+  seniorityLevel   SeniorityLevel @map("seniority_level")
+  status           JobStatus      @default(DRAFT)
+  openedAt         DateTime?      @map("opened_at")
+  closedAt         DateTime?      @map("closed_at")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  deletedAt        DateTime?      @map("deleted_at")
+
+  company    Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  department Department?     @relation(fields: [companyId, departmentId], references: [companyId, id], onDelete: Restrict)
+  team       Team?           @relation(fields: [companyId, teamId], references: [companyId, id], onDelete: Restrict)
+  location   Location?       @relation(fields: [companyId, locationId], references: [companyId, id], onDelete: Restrict)
+  pipeline   HiringPipeline  @relation(fields: [companyId, pipelineId], references: [companyId, id], onDelete: Restrict)
+  plans      InterviewPlan[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, slug])
+  @@index([companyId, status])
+  @@index([companyId, pipelineId])
+  @@index([companyId, departmentId])
+  @@index([companyId, teamId])
+  @@index([companyId, locationId])
+  @@map("jobs")
+}
+
+model JobTemplate {
+  id               String            @id @default(cuid())
+  companyId        String            @map("company_id")
+  pipelineId       String?           @map("pipeline_id")
+  title            String
+  slug             String
+  descriptionJson  Json              @map("description_json")
+  requirementsJson Json              @map("requirements_json")
+  employmentType   EmploymentType?   @map("employment_type")
+  workplaceType    WorkplaceType?    @map("workplace_type")
+  seniorityLevel   SeniorityLevel?   @map("seniority_level")
+  status           JobTemplateStatus @default(ACTIVE)
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  deletedAt        DateTime?         @map("deleted_at")
+
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  pipeline HiringPipeline? @relation(fields: [companyId, pipelineId], references: [companyId, id], onDelete: Restrict)
+  plans    InterviewPlan[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, slug])
+  @@index([companyId, status])
+  @@index([companyId, pipelineId])
+  @@map("job_templates")
+}
+
+model InterviewPlan {
+  id              String              @id @default(cuid())
+  companyId       String              @map("company_id")
+  jobId           String?             @map("job_id")
+  jobTemplateId   String?             @map("job_template_id")
+  name            String
+  status          InterviewPlanStatus @default(DRAFT)
+  activeVersionId String?             @map("active_version_id")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  deletedAt       DateTime?           @map("deleted_at")
+
+  company     Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  job         Job?                   @relation(fields: [companyId, jobId], references: [companyId, id], onDelete: Cascade)
+  jobTemplate JobTemplate?           @relation(fields: [companyId, jobTemplateId], references: [companyId, id], onDelete: Cascade)
+  versions    InterviewPlanVersion[]
+
+  @@unique([companyId, id])
+  @@index([companyId, jobId])
+  @@index([companyId, jobTemplateId])
+  @@index([companyId, status])
+  @@map("interview_plans")
+}
+
+model InterviewPlanVersion {
+  id                    String                     @id @default(cuid())
+  companyId             String                     @map("company_id")
+  interviewPlanId       String                     @map("interview_plan_id")
+  versionNumber         Int                        @map("version_number")
+  status                InterviewPlanVersionStatus @default(DRAFT)
+  competencyJson        Json                       @map("competency_json")
+  questionBlueprintJson Json                       @map("question_blueprint_json")
+  durationMinutes       Int                        @map("duration_minutes")
+  publishedAt           DateTime?                  @map("published_at")
+  createdAt             DateTime                   @default(now()) @map("created_at")
+  updatedAt             DateTime                   @updatedAt @map("updated_at")
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  interviewPlan InterviewPlan @relation(fields: [companyId, interviewPlanId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@unique([companyId, interviewPlanId, versionNumber])
+  @@index([companyId, interviewPlanId, status])
+  @@map("interview_plan_versions")
 }
