@@ -28,6 +28,7 @@ export {
   csrfCookieOptions,
   secureCookieOptions,
 } from "./security";
+export { getClientIp, getRequestSecurityContext } from "./security-context";
 export { parseJsonBody, parseSearchParams, parseWithSchema, sanitizeString } from "./validation";
 export type { ApiErrorCode } from "./errors";
 export type { ApiHandlerContext } from "./handler";
