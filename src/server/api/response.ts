@@ -5,6 +5,7 @@ import { AuthenticationError, PasswordPolicyError } from "@/modules/auth";
 import { CandidatePortalError } from "@/modules/candidate-portal";
 import { InterviewDomainError } from "@/modules/interviews";
 import { MediaDomainError } from "@/modules/media";
+import { MonitoringDomainError } from "@/modules/monitoring";
 import { WorkflowDomainError } from "@/modules/workflows";
 
 import { ApiError, validationFailed } from "./errors";
@@ -119,6 +120,18 @@ export function normalizeApiError(error: unknown): ApiError {
     }
     if (error.code === "validation_failed") {
       return new ApiError(422, "validation_failed", error.message);
+    }
+    return new ApiError(409, "conflict", error.message);
+  }
+  if (error instanceof MonitoringDomainError) {
+    if (error.code === "not_found") {
+      return new ApiError(404, "not_found", "Monitoring resource was not found.");
+    }
+    if (error.code === "validation_failed") {
+      return new ApiError(422, "validation_failed", error.message);
+    }
+    if (error.code === "forbidden") {
+      return new ApiError(403, "forbidden", "Monitoring is not available for this session.");
     }
     return new ApiError(409, "conflict", error.message);
   }

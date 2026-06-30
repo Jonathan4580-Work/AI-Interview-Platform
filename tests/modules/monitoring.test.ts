@@ -34,7 +34,7 @@ describe("monitoring warning service", () => {
     ).rejects.toBeInstanceOf(MonitoringDomainError);
   });
 
-  it("aggregates thresholded warnings without storing arbitrary metadata or clipboard content", async () => {
+  it("aggregates thresholded warnings and rejects arbitrary metadata or clipboard content", async () => {
     const repo = new InMemoryMonitoringRepository();
     const service = createService(repo);
 
@@ -60,14 +60,9 @@ describe("monitoring warning service", () => {
       ],
     });
 
-    expect(result).toMatchObject({ acceptedCount: 2, deduplicatedCount: 1 });
-    expect(repo.events).toHaveLength(2);
+    expect(result).toMatchObject({ acceptedCount: 1, deduplicatedCount: 1, rejectedCount: 1 });
+    expect(repo.events).toHaveLength(1);
     expect(repo.events[0]?.occurrenceCount).toBe(6);
-    expect(repo.events[1]?.safeMetadata).toEqual({
-      schemaVersion: 1,
-      browser: "Chrome",
-      sampleCount: 1,
-    });
     expect(JSON.stringify(repo.events)).not.toContain("must-not-store");
   });
 

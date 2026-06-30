@@ -226,7 +226,11 @@ export class MonitoringService {
         rejectedCount += 1;
         continue;
       }
-      const safeMetadata = sanitizeMetadata(normalized.metadata ?? {});
+      const safeMetadata = trySanitizeMetadata(normalized.metadata ?? {});
+      if (safeMetadata === null) {
+        rejectedCount += 1;
+        continue;
+      }
       accepted.push({ event: normalized, safeMetadata, severity: threshold.severity });
     }
 
@@ -400,10 +404,10 @@ function passesThreshold(
   return true;
 }
 
-function sanitizeMetadata(value: Record<string, unknown>): Record<string, unknown> {
+function trySanitizeMetadata(value: Record<string, unknown>): Record<string, unknown> | null {
   const safe: Record<string, unknown> = { schemaVersion: 1 };
   for (const [key, entry] of Object.entries(value)) {
-    if (!allowedMetadataKeys.has(key)) continue;
+    if (!allowedMetadataKeys.has(key)) return null;
     if (typeof entry === "string") safe[key] = entry.slice(0, 160);
     if (typeof entry === "number" && Number.isFinite(entry)) safe[key] = entry;
     if (typeof entry === "boolean") safe[key] = entry;
