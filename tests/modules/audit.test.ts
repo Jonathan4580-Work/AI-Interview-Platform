@@ -22,6 +22,11 @@ describe("audit module", () => {
         Token: "secret-token",
         nested: {
           signedUrl: "https://example.com/private",
+          transcript_text: "candidate answer text",
+          evidenceExcerpt: "quoted transcript",
+          providerPayload: {
+            rawResponse: "provider output",
+          },
         },
       }),
     ).toEqual({
@@ -29,6 +34,9 @@ describe("audit module", () => {
       Token: "[redacted]",
       nested: {
         signedUrl: "[redacted]",
+        transcript_text: "[redacted]",
+        evidenceExcerpt: "[redacted]",
+        providerPayload: "[redacted]",
       },
     });
   });
