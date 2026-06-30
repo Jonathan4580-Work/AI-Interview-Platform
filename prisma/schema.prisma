@@ -435,6 +435,82 @@ enum NotificationIntentStatus {
   @@map("notification_intent_status")
 }
 
+enum EmailProvider {
+  SMTP
+  PREVIEW
+
+  @@map("email_provider")
+}
+
+enum SmtpProfileStatus {
+  ACTIVE
+  DISABLED
+  ARCHIVED
+
+  @@map("smtp_profile_status")
+}
+
+enum SenderDomainStatus {
+  PENDING
+  VERIFIED
+  FAILED
+  REVOKED
+
+  @@map("sender_domain_status")
+}
+
+enum EmailTemplateKey {
+  INTERVIEW_INVITATION
+  INTERVIEW_REMINDER
+  INVITATION_EXPIRED
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+
+  @@map("email_template_key")
+}
+
+enum EmailTemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+
+  @@map("email_template_status")
+}
+
+enum EmailDeliveryStatus {
+  PENDING
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  DEFERRED
+  BOUNCED
+  COMPLAINED
+  FAILED
+  CANCELLED
+
+  @@map("email_delivery_status")
+}
+
+enum EmailDeliveryAttemptStatus {
+  SENDING
+  SENT
+  DEFERRED
+  FAILED
+
+  @@map("email_delivery_attempt_status")
+}
+
+enum EmailEventType {
+  DELIVERED
+  DEFERRED
+  BOUNCED
+  COMPLAINED
+  FAILED
+
+  @@map("email_event_type")
+}
+
 model Company {
   id            String        @id @default(cuid())
   name          String
@@ -485,6 +561,13 @@ model Company {
   scheduleEvents          ScheduleEvent[]
   scheduleParticipants    ScheduleParticipant[]
   notificationIntents     NotificationIntent[]
+  emailSettings           EmailSettings?
+  smtpProfiles            SmtpProfile[]
+  verifiedSenderDomains   VerifiedSenderDomain[]
+  emailTemplates          EmailTemplate[]
+  emailDeliveries         EmailDelivery[]
+  emailDeliveryAttempts   EmailDeliveryAttempt[]
+  emailEvents             EmailEvent[]
 
   @@index([status])
   @@map("companies")
@@ -1481,9 +1564,189 @@ model NotificationIntent {
   updatedAt          DateTime                 @updatedAt @map("updated_at")
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
-
   @@unique([companyId, id])
   @@index([companyId, status, scheduledFor])
   @@index([companyId, targetResourceType, targetResourceId])
   @@map("notification_intents")
+}
+
+model EmailSettings {
+  id                   String    @id @default(cuid())
+  companyId            String    @unique @map("company_id")
+  defaultSmtpProfileId String?   @map("default_smtp_profile_id")
+  tenantEmailDisabledAt DateTime? @map("tenant_email_disabled_at")
+  disabledReason       String?   @map("disabled_reason")
+  metadataJson         Json      @map("metadata_json")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@map("email_settings")
+}
+
+model SmtpProfile {
+  id                       String             @id @default(cuid())
+  companyId                String?            @map("company_id")
+  provider                 EmailProvider      @default(SMTP)
+  name                     String
+  host                     String
+  port                     Int
+  secure                   Boolean            @default(true)
+  fromName                 String             @map("from_name")
+  fromEmail                String             @map("from_email")
+  normalizedFromEmail      String             @map("normalized_from_email")
+  replyToEmail             String?            @map("reply_to_email")
+  normalizedReplyToEmail   String?            @map("normalized_reply_to_email")
+  secretRef                String             @map("secret_ref")
+  status                   SmtpProfileStatus  @default(ACTIVE)
+  domainVerificationStatus SenderDomainStatus @default(PENDING) @map("domain_verification_status")
+  createdAt                DateTime           @default(now()) @map("created_at")
+  updatedAt                DateTime           @updatedAt @map("updated_at")
+  archivedAt               DateTime?          @map("archived_at")
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@unique([companyId, name])
+  @@index([companyId, status])
+  @@index([companyId, normalizedFromEmail])
+  @@map("smtp_profiles")
+}
+
+model VerifiedSenderDomain {
+  id                    String             @id @default(cuid())
+  companyId             String             @map("company_id")
+  domain                String
+  normalizedDomain      String             @map("normalized_domain")
+  status                SenderDomainStatus @default(PENDING)
+  verificationTokenHash String             @map("verification_token_hash")
+  dnsTxtName            String             @map("dns_txt_name")
+  dnsTxtValue           String             @map("dns_txt_value")
+  failureReason         String?            @map("failure_reason")
+  verifiedAt            DateTime?          @map("verified_at")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@unique([companyId, normalizedDomain])
+  @@index([companyId, status])
+  @@map("verified_sender_domains")
+}
+
+model EmailTemplate {
+  id            String              @id @default(cuid())
+  companyId     String?             @map("company_id")
+  key           EmailTemplateKey
+  name          String
+  subject       String
+  htmlBody      String              @map("html_body")
+  textBody      String              @map("text_body")
+  schemaVersion Int                 @map("schema_version")
+  version       Int
+  status        EmailTemplateStatus @default(DRAFT)
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+  publishedAt   DateTime?           @map("published_at")
+  archivedAt    DateTime?           @map("archived_at")
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@unique([companyId, key, version])
+  @@index([companyId, key, status])
+  @@map("email_templates")
+}
+
+model EmailDelivery {
+  id                       String              @id @default(cuid())
+  companyId                String              @map("company_id")
+  notificationIntentId     String?             @map("notification_intent_id")
+  templateId               String?             @map("template_id")
+  templateKey              EmailTemplateKey    @map("template_key")
+  templateVersion          Int?                @map("template_version")
+  smtpProfileId            String?             @map("smtp_profile_id")
+  recipientEmail           String              @map("recipient_email")
+  normalizedRecipientEmail String              @map("normalized_recipient_email")
+  recipientName            String?             @map("recipient_name")
+  subject                  String
+  status                   EmailDeliveryStatus @default(PENDING)
+  idempotencyKey           String?             @map("idempotency_key")
+  provider                 EmailProvider
+  providerMessageId        String?             @map("provider_message_id")
+  queuedAt                 DateTime?           @map("queued_at")
+  sendingAt                DateTime?           @map("sending_at")
+  sentAt                   DateTime?           @map("sent_at")
+  deliveredAt              DateTime?           @map("delivered_at")
+  deferredAt               DateTime?           @map("deferred_at")
+  bouncedAt                DateTime?           @map("bounced_at")
+  complainedAt             DateTime?           @map("complained_at")
+  failedAt                 DateTime?           @map("failed_at")
+  cancelledAt              DateTime?           @map("cancelled_at")
+  errorCode                String?             @map("error_code")
+  errorMessage             String?             @map("error_message")
+  metadataJson             Json                @map("metadata_json")
+  createdAt                DateTime            @default(now()) @map("created_at")
+  updatedAt                DateTime            @updatedAt @map("updated_at")
+
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  attempts           EmailDeliveryAttempt[]
+  events             EmailEvent[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, idempotencyKey])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, normalizedRecipientEmail])
+  @@index([companyId, notificationIntentId])
+  @@map("email_deliveries")
+}
+
+model EmailDeliveryAttempt {
+  id                String                     @id @default(cuid())
+  companyId         String                     @map("company_id")
+  deliveryId        String                     @map("delivery_id")
+  attemptNumber     Int                        @map("attempt_number")
+  status            EmailDeliveryAttemptStatus
+  provider          EmailProvider
+  providerMessageId String?                    @map("provider_message_id")
+  errorCode         String?                    @map("error_code")
+  errorMessage      String?                    @map("error_message")
+  startedAt         DateTime                   @map("started_at")
+  completedAt       DateTime?                  @map("completed_at")
+  metadataJson      Json                       @map("metadata_json")
+  createdAt         DateTime                   @default(now()) @map("created_at")
+
+  company  Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  delivery EmailDelivery @relation(fields: [companyId, deliveryId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@unique([companyId, deliveryId, attemptNumber])
+  @@index([companyId, deliveryId])
+  @@index([companyId, status, startedAt])
+  @@map("email_delivery_attempts")
+}
+
+model EmailEvent {
+  id                String         @id @default(cuid())
+  companyId         String         @map("company_id")
+  deliveryId        String         @map("delivery_id")
+  type              EmailEventType
+  provider          EmailProvider
+  providerMessageId String?        @map("provider_message_id")
+  reasonCode        String?        @map("reason_code")
+  reasonText        String?        @map("reason_text")
+  occurredAt        DateTime       @map("occurred_at")
+  metadataJson      Json           @map("metadata_json")
+  createdAt         DateTime       @default(now()) @map("created_at")
+
+  company  Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  delivery EmailDelivery @relation(fields: [companyId, deliveryId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@index([companyId, deliveryId, occurredAt])
+  @@index([companyId, type, occurredAt])
+  @@map("email_events")
 }
