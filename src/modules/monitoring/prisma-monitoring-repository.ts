@@ -115,6 +115,17 @@ export class PrismaMonitoringRepository implements MonitoringRepository {
   public async upsertAggregatedEvent(
     input: Parameters<MonitoringRepository["upsertAggregatedEvent"]>[0],
   ): ReturnType<MonitoringRepository["upsertAggregatedEvent"]> {
+    const idempotent = await prisma.monitoringEvent.findUnique({
+      where: {
+        companyId_idempotencyKey: {
+          companyId: input.companyId,
+          idempotencyKey: input.event.idempotencyKey,
+        },
+      },
+    });
+    if (idempotent !== null) {
+      return { created: false, record: mapEvent(idempotent) };
+    }
     const existing = await prisma.monitoringEvent.findUnique({
       where: {
         companyId_interviewSessionId_aggregationKey: {

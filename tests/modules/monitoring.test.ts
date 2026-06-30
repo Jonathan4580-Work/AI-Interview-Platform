@@ -88,6 +88,7 @@ describe("monitoring warning service", () => {
     });
 
     expect(result.rejectedCount).toBe(1);
+    expect(result.status).toBe("rejected");
     expect(repo.events).toHaveLength(0);
   });
 

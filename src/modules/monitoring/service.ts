@@ -240,7 +240,7 @@ export class MonitoringService {
       candidateId: interview.candidateId,
       candidateSessionId: context.session.sessionId,
       idempotencyKey,
-      status: accepted.length === batch.events.length ? "accepted" : "partially_accepted",
+      status: batchStatus(accepted.length, batch.events.length),
       acceptedCount: accepted.length,
       rejectedCount,
       deduplicatedCount: 0,
@@ -273,7 +273,7 @@ export class MonitoringService {
     }
 
     return {
-      status: acceptedCount === batch.events.length ? "accepted" : "partially_accepted",
+      status: batchStatus(acceptedCount + deduplicatedCount, batch.events.length),
       acceptedCount,
       rejectedCount,
       deduplicatedCount,
@@ -453,4 +453,9 @@ function hashPayload(value: unknown): string {
 
 function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function batchStatus(acceptedCount: number, totalCount: number): MonitoringBatchResult["status"] {
+  if (acceptedCount === 0) return "rejected";
+  return acceptedCount === totalCount ? "accepted" : "partially_accepted";
 }
