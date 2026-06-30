@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 import { candidatePost } from "@/components/candidate/candidate-api";
 import { CandidateShell } from "@/components/candidate/candidate-shell";
@@ -25,7 +26,7 @@ export function ReadyClient() {
         <Alert variant="success">
           <AlertTitle>Readiness confirmed</AlertTitle>
           <AlertDescription>
-            The interview room will become available in a later phase.
+            You can continue to the interview room when you are ready.
           </AlertDescription>
         </Alert>
       ) : (
@@ -33,6 +34,11 @@ export function ReadyClient() {
           Confirm when your camera, microphone, and environment are ready.
         </p>
       )}
+      {confirmed ? (
+        <Button asChild>
+          <Link href="/candidate/interview">Open interview room</Link>
+        </Button>
+      ) : null}
     </CandidateShell>
   );
 }

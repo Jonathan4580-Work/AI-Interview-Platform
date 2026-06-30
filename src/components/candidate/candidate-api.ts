@@ -35,3 +35,22 @@ export async function candidatePost(
     error: payload.error?.message ?? "The request could not be completed.",
   };
 }
+
+export async function candidateGet(
+  path: string,
+): Promise<{ readonly ok: boolean; readonly data?: unknown; readonly error?: string }> {
+  const response = await fetch(path, {
+    method: "GET",
+    headers: { accept: "application/json" },
+  });
+  const payload = (await response.json()) as {
+    readonly ok: boolean;
+    readonly data?: unknown;
+    readonly error?: { readonly message?: string };
+  };
+  return {
+    ok: response.ok && payload.ok,
+    data: payload.data,
+    error: payload.error?.message ?? "The request could not be completed.",
+  };
+}
