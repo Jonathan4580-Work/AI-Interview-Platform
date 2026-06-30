@@ -129,6 +129,17 @@ export class InterviewService {
         "invalid_state",
       );
     }
+    const questionStates = await this.repository.listQuestionStates(
+      { companyId: context.session.companyId },
+      session.id,
+    );
+    const firstUnanswered = questionStates.find((candidate) => candidate.status !== "answered");
+    if (firstUnanswered !== undefined && sequence > firstUnanswered.sequence) {
+      throw new InterviewDomainError(
+        "Interview questions must be answered in order.",
+        "invalid_state",
+      );
+    }
     const updated = await this.repository.updateQuestionStatus({
       tenant: { companyId: context.session.companyId },
       interviewSessionId: session.id,
@@ -322,7 +333,17 @@ export class InterviewService {
   public async completeInterview(
     context: CandidateInterviewContext,
   ): Promise<InterviewSessionRecord> {
-    const session = await this.requireActiveInterview(context);
+    const session = await this.requireCandidateInterview(context);
+    if (session.status === "completed" || session.status === "processing") {
+      return session;
+    }
+    if (
+      session.status !== "in_progress" &&
+      session.status !== "interrupted" &&
+      session.status !== "upload_recovery"
+    ) {
+      throw new InterviewDomainError("Interview is not active.", "invalid_state");
+    }
     const questions = await this.repository.listQuestionStates(
       { companyId: context.session.companyId },
       session.id,

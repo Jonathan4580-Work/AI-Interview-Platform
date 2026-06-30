@@ -72,6 +72,16 @@ describe("browser interview session service", () => {
     ).rejects.toThrow(InterviewDomainError);
   });
 
+  it("prevents skipping ahead in the question sequence", async () => {
+    const repo = new InMemoryInterviewRepository();
+    const service = createService(repo);
+    await service.startInterview(candidateContext);
+
+    await expect(service.startQuestion(candidateContext, 2)).rejects.toMatchObject({
+      code: "invalid_state",
+    });
+  });
+
   it("moves to upload recovery when completion is attempted before media is verified", async () => {
     const repo = new InMemoryInterviewRepository();
     const service = createService(repo);
@@ -128,6 +138,10 @@ describe("browser interview session service", () => {
       "evaluate_interview",
       "generate_report",
     ]);
+
+    const secondCompletion = await service.completeInterview(candidateContext);
+    expect(secondCompletion.id).toBe(completed.id);
+    expect(workflow.createCount).toBe(1);
   });
 });
 
@@ -199,6 +213,7 @@ class InMemoryAuditStore implements AuditEventStore {
 }
 
 class FakeWorkflowService {
+  public createCount = 0;
   public createdWorkflow: {
     readonly workflowType: string;
     readonly steps: readonly { readonly stepKey: string }[];
@@ -208,6 +223,7 @@ class FakeWorkflowService {
     readonly workflowType: string;
     readonly steps: readonly { readonly stepKey: string }[];
   }): Promise<{ readonly id: ProcessingWorkflowId }> {
+    this.createCount += 1;
     this.createdWorkflow = { workflowType: input.workflowType, steps: input.steps };
     return Promise.resolve({ id: "workflow_1" as ProcessingWorkflowId });
   }
