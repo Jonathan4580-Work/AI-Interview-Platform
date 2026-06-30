@@ -32,6 +32,28 @@ export const phase11MetricDefinitions = [
   metric("audit.write_failures_total", "counter", ["action_family"]),
 ] as const satisfies readonly MetricDefinition[];
 
+export const phase12MetricDefinitions = [
+  metric("outbox.backlog", "gauge", ["status"]),
+  metric("outbox.oldest_available_age_ms", "gauge", ["status"]),
+  metric("outbox.failures_total", "counter", ["event_key", "status"]),
+  metric("webhook.delivery.duration_ms", "histogram", ["status"]),
+  metric("webhook.delivery_failures_total", "counter", ["reason"]),
+  metric("sso.login_total", "counter", ["provider", "status"]),
+  metric("scim.provisioning_failures_total", "counter", ["operation", "reason"]),
+  metric("ats.sync.duration_ms", "histogram", ["provider", "status"]),
+  metric("ats.sync_conflicts_total", "counter", ["provider", "policy"]),
+  metric("integration.queue_depth", "gauge", ["queue"]),
+  metric("worker.class_health", "gauge", ["queue", "resource_class"]),
+  metric("worker.tenant_fairness_ratio", "gauge", ["queue"]),
+  metric("provider.throttles_total", "counter", ["provider", "operation"]),
+  metric("data_region.policy_violations_total", "counter", ["region", "reason"]),
+] as const satisfies readonly MetricDefinition[];
+
+export const metricDefinitions = [
+  ...phase11MetricDefinitions,
+  ...phase12MetricDefinitions,
+] as const satisfies readonly MetricDefinition[];
+
 const protectedTagNames = new Set([
   "candidate",
   "candidateid",

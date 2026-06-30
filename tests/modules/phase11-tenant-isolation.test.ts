@@ -58,6 +58,18 @@ const tenantOwnedModels = [
   "MediaObject",
   "MediaUploadSession",
   "MediaUploadPart",
+  "OutboxEvent",
+  "WebhookSubscription",
+  "WebhookDelivery",
+  "WebhookDeliveryAttempt",
+  "SsoConfiguration",
+  "SsoDomainMapping",
+  "ScimConfiguration",
+  "ScimExternalMapping",
+  "IntegrationConnection",
+  "IntegrationMapping",
+  "IntegrationSyncJob",
+  "DataResidencySetting",
 ] as const;
 
 describe("Phase 11 tenant isolation schema guardrails", () => {

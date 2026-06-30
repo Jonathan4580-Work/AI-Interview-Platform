@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   MetricsRegistry,
   assertMetricTags,
+  metricDefinitions,
   createErrorReport,
   phase11MetricDefinitions,
+  phase12MetricDefinitions,
 } from "@/modules/observability";
 
 describe("observability module", () => {
@@ -43,6 +45,27 @@ describe("observability module", () => {
     for (const definition of phase11MetricDefinitions) {
       expect(definition.allowedTags).not.toEqual(
         expect.arrayContaining(["candidateId", "email", "transcript"]),
+      );
+      expect(definition.allowedTags.length).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it("defines Phase 12 integration and scale metrics without sensitive labels", () => {
+    expect(phase12MetricDefinitions.map((definition) => definition.name)).toEqual(
+      expect.arrayContaining([
+        "outbox.backlog",
+        "webhook.delivery_failures_total",
+        "sso.login_total",
+        "scim.provisioning_failures_total",
+        "ats.sync_conflicts_total",
+        "worker.tenant_fairness_ratio",
+        "data_region.policy_violations_total",
+      ]),
+    );
+
+    for (const definition of metricDefinitions) {
+      expect(definition.allowedTags).not.toEqual(
+        expect.arrayContaining(["candidateId", "email", "transcript", "providerPayload"]),
       );
       expect(definition.allowedTags.length).toBeLessThanOrEqual(4);
     }

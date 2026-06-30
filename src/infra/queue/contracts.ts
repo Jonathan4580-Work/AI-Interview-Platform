@@ -25,6 +25,18 @@ export interface ProviderBoundQueuePayload extends SafeQueueContext {
   readonly resourceId: string;
 }
 
+export interface IntegrationQueuePayload extends SafeQueueContext {
+  readonly connectionId: string;
+  readonly syncJobId: string;
+  readonly operation: "sync_page" | "replay" | "cancel";
+}
+
+export interface WebhookQueuePayload extends SafeQueueContext {
+  readonly outboxEventId: string;
+  readonly webhookDeliveryId: string;
+  readonly operation: "deliver" | "retry" | "test";
+}
+
 export interface QueueContract<TPayload extends SafeQueueContext> {
   readonly queueName: QueueName;
   readonly jobName: string;

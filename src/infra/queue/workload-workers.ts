@@ -2,7 +2,13 @@ import { env } from "@/config";
 
 import { createManagedWorker } from "./workers";
 
-import type { MediaQueuePayload, ProviderBoundQueuePayload, SafeQueueContext } from "./contracts";
+import type {
+  IntegrationQueuePayload,
+  MediaQueuePayload,
+  ProviderBoundQueuePayload,
+  SafeQueueContext,
+  WebhookQueuePayload,
+} from "./contracts";
 import type { ManagedWorker } from "./workers";
 
 export interface QueuePayloadHandler<TPayload extends SafeQueueContext> {
@@ -63,6 +69,42 @@ export function createLightweightNotificationWorker(
     {
       queueName: "notifications",
       concurrency: env.WORKER_NOTIFICATIONS_CONCURRENCY,
+    },
+    async (job) => {
+      const handler = handlers[job.name];
+      if (handler === undefined) {
+        throw new QueueHandlerNotRegisteredError(job.name);
+      }
+      await handler.handle(job.data);
+    },
+  );
+}
+
+export function createIntegrationWorker(
+  handlers: QueuePayloadHandlerRegistry<IntegrationQueuePayload>,
+): ManagedWorker {
+  return createManagedWorker<IntegrationQueuePayload>(
+    {
+      queueName: "integrations",
+      concurrency: env.WORKER_INTEGRATIONS_CONCURRENCY,
+    },
+    async (job) => {
+      const handler = handlers[job.name];
+      if (handler === undefined) {
+        throw new QueueHandlerNotRegisteredError(job.name);
+      }
+      await handler.handle(job.data);
+    },
+  );
+}
+
+export function createWebhookWorker(
+  handlers: QueuePayloadHandlerRegistry<WebhookQueuePayload>,
+): ManagedWorker {
+  return createManagedWorker<WebhookQueuePayload>(
+    {
+      queueName: "webhooks",
+      concurrency: env.WORKER_WEBHOOKS_CONCURRENCY,
     },
     async (job) => {
       const handler = handlers[job.name];

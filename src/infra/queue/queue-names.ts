@@ -8,7 +8,10 @@ export const queueNames = [
   "transcription",
   "evaluation",
   "reporting",
+  "exports",
   "retention",
+  "integrations",
+  "webhooks",
   "notifications",
 ] as const;
 

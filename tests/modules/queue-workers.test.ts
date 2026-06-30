@@ -3,11 +3,18 @@ import { describe, expect, it } from "vitest";
 import {
   QueueHandlerNotRegisteredError,
   assertSafeQueuePayload,
+  assertWorkerDeploymentCompatible,
+  calculateTenantFairnessRatio,
   closeWorkersGracefully,
+  createIntegrationWorker,
   createLightweightNotificationWorker,
   createMediaWorker,
   createProviderBoundWorker,
+  createWebhookWorker,
+  getWorkerClassPolicies,
+  queueNames,
   redactQueuePayload,
+  shouldThrottleTenantQueue,
 } from "@/infra/queue";
 
 describe("queue worker contracts", () => {
@@ -59,6 +66,56 @@ describe("queue worker contracts", () => {
     expect(createMediaWorker).toBeDefined();
     expect(createProviderBoundWorker).toBeDefined();
     expect(createLightweightNotificationWorker).toBeDefined();
+    expect(createIntegrationWorker).toBeDefined();
+    expect(createWebhookWorker).toBeDefined();
+  });
+
+  it("defines a scaling policy for every queue class", () => {
+    const policies = getWorkerClassPolicies();
+
+    expect(policies.map((policy) => policy.queueName).sort()).toEqual([...queueNames].sort());
+    expect(policies.every((policy) => policy.concurrency > 0)).toBe(true);
+    expect(policies.every((policy) => policy.tenantFairnessLimit > 0)).toBe(true);
+  });
+
+  it("applies deterministic tenant fairness signals", () => {
+    expect(
+      shouldThrottleTenantQueue({
+        queueName: "integrations",
+        companyId: "company_1",
+        activeJobs: 10,
+        waitingJobs: 4,
+      }),
+    ).toBe(true);
+
+    expect(
+      calculateTenantFairnessRatio({
+        queueName: "integrations",
+        companyId: "company_1",
+        activeJobs: 5,
+        waitingJobs: 0,
+      }),
+    ).toBe(0.5);
+  });
+
+  it("rejects worker deployments with incompatible queue contracts", () => {
+    expect(() => {
+      assertWorkerDeploymentCompatible({
+        workerClass: "webhooks",
+        version: "2026.07.01",
+        compatibleSchemaVersion: 1,
+        deployedAt: new Date("2026-07-01T00:00:00.000Z"),
+      });
+    }).not.toThrow();
+
+    expect(() => {
+      assertWorkerDeploymentCompatible({
+        workerClass: "webhooks",
+        version: "2026.07.01",
+        compatibleSchemaVersion: 0,
+        deployedAt: new Date("2026-07-01T00:00:00.000Z"),
+      });
+    }).toThrow("not compatible");
   });
 
   it("drains workers before closing and waits for active jobs", async () => {
