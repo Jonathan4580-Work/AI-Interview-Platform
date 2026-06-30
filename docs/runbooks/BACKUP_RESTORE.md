@@ -2,105 +2,96 @@
 
 ## Scope
 
-This Phase 1 runbook defines the initial backup and restore posture for Aptly infrastructure. It covers PostgreSQL, Redis queue/session infrastructure, and object storage policy expectations. It does not cover candidate media, transcripts, exports, or legal hold workflows because those belong to later phases.
+This Phase 11 runbook covers operational recovery for Aptly data stores used through Phase 10:
+
+- PostgreSQL system of record.
+- S3-compatible object storage for media and exports.
+- Redis/BullMQ ephemeral queue infrastructure.
+- Environment configuration and managed secret references.
+
+Redis queue state, signed URLs, candidate sessions, and rate-limit buckets are recoverable operational state, not the durable business record. PostgreSQL and object storage are the recovery anchors.
 
 ## Recovery Objectives
 
-- PostgreSQL production RPO: 15 minutes.
-- Core application RTO: 4 hours.
-- Restore verification cadence before enterprise launch: at least daily in an isolated or staging-like environment.
+- PostgreSQL RPO: 15 minutes through managed PITR/WAL archiving.
+- Production pilot RTO: 4 hours for core application restoration.
+- Restore drill cadence before production pilot: weekly, then at least monthly after launch.
 
-## Data Classes in Phase 1
+## PostgreSQL Backup Procedure
 
-Phase 1 stores only foundation data:
+Use managed base backups and WAL archiving in production. For local or isolated drills, run:
 
-- Companies.
-- Platform users.
-- Company users.
-- Roles and permissions.
-- Audit events.
-- Idempotency keys.
+```powershell
+$env:DATABASE_URL = "<source database url>"
+.\scripts\backup-postgres.ps1 -OutputPath ".\tmp\aptly-backup.dump"
+```
 
-Candidate, interview, recording, transcript, evaluation, export, legal hold, support access, and privacy request data are intentionally out of scope for Phase 1 implementation.
+The script runs `pg_dump --format=custom --no-owner --no-acl` and writes a restorable dump without embedding credentials in the artifact.
 
-## PostgreSQL Backup Requirements
+## PostgreSQL Restore Procedure
 
-Production PostgreSQL must support:
+Always restore into an isolated database first.
 
-- Automated base backups.
-- Point-in-time recovery.
-- Backup encryption at rest.
-- Backup access restricted to production operators.
-- Restore testing into an isolated environment.
+```powershell
+$env:RESTORE_DATABASE_URL = "<isolated restore database url>"
+.\scripts\restore-postgres.ps1 -BackupPath ".\tmp\aptly-backup.dump" -Clean
+$env:DATABASE_URL = $env:RESTORE_DATABASE_URL
+.\scripts\verify-restore.ps1
+```
 
-Required backup metadata:
+Verification runs Prisma validation plus tenant-isolation and audit-redaction tests. A production restore must also run smoke tests, health checks, and operator review before traffic is shifted.
 
-- Backup start time.
-- Backup end time.
-- WAL retention window.
-- Environment.
-- Database version.
-- Restore test status.
+## Object Storage Recovery
 
-## Restore Procedure
+Production object storage must enable:
 
-1. Identify target restore timestamp.
-2. Confirm incident scope and expected data loss against the RPO.
-3. Provision an isolated restore database.
-4. Restore the latest base backup before the target timestamp.
-5. Replay WAL to the target timestamp.
-6. Run migration status checks.
-7. Run application build and Prisma validation against restored configuration.
-8. Run tenant isolation and audit write test suites.
-9. Promote restored database only after operational approval.
-10. Record restore result and timing.
-
-## Redis Recovery Policy
-
-Redis is recoverable infrastructure for queues, rate limits, locks, and short-lived state.
-
-Phase 1 Redis expectations:
-
-- Local Docker Redis uses append-only persistence for development.
-- Production Redis persistence and failover must be selected before production deployment.
-- BullMQ recovery behavior must be tested before candidate interview processing is implemented.
-
-Redis data must not be the only durable record of business state. Durable workflow and audit state must live in PostgreSQL in later phases.
-
-## Object Storage Policy
-
-Object storage is not used by Phase 1 implementation. Before media, reports, or exports are implemented, production object storage must support:
-
-- Versioning.
-- Lifecycle policies.
+- Bucket versioning.
 - Server-side encryption.
-- Signed URL access.
-- Restore-aware deletion policy.
+- Restricted operator access.
+- Lifecycle rules aligned to retention classes.
+- Legal-hold-aware deletion blocking.
 
-## Restore Verification Checklist
+Recover objects before running workflows that require media, reports, or exports. Signed upload/download URLs are never persisted and must be regenerated after restore.
 
-- PostgreSQL restore completes within target RTO.
-- Prisma schema validation succeeds.
-- Application health endpoint returns `ok`.
-- Readiness endpoint returns `ok` when pointed at restored dependencies.
-- Tenant-scoped access tests pass.
-- Audit writer tests pass.
-- No credentials or secrets are restored into logs or test artifacts.
+## Redis and BullMQ Recovery
+
+Redis is not authoritative for durable workflow state.
+
+- Restore or recreate Redis according to provider failover procedures.
+- Drain old workers before connecting restored workers.
+- Requeue eligible workflow steps from PostgreSQL workflow state.
+- Treat jobs without matching PostgreSQL workflow/step records as orphaned and discard them.
+
+## Secret and Configuration Recovery
+
+- Restore environment configuration from the approved secret manager, not from database backups.
+- SMTP passwords, provider API keys, and object-storage credentials must remain managed secrets.
+- PostgreSQL stores secret references only.
+
+## Restore Sequencing
+
+1. Open incident and freeze destructive operations when data integrity is uncertain.
+2. Restore PostgreSQL to the chosen timestamp or dump into an isolated environment.
+3. Restore object storage versions needed for the same timestamp.
+4. Restore configuration and managed secret references.
+5. Start Redis/BullMQ in clean or restored mode.
+6. Run `.\scripts\verify-restore.ps1`.
+7. Run synthetic interview smoke tests.
+8. Validate tenant isolation, audit writes, media access, exports, and results retrieval.
+9. Obtain operational approval before promotion.
+10. Record RPO/RTO achieved and any data loss.
+
+## Tenant-Level Restore Limitations
+
+Aptly does not support self-service tenant-level point-in-time restore in Phase 11. Tenant-level recovery requires a controlled isolated restore, export of approved records, legal/privacy review, and a forward migration or repair plan.
+
+## Local Drill Result
+
+Phase 11 added executable backup, restore, and verification scripts. The local environment can validate command structure and verification checks. A full data restore drill requires `pg_dump`, `pg_restore`, and an isolated PostgreSQL target with compatible extensions and credentials.
 
 ## Rollback Guidance
 
-For Phase 1:
-
-- Prefer forward fixes for schema issues after production launch.
-- Before production launch, failed migrations may be reset only in disposable development databases.
-- Never delete audit events as part of rollback.
-- Preserve migration files once committed.
-
-## Open Items Before Production
-
-- Choose managed PostgreSQL provider and PITR configuration.
-- Define production backup retention period.
-- Define production Redis persistence and failover mode.
-- Define object storage backup and versioning settings.
-- Automate restore verification.
-- Add incident communication procedure.
+- Prefer forward fixes after production launch.
+- Do not delete audit events during rollback.
+- Do not reuse signed URLs after restore.
+- Irreversible migrations require a forward-fix plan and explicit release approval.

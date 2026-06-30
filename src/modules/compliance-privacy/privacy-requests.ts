@@ -54,6 +54,13 @@ export interface PrivacyRequestStore {
     readonly requesterEmail: string;
     readonly reason: string | null;
   }): Promise<PrivacyRequest>;
+
+  updateStatus(input: {
+    readonly companyId: TenantId;
+    readonly id: PrivacyRequestId;
+    readonly status: PrivacyRequestStatus;
+    readonly completedAt: Date | null;
+  }): Promise<PrivacyRequest>;
 }
 
 export class PrivacyRequestError extends Error {
@@ -64,7 +71,10 @@ export class PrivacyRequestError extends Error {
 }
 
 export class PrivacyRequestService {
-  public constructor(private readonly store: PrivacyRequestStore) {}
+  public constructor(
+    private readonly store: PrivacyRequestStore,
+    private readonly now: () => Date = () => new Date(),
+  ) {}
 
   public async create(input: CreatePrivacyRequestInput): Promise<PrivacyRequest> {
     const requesterEmail = normalizeEmail(input.requesterEmail);
@@ -81,5 +91,40 @@ export class PrivacyRequestService {
       requesterEmail,
       reason,
     });
+  }
+
+  public async transition(input: {
+    readonly companyId: TenantId;
+    readonly id: PrivacyRequestId;
+    readonly fromStatus: PrivacyRequestStatus;
+    readonly toStatus: PrivacyRequestStatus;
+  }): Promise<PrivacyRequest> {
+    assertPrivacyRequestTransition(input.fromStatus, input.toStatus);
+    return this.store.updateStatus({
+      companyId: input.companyId,
+      id: input.id,
+      status: input.toStatus,
+      completedAt:
+        input.toStatus === "completed" || input.toStatus === "denied" ? this.now() : null,
+    });
+  }
+}
+
+export function assertPrivacyRequestTransition(
+  fromStatus: PrivacyRequestStatus,
+  toStatus: PrivacyRequestStatus,
+): void {
+  const allowed: Record<PrivacyRequestStatus, readonly PrivacyRequestStatus[]> = {
+    received: ["verifying", "denied"],
+    verifying: ["processing", "denied"],
+    processing: ["completed", "denied"],
+    completed: [],
+    denied: [],
+  };
+
+  if (!allowed[fromStatus].includes(toStatus)) {
+    throw new PrivacyRequestError(
+      `Privacy request cannot transition from ${fromStatus} to ${toStatus}.`,
+    );
   }
 }

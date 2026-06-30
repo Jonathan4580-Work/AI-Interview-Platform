@@ -4,7 +4,9 @@ import {
   LegalHoldError,
   LegalHoldService,
   RetentionPolicyError,
+  calculateRetentionDeleteAt,
   createRetentionPolicyRecord,
+  isRetentionDeletionEligible,
 } from "@/modules/data-lifecycle";
 import { createTenantContext } from "@/modules/tenant";
 
@@ -73,6 +75,12 @@ describe("data lifecycle module", () => {
     expect(policy).toMatchObject({
       companyId: tenant.companyId,
       recordingDays: 120,
+      candidateSessionDays: 90,
+      consentRecordDays: 2555,
+      monitoringEventDays: 365,
+      emailDeliveryDays: 365,
+      analyticsEventDays: 730,
+      workflowOperationalDays: 180,
       auditEventDays: 2555,
       supportAccessDays: 2555,
     });
@@ -82,6 +90,39 @@ describe("data lifecycle module", () => {
         auditEventDays: 30,
       }),
     ).toThrow(RetentionPolicyError);
+
+    expect(() =>
+      createRetentionPolicyRecord(tenant.companyId, {
+        consentRecordDays: 30,
+      }),
+    ).toThrow(RetentionPolicyError);
+  });
+
+  it("calculates retention deletion dates and blocks ineligible deletion", () => {
+    const anchor = new Date("2026-06-30T00:00:00.000Z");
+    const retentionDeleteAt = calculateRetentionDeleteAt(anchor, 30);
+
+    expect(retentionDeleteAt.toISOString()).toBe("2026-07-30T00:00:00.000Z");
+    expect(
+      isRetentionDeletionEligible({
+        retentionDeleteAt,
+        now: new Date("2026-07-30T00:00:00.000Z"),
+      }),
+    ).toBe(true);
+    expect(
+      isRetentionDeletionEligible({
+        retentionDeleteAt,
+        now: new Date("2026-08-01T00:00:00.000Z"),
+        legalHoldActive: true,
+      }),
+    ).toBe(false);
+    expect(
+      isRetentionDeletionEligible({
+        retentionDeleteAt,
+        now: new Date("2026-08-01T00:00:00.000Z"),
+        deletedAt: new Date("2026-07-31T00:00:00.000Z"),
+      }),
+    ).toBe(false);
   });
 
   it("blocks deletion while a legal hold is active and allows it after release", async () => {

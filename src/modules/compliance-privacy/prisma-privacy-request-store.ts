@@ -29,6 +29,25 @@ export class PrismaPrivacyRequestStore implements PrivacyRequestStore {
 
     return mapPrivacyRequest(record);
   }
+
+  public async updateStatus(
+    input: Parameters<PrivacyRequestStore["updateStatus"]>[0],
+  ): Promise<PrivacyRequest> {
+    const record = await prisma.privacyRequest.update({
+      where: {
+        companyId_id: {
+          companyId: input.companyId,
+          id: input.id,
+        },
+      },
+      data: {
+        status: toPrismaPrivacyRequestStatus(input.status),
+        completedAt: input.completedAt,
+      },
+    });
+
+    return mapPrivacyRequest(record);
+  }
 }
 
 function mapPrivacyRequest(record: PrismaPrivacyRequest): PrivacyRequest {
@@ -73,6 +92,21 @@ function fromPrismaPrivacyRequestType(type: PrismaPrivacyRequestType): PrivacyRe
       return "export";
     case PrismaPrivacyRequestType.CORRECTION:
       return "correction";
+  }
+}
+
+function toPrismaPrivacyRequestStatus(status: PrivacyRequestStatus): PrismaPrivacyRequestStatus {
+  switch (status) {
+    case "received":
+      return PrismaPrivacyRequestStatus.RECEIVED;
+    case "verifying":
+      return PrismaPrivacyRequestStatus.VERIFYING;
+    case "processing":
+      return PrismaPrivacyRequestStatus.PROCESSING;
+    case "completed":
+      return PrismaPrivacyRequestStatus.COMPLETED;
+    case "denied":
+      return PrismaPrivacyRequestStatus.DENIED;
   }
 }
 

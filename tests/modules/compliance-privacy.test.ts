@@ -35,6 +35,26 @@ class MemoryPrivacyRequestStore implements PrivacyRequestStore {
     this.requests.push(request);
     return Promise.resolve(request);
   }
+
+  public updateStatus(
+    input: Parameters<PrivacyRequestStore["updateStatus"]>[0],
+  ): Promise<PrivacyRequest> {
+    const index = this.requests.findIndex(
+      (request) => request.id === input.id && request.companyId === input.companyId,
+    );
+    if (index < 0) {
+      throw new Error("missing request");
+    }
+
+    const updated: PrivacyRequest = {
+      ...this.requests[index],
+      status: input.status,
+      completedAt: input.completedAt,
+      updatedAt: input.completedAt ?? this.requests[index].updatedAt,
+    };
+    this.requests[index] = updated;
+    return Promise.resolve(updated);
+  }
 }
 
 describe("compliance and privacy module", () => {
@@ -81,6 +101,52 @@ describe("compliance and privacy module", () => {
         companyId: tenant.companyId,
         type: "deletion",
         requesterEmail: "candidate@example.com",
+      }),
+    ).rejects.toBeInstanceOf(PrivacyRequestError);
+  });
+
+  it("enforces the privacy request lifecycle and terminal states", async () => {
+    const tenant = createTenantContext("cm0tenant001");
+    const store = new MemoryPrivacyRequestStore();
+    const now = new Date("2026-07-01T00:00:00.000Z");
+    const service = new PrivacyRequestService(store, () => now);
+
+    const request = await service.create({
+      companyId: tenant.companyId,
+      type: "access",
+      requesterEmail: "candidate@example.com",
+      reason: "Candidate requested access",
+    });
+
+    const verifying = await service.transition({
+      companyId: tenant.companyId,
+      id: request.id,
+      fromStatus: "received",
+      toStatus: "verifying",
+    });
+    const processing = await service.transition({
+      companyId: tenant.companyId,
+      id: request.id,
+      fromStatus: verifying.status,
+      toStatus: "processing",
+    });
+    const completed = await service.transition({
+      companyId: tenant.companyId,
+      id: request.id,
+      fromStatus: processing.status,
+      toStatus: "completed",
+    });
+
+    expect(completed).toMatchObject({
+      status: "completed",
+      completedAt: now,
+    });
+    await expect(
+      service.transition({
+        companyId: tenant.companyId,
+        id: request.id,
+        fromStatus: "completed",
+        toStatus: "processing",
       }),
     ).rejects.toBeInstanceOf(PrivacyRequestError);
   });
