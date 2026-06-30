@@ -146,6 +146,7 @@ export function InterviewRoomClient() {
     try {
       const stream = await createInterviewMediaStream();
       streamRef.current = stream;
+      observeDeviceTrackAvailability(stream);
       if (videoRef.current !== null) {
         videoRef.current.srcObject = stream;
       }
@@ -217,7 +218,12 @@ export function InterviewRoomClient() {
   }
 
   async function completeInterview() {
-    await monitoringRef.current?.flush();
+    try {
+      await monitoringRef.current?.flush();
+    } catch {
+      setMonitoringStatus("unavailable");
+      setMonitoringDetail("Monitoring warnings will retry separately. The interview can continue.");
+    }
     const response = await candidatePost("/api/candidate/interview/complete");
     if (response.ok) {
       window.location.assign("/candidate/completed");
@@ -239,6 +245,25 @@ export function InterviewRoomClient() {
     });
     streamRef.current = null;
     recorderRef.current = null;
+  }
+
+  function observeDeviceTrackAvailability(stream: MediaStream) {
+    for (const track of stream.getVideoTracks()) {
+      track.addEventListener("ended", () => {
+        monitoringRef.current?.recordDeviceUnavailable("camera", "video_track_ended");
+      });
+      track.addEventListener("mute", () => {
+        monitoringRef.current?.recordDeviceUnavailable("camera", "video_track_muted");
+      });
+    }
+    for (const track of stream.getAudioTracks()) {
+      track.addEventListener("ended", () => {
+        monitoringRef.current?.recordDeviceUnavailable("microphone", "audio_track_ended");
+      });
+      track.addEventListener("mute", () => {
+        monitoringRef.current?.recordDeviceUnavailable("microphone", "audio_track_muted");
+      });
+    }
   }
 
   return (

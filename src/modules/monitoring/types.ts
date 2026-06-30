@@ -80,6 +80,11 @@ export interface MonitoringConfigurationView {
   readonly disabledReason: string | null;
 }
 
+export interface MonitoringFeatureControls {
+  readonly companyEnabled: boolean;
+  readonly disabledReason: string | null;
+}
+
 export interface MonitoringEventSubmission {
   readonly type: MonitoringEventType;
   readonly occurredAt: Date;
@@ -162,6 +167,8 @@ export interface MonitoringRepository {
   hasAcceptedMonitoringConsent(session: CandidateSessionContext): Promise<boolean>;
 
   hasAccommodationExemption(session: CandidateSessionContext): Promise<boolean>;
+
+  getFeatureControls(companyId: TenantId): Promise<MonitoringFeatureControls>;
 
   findBatchByIdempotency(input: {
     readonly companyId: TenantId;

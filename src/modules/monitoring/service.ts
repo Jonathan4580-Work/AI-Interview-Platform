@@ -152,6 +152,8 @@ export class MonitoringService {
     private readonly repository: MonitoringRepository,
     private readonly auditWriter: AuditWriter,
     private readonly now: () => Date = () => new Date(),
+    private readonly globalMonitoringEnabled: () => boolean = () =>
+      process.env.APTLY_MONITORING_ENABLED !== "false",
   ) {}
 
   public async getCandidateConfiguration(
@@ -160,6 +162,13 @@ export class MonitoringService {
     const interview = await this.repository.getCandidateInterview({ session: context.session });
     if (interview === null) {
       return this.disabledConfig("interview_not_started");
+    }
+    if (!this.globalMonitoringEnabled()) {
+      return this.disabledConfig("platform_monitoring_disabled");
+    }
+    const featureControls = await this.repository.getFeatureControls(interview.companyId);
+    if (!featureControls.companyEnabled) {
+      return this.disabledConfig(featureControls.disabledReason ?? "company_monitoring_disabled");
     }
     const hasConsent = await this.repository.hasAcceptedMonitoringConsent(context.session);
     if (!hasConsent) {
@@ -231,7 +240,11 @@ export class MonitoringService {
         rejectedCount += 1;
         continue;
       }
-      accepted.push({ event: normalized, safeMetadata, severity: threshold.severity });
+      accepted.push({
+        event: withCooldownAggregationKey(normalized, threshold),
+        safeMetadata,
+        severity: threshold.severity,
+      });
     }
 
     const batchId = await this.repository.createBatch({
@@ -421,10 +434,22 @@ function trySanitizeMetadata(value: Record<string, unknown>): Record<string, unk
   for (const [key, entry] of Object.entries(value)) {
     if (!allowedMetadataKeys.has(key)) return null;
     if (typeof entry === "string") safe[key] = entry.slice(0, 160);
-    if (typeof entry === "number" && Number.isFinite(entry)) safe[key] = entry;
-    if (typeof entry === "boolean") safe[key] = entry;
+    else if (typeof entry === "number" && Number.isFinite(entry)) safe[key] = entry;
+    else if (typeof entry === "boolean") safe[key] = entry;
+    else return null;
   }
   return safe;
+}
+
+function withCooldownAggregationKey(
+  event: MonitoringEventSubmission,
+  threshold: MonitoringThreshold,
+): MonitoringEventSubmission {
+  const bucket = Math.floor(event.occurredAt.getTime() / threshold.cooldownMs);
+  return {
+    ...event,
+    aggregationKey: `${event.aggregationKey}:cooldown:${String(bucket)}`,
+  };
 }
 
 function scopedKey(sessionId: string, key: string): string {

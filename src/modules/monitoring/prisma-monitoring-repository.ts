@@ -68,6 +68,27 @@ export class PrismaMonitoringRepository implements MonitoringRepository {
     });
   }
 
+  public async getFeatureControls(
+    companyId: TenantId,
+  ): ReturnType<MonitoringRepository["getFeatureControls"]> {
+    const settings = await prisma.companySettings.findUnique({
+      where: { companyId },
+      select: { companyId: true, featureFlagsJson: true },
+    });
+    if (settings === null) {
+      return { companyEnabled: true, disabledReason: null };
+    }
+    const root = asRecord(settings.featureFlagsJson);
+    const flags = asRecord(root.flags);
+    if (flags.monitoring_emergency_disabled === true || flags.monitoring_disabled === true) {
+      return { companyEnabled: false, disabledReason: "company_monitoring_disabled" };
+    }
+    if (flags.monitoring_enabled === false) {
+      return { companyEnabled: false, disabledReason: "company_monitoring_disabled" };
+    }
+    return { companyEnabled: true, disabledReason: null };
+  }
+
   public async findBatchByIdempotency(input: {
     readonly companyId: TenantId;
     readonly idempotencyKey: string;

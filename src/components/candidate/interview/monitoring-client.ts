@@ -75,6 +75,7 @@ export interface InterviewMonitoringController {
   start(): Promise<void>;
   stop(): void;
   recordConnectionState(state: MonitoringConnectionState): void;
+  recordDeviceUnavailable(kind: "camera" | "microphone", reason: string): void;
   recordRecordingInterrupted(reason: string): void;
   flush(): Promise<void>;
 }
@@ -163,12 +164,22 @@ export function createInterviewMonitoringController(
   async function flush() {
     if (config?.enabled !== true || queue.length === 0) return;
     const events = queue.splice(0, config.batch.maxEvents);
-    const response = await candidatePost("/api/candidate/interview/monitoring/events", {
-      idempotencyKey: `monitoring-batch-${String(Date.now())}-${String(events.length)}`,
-      detectorConfigVersion: config.detectorConfigVersion,
-      thresholdVersion: config.thresholdVersion,
-      events,
-    });
+    let response: Awaited<ReturnType<typeof candidatePost>>;
+    try {
+      response = await candidatePost("/api/candidate/interview/monitoring/events", {
+        idempotencyKey: `monitoring-batch-${String(Date.now())}-${String(events.length)}`,
+        detectorConfigVersion: config.detectorConfigVersion,
+        thresholdVersion: config.thresholdVersion,
+        events,
+      });
+    } catch {
+      queue.unshift(...events.slice(0, config.batch.maxEvents));
+      input.setStatus(
+        "unavailable",
+        "Monitoring warnings will retry when the connection recovers.",
+      );
+      return;
+    }
     if (!response.ok) {
       queue.unshift(...events.slice(0, config.batch.maxEvents));
       input.setStatus(
@@ -214,6 +225,18 @@ export function createInterviewMonitoringController(
       detectorVersion: "browser-v1",
       aggregationKey: `recording:${reason}`,
       metadata: { reason, recordingState: "interrupted" },
+    });
+  }
+
+  function recordDeviceUnavailable(kind: "camera" | "microphone", reason: string) {
+    enqueue({
+      type: kind === "camera" ? "camera_permission_removed" : "microphone_unavailable",
+      durationMs: 1_000,
+      sourceDetector: kind === "camera" ? "camera-track" : "microphone-track",
+      detectorCategory: kind === "camera" ? "camera_presence" : "recording_health",
+      detectorVersion: "browser-v1",
+      aggregationKey: `${kind}:permission-removed`,
+      metadata: { reason },
     });
   }
 
@@ -371,7 +394,14 @@ export function createInterviewMonitoringController(
     document.removeEventListener("paste", handlePaste);
   }
 
-  return { start, stop, flush, recordConnectionState, recordRecordingInterrupted };
+  return {
+    start,
+    stop,
+    flush,
+    recordConnectionState,
+    recordDeviceUnavailable,
+    recordRecordingInterrupted,
+  };
 }
 
 function createFaceDetector(): FaceDetectorLike | null {

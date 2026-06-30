@@ -10,6 +10,7 @@ import type {
   MonitoringEventBatchId,
   MonitoringEventRecord,
   MonitoringEventSubmission,
+  MonitoringFeatureControls,
   MonitoringRepository,
 } from "@/modules/monitoring";
 import type { TenantContext, TenantId } from "@/modules/tenant";
@@ -32,6 +33,30 @@ describe("monitoring warning service", () => {
         events: [focusEvent()],
       }),
     ).rejects.toBeInstanceOf(MonitoringDomainError);
+  });
+
+  it("respects global, company, and accommodation monitoring disable controls", async () => {
+    const repo = new InMemoryMonitoringRepository();
+
+    const globallyDisabled = await createService(repo, {
+      globalMonitoringEnabled: () => false,
+    }).getCandidateConfiguration(candidateContext);
+    expect(globallyDisabled.enabled).toBe(false);
+    expect(globallyDisabled.disabledReason).toBe("platform_monitoring_disabled");
+
+    repo.featureControls = {
+      companyEnabled: false,
+      disabledReason: "company_monitoring_disabled",
+    };
+    const companyDisabled = await createService(repo).getCandidateConfiguration(candidateContext);
+    expect(companyDisabled.enabled).toBe(false);
+    expect(companyDisabled.disabledReason).toBe("company_monitoring_disabled");
+
+    repo.featureControls = { companyEnabled: true, disabledReason: null };
+    repo.exempt = true;
+    const exempted = await createService(repo).getCandidateConfiguration(candidateContext);
+    expect(exempted.enabled).toBe(false);
+    expect(exempted.disabledReason).toBe("accommodation_exemption");
   });
 
   it("aggregates thresholded warnings and rejects arbitrary metadata or clipboard content", async () => {
@@ -64,6 +89,26 @@ describe("monitoring warning service", () => {
     expect(repo.events).toHaveLength(1);
     expect(repo.events[0]?.occurrenceCount).toBe(6);
     expect(JSON.stringify(repo.events)).not.toContain("must-not-store");
+  });
+
+  it("rejects nested metadata values instead of silently persisting arbitrary JSON", async () => {
+    const repo = new InMemoryMonitoringRepository();
+    const service = createService(repo);
+
+    const result = await service.ingestCandidateBatch(candidateContext, {
+      idempotencyKey: "batch-nested-metadata",
+      detectorConfigVersion: "monitoring-v1",
+      thresholdVersion: "monitoring-thresholds-v1",
+      events: [
+        focusEvent({
+          idempotencyKey: "event-nested",
+          metadata: { browser: "Chrome", sampleCount: { nested: true } },
+        }),
+      ],
+    });
+
+    expect(result).toMatchObject({ status: "rejected", acceptedCount: 0, rejectedCount: 1 });
+    expect(repo.events).toHaveLength(0);
   });
 
   it("rejects weak single-sample face warnings and arbitrary event names", async () => {
@@ -107,6 +152,34 @@ describe("monitoring warning service", () => {
 
     expect(second.status).toBe("duplicate");
     expect(repo.batches).toHaveLength(1);
+  });
+
+  it("aggregates repeated warnings within the configured cooldown window", async () => {
+    const repo = new InMemoryMonitoringRepository();
+    const service = createService(repo);
+
+    await service.ingestCandidateBatch(candidateContext, {
+      idempotencyKey: "batch-cooldown-1",
+      detectorConfigVersion: "monitoring-v1",
+      thresholdVersion: "monitoring-thresholds-v1",
+      events: [focusEvent({ idempotencyKey: "cooldown-event-1", aggregationKey: "window-focus" })],
+    });
+    await service.ingestCandidateBatch(candidateContext, {
+      idempotencyKey: "batch-cooldown-2",
+      detectorConfigVersion: "monitoring-v1",
+      thresholdVersion: "monitoring-thresholds-v1",
+      events: [
+        focusEvent({
+          idempotencyKey: "cooldown-event-2",
+          aggregationKey: "window-focus",
+          occurredAt: new Date("2026-06-30T00:05:30.000Z"),
+        }),
+      ],
+    });
+
+    expect(repo.events).toHaveLength(1);
+    expect(repo.events[0]?.aggregationKey).toContain("window-focus:cooldown:");
+    expect(repo.events[0]?.occurrenceCount).toBe(6);
   });
 
   it("keeps monitoring summaries neutral and review actions audited", async () => {
@@ -173,8 +246,16 @@ const internalContext = {
   },
 };
 
-function createService(repo: InMemoryMonitoringRepository) {
-  return new MonitoringService(repo, new AuditWriter(new InMemoryAuditStore()));
+function createService(
+  repo: InMemoryMonitoringRepository,
+  options: { readonly globalMonitoringEnabled?: () => boolean } = {},
+) {
+  return new MonitoringService(
+    repo,
+    new AuditWriter(new InMemoryAuditStore()),
+    () => new Date(),
+    options.globalMonitoringEnabled,
+  );
 }
 
 function focusEvent(overrides: Partial<MonitoringEventSubmission> = {}): MonitoringEventSubmission {
@@ -207,6 +288,10 @@ class InMemoryAuditStore implements AuditEventStore {
 class InMemoryMonitoringRepository implements MonitoringRepository {
   public hasConsent = true;
   public exempt = false;
+  public featureControls: MonitoringFeatureControls = {
+    companyEnabled: true,
+    disabledReason: null,
+  };
   public readonly batches: MonitoringBatchResult[] = [];
   public readonly batchKeys = new Map<string, MonitoringBatchResult>();
   public readonly events: MonitoringEventRecord[] = [];
@@ -226,6 +311,10 @@ class InMemoryMonitoringRepository implements MonitoringRepository {
 
   public hasAccommodationExemption(): Promise<boolean> {
     return Promise.resolve(this.exempt);
+  }
+
+  public getFeatureControls(): Promise<MonitoringFeatureControls> {
+    return Promise.resolve(this.featureControls);
   }
 
   public findBatchByIdempotency(input: { readonly idempotencyKey: string }) {

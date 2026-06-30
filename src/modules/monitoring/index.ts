@@ -1,6 +1,7 @@
 export { PrismaMonitoringRepository } from "./prisma-monitoring-repository";
 export { MonitoringDomainError, MonitoringService, monitoringThresholds } from "./service";
 export { monitoringEventTypes } from "./types";
+export type { MonitoringFeatureControls } from "./types";
 export type {
   CandidateMonitoringContext,
   MonitoringBatchResult,
