@@ -19,6 +19,12 @@ export const permissionKeys = [
   "exports:manage",
   "entitlements:read",
   "entitlements:manage",
+  "departments:read",
+  "departments:manage",
+  "teams:read",
+  "teams:manage",
+  "locations:read",
+  "locations:manage",
 ] as const;
 
 export type PermissionKey = (typeof permissionKeys)[number];

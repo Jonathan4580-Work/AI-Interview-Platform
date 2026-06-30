@@ -126,6 +126,42 @@ enum ExportRequestStatus {
   @@map("export_request_status")
 }
 
+enum DepartmentStatus {
+  ACTIVE
+  ARCHIVED
+
+  @@map("department_status")
+}
+
+enum TeamStatus {
+  ACTIVE
+  ARCHIVED
+
+  @@map("team_status")
+}
+
+enum TeamMemberRole {
+  LEAD
+  MEMBER
+
+  @@map("team_member_role")
+}
+
+enum LocationStatus {
+  ACTIVE
+  ARCHIVED
+
+  @@map("location_status")
+}
+
+enum LocationMode {
+  ONSITE
+  HYBRID
+  REMOTE
+
+  @@map("location_mode")
+}
+
 model Company {
   id            String        @id @default(cuid())
   name          String
@@ -149,6 +185,10 @@ model Company {
   legalHolds      LegalHold[]
   privacyRequests PrivacyRequest[]
   exportRequests  ExportRequest[]
+  departments     Department[]
+  teams           Team[]
+  teamMembers     TeamMember[]
+  locations       Location[]
 
   @@index([status])
   @@map("companies")
@@ -185,6 +225,7 @@ model User {
   legalHoldsCreated  LegalHold[]     @relation("LegalHoldCreator")
   legalHoldsReleased LegalHold[]     @relation("LegalHoldReleaser")
   exportRequests     ExportRequest[]
+  teamMemberships    TeamMember[]
 
   @@unique([companyId, id])
   @@unique([companyId, email])
@@ -461,4 +502,88 @@ model ExportRequest {
   @@index([companyId, status])
   @@index([companyId, requestedByUserId])
   @@map("export_requests")
+}
+
+model Department {
+  id          String           @id @default(cuid())
+  companyId   String           @map("company_id")
+  name        String
+  slug        String
+  description String?
+  status      DepartmentStatus @default(ACTIVE)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  deletedAt   DateTime?        @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  teams   Team[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, slug])
+  @@index([companyId, status])
+  @@map("departments")
+}
+
+model Team {
+  id           String     @id @default(cuid())
+  companyId    String     @map("company_id")
+  departmentId String?    @map("department_id")
+  name         String
+  slug         String
+  description  String?
+  status       TeamStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  deletedAt    DateTime?  @map("deleted_at")
+
+  company    Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  department Department?  @relation(fields: [companyId, departmentId], references: [companyId, id], onDelete: Restrict)
+  members    TeamMember[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, slug])
+  @@index([companyId, departmentId])
+  @@index([companyId, status])
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String         @id @default(cuid())
+  companyId String         @map("company_id")
+  teamId    String         @map("team_id")
+  userId    String         @map("user_id")
+  role      TeamMemberRole @default(MEMBER)
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  team    Team    @relation(fields: [companyId, teamId], references: [companyId, id], onDelete: Cascade)
+  user    User    @relation(fields: [companyId, userId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@unique([companyId, teamId, userId])
+  @@index([companyId, userId])
+  @@map("team_members")
+}
+
+model Location {
+  id          String         @id @default(cuid())
+  companyId   String         @map("company_id")
+  name        String
+  slug        String
+  mode        LocationMode
+  status      LocationStatus @default(ACTIVE)
+  addressJson Json?          @map("address_json")
+  timeZone    String?        @map("time_zone")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  deletedAt   DateTime?      @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@unique([companyId, slug])
+  @@index([companyId, status])
+  @@index([companyId, mode])
+  @@map("locations")
 }
