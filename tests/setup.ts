@@ -11,3 +11,5 @@ Object.assign(process.env, {
   SMTP_SECRET_REF: "test/smtp",
   OBJECT_STORAGE_SECRET_REF: "test/object-storage",
 });
+
+import "@testing-library/jest-dom/vitest";
