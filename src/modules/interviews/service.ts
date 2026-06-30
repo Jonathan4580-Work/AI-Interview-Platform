@@ -53,6 +53,7 @@ export class InterviewService {
         "invalid_state",
       );
     }
+    await this.repository.assertCandidatePrepared(context.session);
 
     const plan = existing?.planSnapshot ?? (await this.repository.loadCandidateSafePlan(context));
     validatePlan(plan);
@@ -75,7 +76,7 @@ export class InterviewService {
       companyId: context.session.companyId,
       interviewSessionId: started.session.id,
       candidateSessionId: context.session.sessionId,
-      type: started.created ? "resumed" : "heartbeat",
+      type: "heartbeat",
       at: now,
       metadata: { action: "start_interview" },
     });
@@ -288,6 +289,17 @@ export class InterviewService {
       at: now,
       metadata: { connectionState: input.connectionState },
     });
+    if (shouldInterrupt && session.status !== "interrupted") {
+      await this.auditCandidate(input.context, "interview.interrupted", updated, session, updated);
+      await this.repository.recordStateHistory({
+        companyId: input.context.session.companyId,
+        interviewSessionId: session.id,
+        fromStatus: session.status,
+        toStatus: "interrupted",
+        reason: "heartbeat_connection_lost",
+        metadata: { connectionState: input.connectionState },
+      });
+    }
     return updated;
   }
 
@@ -318,6 +330,17 @@ export class InterviewService {
       at: this.now(),
       metadata: {},
     });
+    if (session.status !== resumed.status || session.status === "interrupted") {
+      await this.auditCandidate(context, "interview.resumed", resumed, session, resumed);
+      await this.repository.recordStateHistory({
+        companyId: context.session.companyId,
+        interviewSessionId: resumed.id,
+        fromStatus: session.status,
+        toStatus: resumed.status,
+        reason: "candidate_resumed",
+        metadata: {},
+      });
+    }
     return this.getState(context);
   }
 
@@ -376,6 +399,17 @@ export class InterviewService {
       await this.enterUploadRecovery(context, session, { reason: "required_media_pending" });
       throw new InterviewDomainError(
         "Required uploads must recover before completion.",
+        "upload_recovery",
+      );
+    }
+    const hasUnverifiedMedia = await this.repository.hasUnverifiedRequiredMedia(
+      { companyId: context.session.companyId },
+      session.id,
+    );
+    if (hasUnverifiedMedia) {
+      await this.enterUploadRecovery(context, session, { reason: "required_media_unverified" });
+      throw new InterviewDomainError(
+        "Required uploads must verify before completion.",
         "upload_recovery",
       );
     }
@@ -474,6 +508,18 @@ export class InterviewService {
       candidateSessionId: context.session.sessionId,
       type: "upload_recovery_started",
       at: this.now(),
+      metadata: checkpoint,
+    });
+    await this.auditCandidate(context, "interview.upload_recovery_started", session, session, {
+      ...session,
+      status: "upload_recovery",
+    });
+    await this.repository.recordStateHistory({
+      companyId: context.session.companyId,
+      interviewSessionId: session.id,
+      fromStatus: session.status,
+      toStatus: "upload_recovery",
+      reason: "upload_recovery",
       metadata: checkpoint,
     });
   }

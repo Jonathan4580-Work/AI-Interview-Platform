@@ -58,6 +58,10 @@ describe("candidate interview room", () => {
     expect(screen.getByLabelText("Camera preview")).toBeInTheDocument();
     expect(screen.getByLabelText("Interview controls")).toBeInTheDocument();
     expect(screen.getByText("Recording is shown explicitly")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Not recording" })).toHaveAttribute(
+      "aria-live",
+      "polite",
+    );
     expect(screen.getByRole("button", { name: "Start answer" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "End interview" })).toBeEnabled();
   });

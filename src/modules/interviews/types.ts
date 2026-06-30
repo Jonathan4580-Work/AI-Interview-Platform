@@ -158,6 +158,8 @@ export interface InterviewRepository {
     readonly session: CandidateSessionContext;
   }): Promise<InterviewSessionRecord | null>;
 
+  assertCandidatePrepared(session: CandidateSessionContext): Promise<void>;
+
   startSession(input: {
     readonly session: CandidateSessionContext;
     readonly plan: CandidateSafePlan;
@@ -245,6 +247,11 @@ export interface InterviewRepository {
     tenant: TenantContext,
     interviewSessionId: InterviewSessionId,
   ): Promise<readonly InterviewTurnMediaRecord[]>;
+
+  hasUnverifiedRequiredMedia(
+    tenant: TenantContext,
+    interviewSessionId: InterviewSessionId,
+  ): Promise<boolean>;
 
   recordActivity(input: {
     readonly companyId: TenantId;

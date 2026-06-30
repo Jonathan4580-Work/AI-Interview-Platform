@@ -240,7 +240,12 @@ export function InterviewRoomClient() {
                     {currentQuestion?.kind === "closing" ? "Final question" : "Current question"}
                   </h1>
                 </div>
-                <Badge variant={statusVariant(recordingState)}>
+                <Badge
+                  variant={statusVariant(recordingState)}
+                  role="status"
+                  aria-label={recordingLabel(recordingState)}
+                  aria-live={recordingState === "recording" ? "assertive" : "polite"}
+                >
                   <Radio className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
                   {recordingLabel(recordingState)}
                 </Badge>

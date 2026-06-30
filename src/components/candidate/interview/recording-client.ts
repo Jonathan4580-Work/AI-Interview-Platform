@@ -9,6 +9,8 @@ const MIME_CANDIDATES = [
   "video/mp4",
 ] as const;
 
+type CandidatePostResult = Awaited<ReturnType<typeof candidatePost>>;
+
 export interface RecordingUploadResult {
   readonly mediaObjectId: string;
   readonly sizeBytes: number;
@@ -60,17 +62,11 @@ export async function uploadRecordingChunk(input: {
     throw new Error(prepared.error);
   }
   const upload = parsePreparedUpload(prepared.data);
-  const uploadResponse = await fetch(upload.url, {
-    method: "PUT",
-    headers: upload.headers,
-    body: input.blob,
-  });
-  if (!uploadResponse.ok) {
+  const uploaded = await putWithRetry(upload.url, upload.headers, input.blob);
+  if (!uploaded) {
     throw new Error("Recording chunk upload failed.");
   }
-  const completed = await candidatePost(`/api/candidate/media/${upload.mediaObjectId}/complete`, {
-    uploadSessionId: upload.uploadSessionId,
-  });
+  const completed = await completeWithRetry(upload.mediaObjectId, upload.uploadSessionId);
   if (!completed.ok) {
     throw new Error(completed.error);
   }
@@ -79,6 +75,43 @@ export async function uploadRecordingChunk(input: {
     sizeBytes: input.blob.size,
     mimeType: normalizeRecordingMime(input.blob.type),
   };
+}
+
+async function putWithRetry(
+  url: string,
+  headers: Record<string, string>,
+  blob: Blob,
+): Promise<boolean> {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        method: "PUT",
+        headers,
+        body: blob,
+      });
+      if (response.ok) return true;
+    } catch {
+      // The candidate receives recovery guidance if all bounded retries fail.
+    }
+    await delay(150 * attempt);
+  }
+  return false;
+}
+
+async function completeWithRetry(
+  mediaObjectId: string,
+  uploadSessionId: string,
+): Promise<CandidatePostResult> {
+  let lastFailure: CandidatePostResult | null = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const completed = await candidatePost(`/api/candidate/media/${mediaObjectId}/complete`, {
+      uploadSessionId,
+    });
+    if (completed.ok) return completed;
+    lastFailure = completed;
+    await delay(150 * attempt);
+  }
+  return lastFailure ?? { ok: false, error: "Recording upload verification failed." };
 }
 
 function parsePreparedUpload(value: unknown): {
@@ -116,6 +149,12 @@ function isHeaderRecord(value: unknown): value is Record<string, string> {
     value !== null &&
     Object.values(value).every((entry) => typeof entry === "string")
   );
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    globalThis.setTimeout(resolve, ms);
+  });
 }
 
 function normalizeRecordingMime(value: string): string {

@@ -67,6 +67,46 @@ export class PrismaInterviewRepository implements InterviewRepository {
     return record === null ? null : mapSession(record);
   }
 
+  public async assertCandidatePrepared(session: CandidateSessionContext): Promise<void> {
+    const candidateSession = await prisma.candidateSession.findUnique({
+      where: { companyId_id: { companyId: session.companyId, id: session.sessionId } },
+      select: { metadataJson: true },
+    });
+    const metadata = asRecord(candidateSession?.metadataJson);
+    if (typeof metadata.readyToStartAt !== "string") {
+      throw new InterviewDomainError(
+        "Candidate readiness must be completed before starting.",
+        "invalid_state",
+      );
+    }
+
+    const requiredConsentTypes = [
+      "INTERVIEW_PARTICIPATION",
+      "CAMERA_USE",
+      "MICROPHONE_USE",
+      "FUTURE_AUDIO_VIDEO_RECORDING",
+      "PRIVACY_NOTICE",
+      "DATA_PROCESSING_RETENTION",
+    ] as const;
+    const accepted = await prisma.candidateConsentRecord.findMany({
+      where: {
+        companyId: session.companyId,
+        candidateSessionId: session.sessionId,
+        invitationId: session.invitationId,
+        accepted: true,
+        type: { in: [...requiredConsentTypes] },
+      },
+      select: { type: true },
+    });
+    const acceptedTypes = new Set(accepted.map((record) => record.type));
+    if (requiredConsentTypes.some((type) => !acceptedTypes.has(type))) {
+      throw new InterviewDomainError(
+        "Required candidate consent must be accepted before starting.",
+        "invalid_state",
+      );
+    }
+  }
+
   public async startSession(input: {
     readonly session: CandidateSessionContext;
     readonly plan: CandidateSafePlan;
@@ -414,6 +454,7 @@ export class PrismaInterviewRepository implements InterviewRepository {
         subjectId: input.interviewSessionId,
         purpose: "INTERVIEW_RECORDING",
         uploadStatus: "COMPLETED",
+        processingStatus: "READY",
       },
     });
     if (media === null) {
@@ -458,6 +499,37 @@ export class PrismaInterviewRepository implements InterviewRepository {
       orderBy: [{ interviewTurnId: "asc" }, { chunkSequence: "asc" }],
     });
     return records.map(mapTurnMedia);
+  }
+
+  public async hasUnverifiedRequiredMedia(
+    tenant: TenantContext,
+    interviewSessionId: InterviewSessionId,
+  ): Promise<boolean> {
+    const candidateTurns = await prisma.interviewTurn.findMany({
+      where: {
+        companyId: tenant.companyId,
+        interviewSessionId,
+        speaker: "CANDIDATE",
+        status: "COMPLETED",
+      },
+      select: { id: true },
+    });
+    for (const turn of candidateTurns) {
+      const verifiedMediaCount = await prisma.interviewTurnMedia.count({
+        where: {
+          companyId: tenant.companyId,
+          interviewSessionId,
+          interviewTurnId: turn.id,
+          status: "VERIFIED",
+          mediaObject: {
+            uploadStatus: "COMPLETED",
+            processingStatus: "READY",
+          },
+        },
+      });
+      if (verifiedMediaCount === 0) return true;
+    }
+    return false;
   }
 
   public async recordActivity(input: {

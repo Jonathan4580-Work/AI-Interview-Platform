@@ -35,6 +35,17 @@ describe("browser interview session service", () => {
     ]);
   });
 
+  it("requires readiness and consent before starting an interview", async () => {
+    const repo = new InMemoryInterviewRepository();
+    repo.prepared = false;
+    const service = createService(repo);
+
+    await expect(service.startInterview(candidateContext)).rejects.toMatchObject({
+      code: "invalid_state",
+    });
+    expect(repo.sessions).toHaveLength(0);
+  });
+
   it("prevents duplicate final answer submission for the same sequence", async () => {
     const repo = new InMemoryInterviewRepository();
     const service = createService(repo);
@@ -106,6 +117,32 @@ describe("browser interview session service", () => {
     });
     expect(repo.sessions[0]?.status).toBe("upload_recovery");
     expect(repo.recoveryCheckpoints).toHaveLength(1);
+  });
+
+  it("moves to upload recovery when linked media loses verified storage state", async () => {
+    const repo = new InMemoryInterviewRepository();
+    repo.mediaObjectsVerified = false;
+    const service = createService(repo);
+    await service.startInterview(candidateContext);
+    for (const sequence of [1, 2, 3]) {
+      const turn = await service.startAnswer({
+        context: candidateContext,
+        sequence,
+        idempotencyKey: `answer-${String(sequence)}`,
+      });
+      await service.completeAnswer({
+        context: candidateContext,
+        turnId: turn.id,
+        content: null,
+        mediaObjectIds: [`media_${String(sequence)}` as MediaObjectId],
+        idempotencyKey: `complete-${String(sequence)}`,
+      });
+    }
+
+    await expect(service.completeInterview(candidateContext)).rejects.toMatchObject({
+      code: "upload_recovery",
+    });
+    expect(repo.sessions[0]?.status).toBe("upload_recovery");
   });
 
   it("creates a processing workflow after required answers and media are complete", async () => {
@@ -235,6 +272,8 @@ class InMemoryInterviewRepository implements InterviewRepository {
   public readonly turns: InterviewTurnRecord[] = [];
   public readonly media: InterviewTurnMediaRecord[] = [];
   public readonly recoveryCheckpoints: unknown[] = [];
+  public prepared = true;
+  public mediaObjectsVerified = true;
 
   public findSession(
     _tenant: TenantContext,
@@ -251,6 +290,18 @@ class InMemoryInterviewRepository implements InterviewRepository {
 
   public loadCandidateSafePlan(): Promise<CandidateSafePlan> {
     return Promise.resolve(plan);
+  }
+
+  public assertCandidatePrepared(): Promise<void> {
+    if (!this.prepared) {
+      return Promise.reject(
+        new InterviewDomainError(
+          "Candidate readiness must be completed before starting.",
+          "invalid_state",
+        ),
+      );
+    }
+    return Promise.resolve();
   }
 
   public startSession(input: Parameters<InterviewRepository["startSession"]>[0]) {
@@ -411,6 +462,10 @@ class InMemoryInterviewRepository implements InterviewRepository {
 
   public listTurnMedia(): Promise<readonly InterviewTurnMediaRecord[]> {
     return Promise.resolve(this.media);
+  }
+
+  public hasUnverifiedRequiredMedia(): Promise<boolean> {
+    return Promise.resolve(!this.mediaObjectsVerified);
   }
 
   public recordActivity(): Promise<void> {
