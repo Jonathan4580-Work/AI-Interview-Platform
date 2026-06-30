@@ -339,6 +339,71 @@ enum InterviewSessionStatus {
   @@map("interview_session_status")
 }
 
+enum ScheduleEventType {
+  INTERVIEW
+  DEADLINE
+  REMINDER
+
+  @@map("schedule_event_type")
+}
+
+enum ScheduleEventStatus {
+  SCHEDULED
+  CANCELLED
+  COMPLETED
+
+  @@map("schedule_event_status")
+}
+
+enum CalendarProvider {
+  INTERNAL
+  GOOGLE
+  MICROSOFT
+
+  @@map("calendar_provider")
+}
+
+enum ScheduleParticipantType {
+  CANDIDATE
+  USER
+  EXTERNAL
+
+  @@map("schedule_participant_type")
+}
+
+enum ScheduleResponseStatus {
+  NEEDS_ACTION
+  ACCEPTED
+  DECLINED
+  TENTATIVE
+
+  @@map("schedule_response_status")
+}
+
+enum NotificationIntentType {
+  INVITATION_CREATED
+  INVITATION_REMINDER
+  SCHEDULE_CREATED
+  SCHEDULE_UPDATED
+
+  @@map("notification_intent_type")
+}
+
+enum NotificationChannel {
+  EMAIL
+
+  @@map("notification_channel")
+}
+
+enum NotificationIntentStatus {
+  PENDING
+  CANCELLED
+  DISPATCHED
+  FAILED
+
+  @@map("notification_intent_status")
+}
+
 model Company {
   id            String        @id @default(cuid())
   name          String
@@ -381,6 +446,9 @@ model Company {
   candidateMergeEvents    CandidateMergeEvent[]
   candidateInvitations    CandidateInvitation[]
   interviewSessions       InterviewSession[]
+  scheduleEvents          ScheduleEvent[]
+  scheduleParticipants    ScheduleParticipant[]
+  notificationIntents     NotificationIntent[]
 
   @@index([status])
   @@map("companies")
@@ -1176,4 +1244,81 @@ model InterviewSession {
   @@index([companyId, status])
   @@index([expiresAt])
   @@map("interview_sessions")
+}
+
+model ScheduleEvent {
+  id                 String              @id @default(cuid())
+  companyId          String              @map("company_id")
+  type               ScheduleEventType
+  status             ScheduleEventStatus @default(SCHEDULED)
+  title              String
+  description        String?
+  startsAt           DateTime            @map("starts_at")
+  endsAt             DateTime            @map("ends_at")
+  timeZone           String              @map("time_zone")
+  provider           CalendarProvider    @default(INTERNAL)
+  providerEventRef   String?             @map("provider_event_ref")
+  targetResourceType String?             @map("target_resource_type")
+  targetResourceId   String?             @map("target_resource_id")
+  metadataJson       Json                @map("metadata_json")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  cancelledAt        DateTime?           @map("cancelled_at")
+
+  company      Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  participants ScheduleParticipant[]
+
+  @@unique([companyId, id])
+  @@index([companyId, status, startsAt])
+  @@index([companyId, targetResourceType, targetResourceId])
+  @@map("schedule_events")
+}
+
+model ScheduleParticipant {
+  id              String                  @id @default(cuid())
+  companyId       String                  @map("company_id")
+  scheduleEventId String                  @map("schedule_event_id")
+  type            ScheduleParticipantType
+  displayName     String                  @map("display_name")
+  email           String?
+  userId          String?                 @map("user_id")
+  candidateId     String?                 @map("candidate_id")
+  responseStatus  ScheduleResponseStatus  @default(NEEDS_ACTION) @map("response_status")
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  scheduleEvent ScheduleEvent @relation(fields: [companyId, scheduleEventId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@index([companyId, scheduleEventId])
+  @@index([companyId, userId])
+  @@index([companyId, candidateId])
+  @@map("schedule_participants")
+}
+
+model NotificationIntent {
+  id                 String                   @id @default(cuid())
+  companyId          String                   @map("company_id")
+  type               NotificationIntentType
+  channel            NotificationChannel
+  status             NotificationIntentStatus @default(PENDING)
+  recipientEmail     String                   @map("recipient_email")
+  recipientName      String?                  @map("recipient_name")
+  targetResourceType String                   @map("target_resource_type")
+  targetResourceId   String                   @map("target_resource_id")
+  payloadJson        Json                     @map("payload_json")
+  scheduledFor       DateTime?                @map("scheduled_for")
+  dispatchedAt       DateTime?                @map("dispatched_at")
+  cancelledAt        DateTime?                @map("cancelled_at")
+  failureReason      String?                  @map("failure_reason")
+  createdAt          DateTime                 @default(now()) @map("created_at")
+  updatedAt          DateTime                 @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@index([companyId, status, scheduledFor])
+  @@index([companyId, targetResourceType, targetResourceId])
+  @@map("notification_intents")
 }

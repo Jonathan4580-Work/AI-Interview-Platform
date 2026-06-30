@@ -39,6 +39,10 @@ export const permissionKeys = [
   "applications:manage",
   "candidate_notes:read",
   "candidate_notes:manage",
+  "scheduling:read",
+  "scheduling:manage",
+  "notifications:read",
+  "notifications:manage",
 ] as const;
 
 export type PermissionKey = (typeof permissionKeys)[number];
