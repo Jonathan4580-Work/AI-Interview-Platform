@@ -32,6 +32,37 @@ enum UserStatus {
   @@map("user_status")
 }
 
+enum AuthSubjectType {
+  USER
+  PLATFORM_USER
+
+  @@map("auth_subject_type")
+}
+
+enum AuthSessionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+
+  @@map("auth_session_status")
+}
+
+enum MfaFactorType {
+  TOTP
+  WEBAUTHN
+  RECOVERY_CODE
+
+  @@map("mfa_factor_type")
+}
+
+enum MfaFactorStatus {
+  PENDING
+  ACTIVE
+  DISABLED
+
+  @@map("mfa_factor_status")
+}
+
 enum AuditActorType {
   PLATFORM_USER
   USER
@@ -424,6 +455,11 @@ model Company {
   entitlements            Entitlement[]
   usageCounters           UsageCounter[]
   supportAccess           SupportAccessSession[]
+  authCredentials         AuthCredential[]
+  authSessions            AuthSession[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  mfaFactors              MfaFactor[]
   legalHolds              LegalHold[]
   privacyRequests         PrivacyRequest[]
   exportRequests          ExportRequest[]
@@ -462,8 +498,13 @@ model PlatformUser {
   createdAt DateTime           @default(now()) @map("created_at")
   updatedAt DateTime           @updatedAt @map("updated_at")
 
-  supportAccessSessions         SupportAccessSession[] @relation("SupportAccessPlatformUser")
-  approvedSupportAccessSessions SupportAccessSession[] @relation("SupportAccessApprover")
+  supportAccessSessions         SupportAccessSession[]   @relation("SupportAccessPlatformUser")
+  approvedSupportAccessSessions SupportAccessSession[]   @relation("SupportAccessApprover")
+  credentials                   AuthCredential[]
+  sessions                      AuthSession[]
+  passwordResetTokens           PasswordResetToken[]
+  emailVerificationTokens       EmailVerificationToken[]
+  mfaFactors                    MfaFactor[]
 
   @@index([status])
   @@map("platform_users")
@@ -480,14 +521,19 @@ model User {
   updatedAt   DateTime   @updatedAt @map("updated_at")
   deletedAt   DateTime?  @map("deleted_at")
 
-  company              Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  roles                UserRole[]
-  legalHoldsCreated    LegalHold[]           @relation("LegalHoldCreator")
-  legalHoldsReleased   LegalHold[]           @relation("LegalHoldReleaser")
-  exportRequests       ExportRequest[]
-  teamMemberships      TeamMember[]
-  candidateNotes       CandidateNote[]
-  candidateMergeEvents CandidateMergeEvent[]
+  company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  roles                   UserRole[]
+  legalHoldsCreated       LegalHold[]              @relation("LegalHoldCreator")
+  legalHoldsReleased      LegalHold[]              @relation("LegalHoldReleaser")
+  exportRequests          ExportRequest[]
+  teamMemberships         TeamMember[]
+  candidateNotes          CandidateNote[]
+  candidateMergeEvents    CandidateMergeEvent[]
+  credentials             AuthCredential[]
+  sessions                AuthSession[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  mfaFactors              MfaFactor[]
 
   @@unique([companyId, id])
   @@unique([companyId, email])
@@ -548,6 +594,125 @@ model UserRole {
   @@id([userId, roleId])
   @@index([companyId])
   @@map("user_roles")
+}
+
+model AuthCredential {
+  id                String          @id @default(cuid())
+  subjectType       AuthSubjectType @map("subject_type")
+  companyId         String?         @map("company_id")
+  userId            String?         @map("user_id")
+  platformUserId    String?         @map("platform_user_id")
+  passwordHash      String          @map("password_hash")
+  emailVerifiedAt   DateTime?       @map("email_verified_at")
+  passwordUpdatedAt DateTime        @default(now()) @map("password_updated_at")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  company      Company?      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user         User?         @relation(fields: [companyId, userId], references: [companyId, id], onDelete: Cascade)
+  platformUser PlatformUser? @relation(fields: [platformUserId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId])
+  @@unique([platformUserId])
+  @@index([companyId])
+  @@map("auth_credentials")
+}
+
+model AuthSession {
+  id               String            @id @default(cuid())
+  subjectType      AuthSubjectType   @map("subject_type")
+  companyId        String?           @map("company_id")
+  userId           String?           @map("user_id")
+  platformUserId   String?           @map("platform_user_id")
+  sessionTokenHash String            @unique @map("session_token_hash")
+  refreshTokenHash String            @unique @map("refresh_token_hash")
+  csrfTokenHash    String            @map("csrf_token_hash")
+  status           AuthSessionStatus @default(ACTIVE)
+  ipAddress        String?           @map("ip_address")
+  userAgent        String?           @map("user_agent")
+  lastSeenAt       DateTime          @default(now()) @map("last_seen_at")
+  expiresAt        DateTime          @map("expires_at")
+  refreshExpiresAt DateTime          @map("refresh_expires_at")
+  revokedAt        DateTime?         @map("revoked_at")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  company      Company?      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user         User?         @relation(fields: [companyId, userId], references: [companyId, id], onDelete: Cascade)
+  platformUser PlatformUser? @relation(fields: [platformUserId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@index([companyId, userId, status])
+  @@index([platformUserId, status])
+  @@index([expiresAt])
+  @@index([refreshExpiresAt])
+  @@map("auth_sessions")
+}
+
+model PasswordResetToken {
+  id             String          @id @default(cuid())
+  subjectType    AuthSubjectType @map("subject_type")
+  companyId      String?         @map("company_id")
+  userId         String?         @map("user_id")
+  platformUserId String?         @map("platform_user_id")
+  tokenHash      String          @unique @map("token_hash")
+  expiresAt      DateTime        @map("expires_at")
+  usedAt         DateTime?       @map("used_at")
+  createdAt      DateTime        @default(now()) @map("created_at")
+
+  company      Company?      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user         User?         @relation(fields: [companyId, userId], references: [companyId, id], onDelete: Cascade)
+  platformUser PlatformUser? @relation(fields: [platformUserId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, userId])
+  @@index([platformUserId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id             String          @id @default(cuid())
+  subjectType    AuthSubjectType @map("subject_type")
+  companyId      String?         @map("company_id")
+  userId         String?         @map("user_id")
+  platformUserId String?         @map("platform_user_id")
+  tokenHash      String          @unique @map("token_hash")
+  expiresAt      DateTime        @map("expires_at")
+  verifiedAt     DateTime?       @map("verified_at")
+  createdAt      DateTime        @default(now()) @map("created_at")
+
+  company      Company?      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user         User?         @relation(fields: [companyId, userId], references: [companyId, id], onDelete: Cascade)
+  platformUser PlatformUser? @relation(fields: [platformUserId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, userId])
+  @@index([platformUserId])
+  @@index([expiresAt])
+  @@map("email_verification_tokens")
+}
+
+model MfaFactor {
+  id             String          @id @default(cuid())
+  subjectType    AuthSubjectType @map("subject_type")
+  companyId      String?         @map("company_id")
+  userId         String?         @map("user_id")
+  platformUserId String?         @map("platform_user_id")
+  type           MfaFactorType
+  status         MfaFactorStatus @default(PENDING)
+  secretRef      String?         @map("secret_ref")
+  metadataJson   Json            @map("metadata_json")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  disabledAt     DateTime?       @map("disabled_at")
+
+  company      Company?      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  user         User?         @relation(fields: [companyId, userId], references: [companyId, id], onDelete: Cascade)
+  platformUser PlatformUser? @relation(fields: [platformUserId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId, type])
+  @@unique([platformUserId, type])
+  @@index([companyId, status])
+  @@map("mfa_factors")
 }
 
 model AuditEvent {
