@@ -1,4 +1,9 @@
 export {
+  integrationConflictPolicies,
+  integrationMappingTypes,
+  integrationProviders,
+} from "./types";
+export {
   IntegrationMappingError,
   createIntegrationMapping,
   resolveIntegrationConflict,
