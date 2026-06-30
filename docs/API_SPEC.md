@@ -728,6 +728,33 @@ Important events:
 
 Future external webhooks can expose a safe subset.
 
+## Phase 12 Internal Integration APIs
+
+Phase 12 enterprise integration and scale management foundations are versioned under `/api/internal/v1`. These endpoints do not provision production infrastructure and do not enable Phase 13 deployment.
+
+All endpoints require authenticated company context, tenant isolation, RBAC, rate limiting, validation, safe projection, and CSRF for mutations.
+
+| Endpoint                                    | Methods       | Permission                                           | Purpose                                                                    |
+| ------------------------------------------- | ------------- | ---------------------------------------------------- | -------------------------------------------------------------------------- |
+| `/api/internal/v1/webhooks/subscriptions`   | `GET`, `POST` | `webhooks:read`, `webhooks:manage`                   | Inspect supported webhook events and validate subscription configuration.  |
+| `/api/internal/v1/webhooks/deliveries`      | `GET`, `POST` | `webhooks:read`, `webhooks:manage`                   | Inspect webhook delivery contract and request authorized retry validation. |
+| `/api/internal/v1/sso/configuration`        | `GET`, `POST` | `sso:read`, `sso:manage`                             | Inspect SSO provider support and validate OIDC configuration protections.  |
+| `/api/internal/v1/sso/domains`              | `GET`, `POST` | `sso:read`, `sso:manage`                             | Inspect and validate verified-domain mapping foundations.                  |
+| `/api/internal/v1/scim/configuration`       | `GET`, `POST` | `scim:read`, `scim:manage`                           | Inspect SCIM support and validate token/pagination foundations.            |
+| `/api/internal/v1/integrations/connections` | `GET`, `POST` | `integrations:read`, `integrations:manage`           | Inspect ATS provider support and validate connection configuration.        |
+| `/api/internal/v1/integrations/mappings`    | `GET`, `POST` | `integrations:read`, `integrations:manage`           | Inspect and validate integration mapping and conflict-policy rules.        |
+| `/api/internal/v1/integrations/sync-jobs`   | `GET`, `POST` | `integration_syncs:read`, `integration_syncs:manage` | Inspect and validate integration sync workflow contracts.                  |
+| `/api/internal/v1/data-residency/settings`  | `GET`, `POST` | `data_residency:read`, `data_residency:manage`       | Inspect region configuration and validate cross-region transfer policy.    |
+
+Projection rules:
+
+- Webhook payloads are event allowlists, never raw domain-event payloads.
+- Secret references are redacted in responses.
+- Raw SCIM bearer tokens are never returned by validation endpoints.
+- Provider credentials are never exposed to browsers.
+- Signed URLs, transcripts, media contents, prompts, evidence text, candidate notes, accommodation data, and identity data remain excluded from these APIs.
+- Integration sync payloads contain IDs and safe metadata only.
+
 ## Search APIs
 
 ### Search Workspace
