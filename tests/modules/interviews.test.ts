@@ -174,6 +174,7 @@ describe("browser interview session service", () => {
       "transcribe_recording",
       "evaluate_interview",
       "generate_report",
+      "notify_results_ready",
     ]);
 
     const secondCompletion = await service.completeInterview(candidateContext);

@@ -1,9 +1,14 @@
 import { logger } from "@/infra/logging";
 import { closeWorkersGracefully } from "@/infra/queue";
 import { assertEmailQueueRegistered, createEmailWorker } from "@/modules/email/worker";
+import { createPhase9WorkflowHandlers } from "@/modules/evaluation/workflow-handlers";
+import { createWorkflowOrchestrationWorker } from "@/modules/workflows";
 
 let shutdownRequested = false;
-const workers = [createEmailWorker()];
+const workers = [
+  createEmailWorker(),
+  createWorkflowOrchestrationWorker(createPhase9WorkflowHandlers()),
+];
 
 assertEmailQueueRegistered();
 logger.info({ workerCount: workers.length }, "Worker process started.");

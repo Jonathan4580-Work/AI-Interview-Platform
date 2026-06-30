@@ -543,13 +543,20 @@ export class InterviewService {
       idempotencyKey: `interview-processing:${context.session.companyId}:${session.id}`,
       metadata: { phase: 7 },
       steps: [
-        { stepKey: "finalize_media", queueName: "media", sequence: 1, maxAttempts: 3 },
+        {
+          stepKey: "finalize_media",
+          queueName: "media",
+          sequence: 1,
+          maxAttempts: 3,
+          metadata: { workflowSubjectId: session.id },
+        },
         {
           stepKey: "transcribe_recording",
           queueName: "provider-bound",
           sequence: 2,
           dependencyStepKeys: ["finalize_media"],
           maxAttempts: 1,
+          metadata: { workflowSubjectId: session.id },
         },
         {
           stepKey: "evaluate_interview",
@@ -557,6 +564,7 @@ export class InterviewService {
           sequence: 3,
           dependencyStepKeys: ["transcribe_recording"],
           maxAttempts: 1,
+          metadata: { workflowSubjectId: session.id },
         },
         {
           stepKey: "generate_report",
@@ -564,6 +572,15 @@ export class InterviewService {
           sequence: 4,
           dependencyStepKeys: ["evaluate_interview"],
           maxAttempts: 1,
+          metadata: { workflowSubjectId: session.id },
+        },
+        {
+          stepKey: "notify_results_ready",
+          queueName: "notifications",
+          sequence: 5,
+          dependencyStepKeys: ["generate_report"],
+          maxAttempts: 3,
+          metadata: { workflowSubjectId: session.id },
         },
       ],
     });
