@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { AuditWriter, type AuditEventStore, type PersistedAuditEventInput } from "@/modules/audit";
+import { permissionKeys } from "@/modules/access-control";
 import {
   EmailProviderError,
   EmailService,
@@ -178,6 +179,23 @@ describe("email delivery lifecycle", () => {
     expect(failed.status).toBe("failed");
     expect(repo.attempts[0]?.status).toBe("failed");
     expect(repo.attempts[0]?.errorCode).toBe("SMTP_550");
+  });
+});
+
+describe("email access-control surface", () => {
+  it("registers central permissions for settings, templates, deliveries, and sender domains", () => {
+    expect(permissionKeys).toEqual(
+      expect.arrayContaining([
+        "email_settings:read",
+        "email_settings:manage",
+        "email_templates:read",
+        "email_templates:manage",
+        "email_deliveries:read",
+        "email_deliveries:manage",
+        "sender_domains:read",
+        "sender_domains:manage",
+      ]),
+    );
   });
 });
 
