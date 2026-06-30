@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { candidatePost } from "@/components/candidate/candidate-api";
@@ -13,13 +13,23 @@ import { Input } from "@/components/ui/input";
 export function IdentityForm() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [name, setName] = useState("");
   const [cameraReady, setCameraReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach((track) => {
+        track.stop();
+      });
+    };
+  }, []);
+
   async function startCamera() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      streamRef.current = stream;
       if (videoRef.current !== null) {
         videoRef.current.srcObject = stream;
       }
@@ -34,16 +44,11 @@ export function IdentityForm() {
       setError("Enter your name as it should appear for the hiring team.");
       return;
     }
-    const snapshot = {
-      storageRef: `candidate-snapshots/pending/${crypto.randomUUID()}`,
-      contentType: "image/jpeg",
-      sizeBytes: 1,
-      checksumSha256: "0".repeat(64),
-    };
+    const snapshot = cameraReady ? await captureSnapshotMetadata(videoRef.current) : null;
     const result = await candidatePost("/api/candidate/identity", {
       selfAttestedName: name,
       confirmedName: name,
-      snapshot: cameraReady ? snapshot : null,
+      snapshot,
     });
     if (!result.ok) {
       setError(result.error ?? "Identity confirmation could not be saved.");
@@ -90,4 +95,38 @@ export function IdentityForm() {
       />
     </CandidateShell>
   );
+}
+
+async function captureSnapshotMetadata(video: HTMLVideoElement | null): Promise<{
+  readonly storageRef: string;
+  readonly contentType: "image/jpeg";
+  readonly sizeBytes: number;
+  readonly checksumSha256: string;
+} | null> {
+  if (video === null || video.videoWidth === 0 || video.videoHeight === 0) {
+    return null;
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const context = canvas.getContext("2d");
+  if (context === null) {
+    return null;
+  }
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/jpeg", 0.82);
+  });
+  if (blob === null) {
+    return null;
+  }
+  const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+  return {
+    storageRef: `candidate-snapshots/pending/${crypto.randomUUID()}`,
+    contentType: "image/jpeg",
+    sizeBytes: blob.size,
+    checksumSha256: Array.from(new Uint8Array(digest))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join(""),
+  };
 }

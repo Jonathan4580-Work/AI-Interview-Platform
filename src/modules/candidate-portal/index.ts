@@ -11,6 +11,7 @@ export {
 export type {
   CandidateLinkExchangeResult,
   CandidatePortalStatus,
+  CandidateResumeExchangeResult,
   CandidateRequestContext,
   CandidateSessionContext,
   CandidateSessionId,

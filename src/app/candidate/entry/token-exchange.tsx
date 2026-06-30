@@ -12,7 +12,8 @@ export function CandidateEntryClient() {
   const [message, setMessage] = useState("Opening your secure interview link.");
 
   useEffect(() => {
-    const token = searchParams.get("token");
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/u, ""));
+    const token = hashParams.get("token") ?? searchParams.get("token");
     window.history.replaceState(null, "", "/candidate/entry");
     if (token === null || token.trim().length === 0) {
       router.replace("/candidate/link-expired");

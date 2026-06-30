@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { CandidateShell, CandidateStepLink } from "@/components/candidate/candidate-shell";
+import { CandidateEntryClient } from "@/app/candidate/entry/token-exchange";
 import { CandidateConsentForm } from "@/app/candidate/privacy-consent/privacy-consent-form";
 
 const push = vi.fn();
@@ -50,5 +51,34 @@ describe("candidate portal UI", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("Please review each item");
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("removes candidate entry tokens from the visible URL before exchange", async () => {
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          data: { accepted: true, nextPath: "/candidate/welcome" },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    window.location.hash = "token=secure-fragment-token";
+
+    render(<CandidateEntryClient />);
+
+    expect(replaceState).toHaveBeenCalledWith(null, "", "/candidate/entry");
+    await screen.findByText("Please keep this tab open");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/candidate/exchange",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ token: "secure-fragment-token" }),
+      }),
+    );
+
+    fetchMock.mockRestore();
+    replaceState.mockRestore();
   });
 });

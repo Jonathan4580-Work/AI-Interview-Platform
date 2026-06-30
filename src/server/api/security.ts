@@ -60,13 +60,18 @@ export function assertCsrf(request: NextRequest): void {
   }
 }
 
-export function applySecurityHeaders(response: NextResponse): void {
+export function applySecurityHeaders(
+  response: NextResponse,
+  options: { readonly allowCandidateMedia?: boolean } = {},
+): void {
   response.headers.set("x-content-type-options", "nosniff");
   response.headers.set("x-frame-options", "DENY");
   response.headers.set("referrer-policy", "no-referrer");
   response.headers.set(
     "permissions-policy",
-    "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    options.allowCandidateMedia === true
+      ? "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()"
+      : "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
   );
   response.headers.set(
     "content-security-policy",

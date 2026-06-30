@@ -19,6 +19,18 @@ export type CandidateLinkExchangeResult =
       readonly reason: "expired" | "revoked" | "completed" | "in_progress" | "invalid";
     };
 
+export type CandidateResumeExchangeResult =
+  | {
+      readonly ok: true;
+      readonly sessionToken: CandidateSessionToken;
+      readonly csrfToken: CandidateCsrfToken;
+      readonly expiresAt: Date;
+      readonly nextPath: string;
+    }
+  | {
+      readonly ok: false;
+    };
+
 export interface CandidateSessionContext {
   readonly companyId: TenantId;
   readonly sessionId: CandidateSessionId;

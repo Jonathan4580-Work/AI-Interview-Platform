@@ -146,5 +146,15 @@ describe("API foundation", () => {
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
     expect(response.headers.get("x-frame-options")).toBe("DENY");
     expect(response.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+    expect(response.headers.get("permissions-policy")).toContain("camera=()");
+  });
+
+  it("allows camera and microphone only for candidate readiness surfaces", () => {
+    const response = NextResponse.next();
+
+    applySecurityHeaders(response, { allowCandidateMedia: true });
+
+    expect(response.headers.get("permissions-policy")).toContain("camera=(self)");
+    expect(response.headers.get("permissions-policy")).toContain("microphone=(self)");
   });
 });

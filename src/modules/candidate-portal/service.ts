@@ -22,6 +22,7 @@ import {
 import type {
   CandidateLinkExchangeResult,
   CandidatePortalStatus,
+  CandidateResumeExchangeResult,
   CandidateRequestContext,
   CandidateSessionContext,
   CandidateSessionId,
@@ -209,6 +210,15 @@ export class CandidatePortalService {
     const csrfToken = createCandidateCsrfToken();
     const expiresAt = new Date(now.getTime() + SESSION_DURATION_MS);
     const session = await prisma.$transaction(async (tx) => {
+      await tx.candidateSession.updateMany({
+        where: {
+          companyId: invitation.companyId,
+          invitationId: invitation.id,
+          status: "ACTIVE",
+          expiresAt: { lte: now },
+        },
+        data: { status: "EXPIRED", activeLockKey: null },
+      });
       const consumed = await tx.candidateInvitation.updateMany({
         where: {
           companyId: invitation.companyId,
@@ -277,14 +287,31 @@ export class CandidatePortalService {
     sessionToken: string | undefined,
     request: CandidateRequestContext,
   ): Promise<CandidateSessionContext> {
-    void request;
     if (sessionToken === undefined || !isWellFormedToken(sessionToken)) {
       throw new CandidatePortalError("Candidate session is required.", "session_required");
     }
     const session = await prisma.candidateSession.findUnique({
       where: { sessionTokenHash: hashCandidateToken(sessionToken) },
     });
-    if (session?.status !== "ACTIVE" || session.expiresAt <= new Date()) {
+    if (session?.status === "ACTIVE" && session.expiresAt <= new Date()) {
+      await prisma.candidateSession.update({
+        where: { id: session.id },
+        data: { status: "EXPIRED", activeLockKey: null },
+      });
+      await this.audit(
+        "candidate.session_expired",
+        session.companyId,
+        { type: "candidate_session", id: session.id },
+        request,
+        {
+          resourceType: "candidate_session",
+          resourceId: session.id,
+          after: { status: "EXPIRED" },
+        },
+      );
+      throw new CandidatePortalError("Candidate session is required.", "session_required");
+    }
+    if (session?.status !== "ACTIVE") {
       throw new CandidatePortalError("Candidate session is required.", "session_required");
     }
     await prisma.candidateSession.update({
@@ -370,6 +397,73 @@ export class CandidatePortalService {
       },
     });
     return { token, expiresAt };
+  }
+
+  public async exchangeResumeToken(input: {
+    readonly resumeToken: string;
+    readonly request: CandidateRequestContext;
+  }): Promise<CandidateResumeExchangeResult> {
+    if (!isWellFormedToken(input.resumeToken)) {
+      return { ok: false };
+    }
+
+    const now = new Date();
+    const continuation = await prisma.candidateSessionContinuation.findUnique({
+      where: { resumeTokenHash: hashCandidateToken(input.resumeToken) },
+      include: { candidateSession: true },
+    });
+    if (
+      continuation?.consumedAt !== null ||
+      continuation.expiresAt <= now ||
+      continuation.candidateSession.status !== "ACTIVE" ||
+      continuation.candidateSession.expiresAt <= now
+    ) {
+      return { ok: false };
+    }
+
+    const sessionToken = createCandidateSessionToken();
+    const csrfToken = createCandidateCsrfToken();
+    const session = await prisma.$transaction(async (tx) => {
+      await tx.candidateSessionContinuation.update({
+        where: { id: continuation.id },
+        data: { consumedAt: now },
+      });
+      return tx.candidateSession.update({
+        where: {
+          companyId_id: {
+            companyId: continuation.companyId,
+            id: continuation.candidateSessionId,
+          },
+        },
+        data: {
+          sessionTokenHash: hashCandidateToken(sessionToken),
+          csrfTokenHash: hashCandidateToken(csrfToken),
+          createdFromIpHash: hashIpAddress(input.request.ipAddress),
+          createdFromUserAgent: truncate(input.request.userAgent, 500),
+          lastSeenAt: now,
+        },
+      });
+    });
+
+    await this.audit(
+      "candidate.session_resumed",
+      session.companyId,
+      { type: "candidate_session", id: session.id },
+      input.request,
+      {
+        resourceType: "candidate_session",
+        resourceId: session.id,
+        after: safeSessionAudit(session),
+      },
+    );
+
+    return {
+      ok: true,
+      sessionToken,
+      csrfToken,
+      expiresAt: session.expiresAt,
+      nextPath: "/candidate/welcome",
+    };
   }
 
   public async submitConsents(input: {
