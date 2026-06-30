@@ -673,56 +673,34 @@ Creates an export request and returns export status.
 
 ## Email APIs
 
-### Get Email Settings
+Phase 4 internal email APIs are versioned under `/api/internal/v1/email`.
 
-`GET /api/company/email/settings`
+Implemented endpoints:
 
-### Update SMTP Profile
+- `GET /api/internal/v1/email/settings`
+- `PATCH /api/internal/v1/email/settings`
+- `GET /api/internal/v1/email/smtp-profiles`
+- `POST /api/internal/v1/email/smtp-profiles`
+- `GET /api/internal/v1/email/smtp-profiles/:smtpProfileId`
+- `PATCH /api/internal/v1/email/smtp-profiles/:smtpProfileId`
+- `POST /api/internal/v1/email/smtp-profiles/:smtpProfileId/test`
+- `GET /api/internal/v1/email/sender-domains`
+- `POST /api/internal/v1/email/sender-domains`
+- `GET /api/internal/v1/email/sender-domains/:domainId`
+- `PATCH /api/internal/v1/email/sender-domains/:domainId`
+- `GET /api/internal/v1/email/templates`
+- `POST /api/internal/v1/email/templates`
+- `GET /api/internal/v1/email/templates/:templateId`
+- `PATCH /api/internal/v1/email/templates/:templateId`
+- `GET /api/internal/v1/email/deliveries`
+- `POST /api/internal/v1/email/deliveries`
+- `GET /api/internal/v1/email/deliveries/:deliveryId`
+- `POST /api/internal/v1/email/deliveries/:deliveryId/cancel`
+- `POST /api/internal/v1/email/deliveries/:deliveryId/retry`
 
-`PUT /api/company/email/smtp-profile`
+All mutating email APIs require CSRF protection, tenant scope, RBAC permissions, validation, and audit events. SMTP credentials are never accepted as raw database fields; APIs accept only managed `secretRef` values.
 
-Body:
-
-```json
-{
-  "host": "smtp.example.com",
-  "port": 587,
-  "secure": false,
-  "fromName": "Acme Recruiting",
-  "fromEmail": "recruiting@acme.com",
-  "replyToEmail": "recruiting@acme.com"
-}
-```
-
-Secrets are submitted separately and stored securely.
-
-In production, SMTP secrets are stored in a managed secret store. The database stores only a secret reference.
-
-### Verify Sender Domain
-
-`POST /api/company/email/domains`
-
-Starts sender domain verification before custom sender use.
-
-### Send Test Email
-
-`POST /api/company/email/test`
-
-Queues a test email to the requesting user.
-
-### Get Deliverability
-
-`GET /api/company/email/deliverability`
-
-Returns delivery, bounce, complaint, and failure metrics.
-
-### List Templates
-
-`GET /api/company/email/templates`
-
-### Update Template
-
-`PUT /api/company/email/templates/:templateKey`
+Provider webhook ingestion and deliverability aggregate reporting remain future endpoints.
 
 ## Webhooks and Events
 

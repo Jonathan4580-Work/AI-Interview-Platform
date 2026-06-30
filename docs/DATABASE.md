@@ -868,7 +868,7 @@ Fields:
 
 ### `email_deliveries`
 
-Delivery attempts and status.
+Delivery lifecycle records. Full rendered bodies are not stored in this table.
 
 Fields:
 
@@ -877,17 +877,37 @@ Fields:
 - `templateKey`
 - `recipientEmail`
 - `subject`
-- `status`: queued, sending, sent, failed, bounced
+- `status`: pending, queued, sending, sent, delivered, deferred, bounced, complained, failed, cancelled
 - `providerMessageId`
-- `bounceType`
-- `complaintAt`
 - `errorMessage`
 - `queuedAt`
 - `sentAt`
 - `createdAt`
 - `updatedAt`
 
-### `verified_domains`
+### `email_delivery_attempts`
+
+Provider attempt history.
+
+Fields:
+
+- `id`
+- `companyId`
+- `deliveryId`
+- `attemptNumber`
+- `status`
+- `provider`
+- `providerMessageId`
+- `errorCode`
+- `errorMessage`
+- `startedAt`
+- `completedAt`
+
+### `email_events`
+
+Normalized provider events for delivered, deferred, bounced, complained, and failed outcomes.
+
+### `verified_sender_domains`
 
 Company sender domain verification.
 

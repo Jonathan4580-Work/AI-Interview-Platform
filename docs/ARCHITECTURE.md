@@ -507,6 +507,8 @@ Deliverability requirements:
 - Tenant outbound email must be rate limited.
 - Platform admins can disable tenant SMTP.
 
+Operational deliverability, SPF/DKIM/DMARC, preview-mode, bounce, complaint, and secret-reference guidance is maintained in `docs/EMAIL_SYSTEM.md`.
+
 ## AI Architecture
 
 AI is split into two conceptual areas:
