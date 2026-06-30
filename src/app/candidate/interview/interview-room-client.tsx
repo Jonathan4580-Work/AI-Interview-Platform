@@ -19,6 +19,10 @@ import {
 import { AptlyLogo } from "@/components/brand/logo";
 import { candidateGet, candidatePost } from "@/components/candidate/candidate-api";
 import {
+  createInterviewMonitoringController,
+  type InterviewMonitoringController,
+} from "@/components/candidate/interview/monitoring-client";
+import {
   chooseRecordingMimeType,
   createInterviewMediaStream,
   uploadRecordingChunk,
@@ -52,6 +56,7 @@ interface InterviewStatePayload {
 }
 
 type RecordingState = "idle" | "requesting" | "recording" | "uploading" | "ready" | "failed";
+type MonitoringStatus = "loading" | "active" | "disabled" | "unavailable";
 
 export function InterviewRoomClient() {
   const [state, setState] = useState<InterviewStatePayload | null>(null);
@@ -60,10 +65,13 @@ export function InterviewRoomClient() {
   const [connectionState, setConnectionState] = useState<"ok" | "degraded" | "lost">("ok");
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
   const [uploadedMedia, setUploadedMedia] = useState<RecordingUploadResult[]>([]);
+  const [monitoringStatus, setMonitoringStatus] = useState<MonitoringStatus>("loading");
+  const [monitoringDetail, setMonitoringDetail] = useState<string | null>(null);
   const [confirmEndOpen, setConfirmEndOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const monitoringRef = useRef<InterviewMonitoringController | null>(null);
   const chunkNumberRef = useRef(0);
 
   const questions = state?.plan.questions ?? [];
@@ -86,6 +94,23 @@ export function InterviewRoomClient() {
       stopTracks();
     };
   }, []);
+
+  useEffect(() => {
+    if (state?.session.id === undefined || monitoringRef.current !== null) return;
+    const controller = createInterviewMonitoringController({
+      getVideoElement: () => videoRef.current,
+      setStatus: (status, detail) => {
+        setMonitoringStatus(status);
+        setMonitoringDetail(detail);
+      },
+    });
+    monitoringRef.current = controller;
+    void controller.start();
+    return () => {
+      controller.stop();
+      monitoringRef.current = null;
+    };
+  }, [state?.session.id]);
 
   async function bootstrap() {
     const started = await candidatePost("/api/candidate/interview/start");
@@ -147,6 +172,7 @@ export function InterviewRoomClient() {
       setRecordingState("recording");
     } catch (error) {
       setRecordingState("failed");
+      monitoringRef.current?.recordRecordingInterrupted("recording_start_failed");
       setMessage(error instanceof Error ? error.message : "Recording could not start.");
       stopTracks();
     }
@@ -180,6 +206,7 @@ export function InterviewRoomClient() {
       await bootstrap();
     } catch (error) {
       setRecordingState("failed");
+      monitoringRef.current?.recordRecordingInterrupted("upload_or_completion_failed");
       setMessage(
         error instanceof Error
           ? error.message
@@ -190,6 +217,7 @@ export function InterviewRoomClient() {
   }
 
   async function completeInterview() {
+    await monitoringRef.current?.flush();
     const response = await candidatePost("/api/candidate/interview/complete");
     if (response.ok) {
       window.location.assign("/candidate/completed");
@@ -201,6 +229,7 @@ export function InterviewRoomClient() {
 
   async function sendHeartbeat(nextState: "ok" | "degraded" | "lost") {
     setConnectionState(nextState);
+    monitoringRef.current?.recordConnectionState(nextState);
     await candidatePost("/api/candidate/interview/heartbeat", { connectionState: nextState });
   }
 
@@ -353,7 +382,22 @@ export function InterviewRoomClient() {
                   label="Privacy"
                   value="Recording is shown explicitly"
                 />
+                <StatusRow
+                  icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />}
+                  label="Monitoring"
+                  value={monitoringLabel(monitoringStatus)}
+                />
               </div>
+            </div>
+
+            <div className="rounded-lg border border-border bg-card p-4">
+              <h2 className="text-sm font-semibold">Monitoring notices</h2>
+              <p className="mt-2 text-sm text-muted-foreground" aria-live="polite">
+                {monitoringDescription(monitoringStatus, monitoringDetail)}
+              </p>
+              <Button asChild variant="quiet" size="sm" className="mt-3 px-0">
+                <Link href="/candidate/privacy-consent">Review privacy details</Link>
+              </Button>
             </div>
 
             <div className="rounded-lg border border-border bg-card p-4">
@@ -460,5 +504,33 @@ function connectionLabel(state: "ok" | "degraded" | "lost"): string {
       return "Checking";
     case "lost":
       return "Recovering";
+  }
+}
+
+function monitoringLabel(state: MonitoringStatus): string {
+  switch (state) {
+    case "loading":
+      return "Checking";
+    case "active":
+      return "Active";
+    case "disabled":
+      return "Not active";
+    case "unavailable":
+      return "Needs attention";
+  }
+}
+
+function monitoringDescription(state: MonitoringStatus, detail: string | null): string {
+  switch (state) {
+    case "loading":
+      return "Monitoring warnings are being prepared with your interview settings.";
+    case "active":
+      return "Aptly may collect limited warning signals such as camera availability, focus changes, and connection stability for reviewer context.";
+    case "disabled":
+      return "Monitoring warnings are not active for this session. The interview can continue.";
+    case "unavailable":
+      return (
+        detail ?? "Monitoring warnings are temporarily unavailable. The interview can continue."
+      );
   }
 }

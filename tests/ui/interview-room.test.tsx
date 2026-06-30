@@ -35,7 +35,20 @@ const interviewState = {
 };
 
 vi.mock("@/components/candidate/candidate-api", () => ({
-  candidateGet: vi.fn(() => Promise.resolve({ ok: true, data: interviewState })),
+  candidateGet: vi.fn((path: string) =>
+    Promise.resolve({
+      ok: true,
+      data: path.endsWith("/monitoring/config")
+        ? {
+            enabled: true,
+            detectorConfigVersion: "monitoring-v1",
+            thresholdVersion: "monitoring-thresholds-v1",
+            batch: { flushIntervalMs: 15_000, maxEvents: 25 },
+            disabledReason: null,
+          }
+        : interviewState,
+    }),
+  ),
   candidatePost: vi.fn((path: string) =>
     Promise.resolve({
       ok: true,
@@ -58,6 +71,11 @@ describe("candidate interview room", () => {
     expect(screen.getByLabelText("Camera preview")).toBeInTheDocument();
     expect(screen.getByLabelText("Interview controls")).toBeInTheDocument();
     expect(screen.getByText("Recording is shown explicitly")).toBeInTheDocument();
+    expect(screen.getByText("Monitoring notices")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/limited warning signals/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/suspicious|cheat|fraud/i)).not.toBeInTheDocument();
     expect(screen.getByRole("status", { name: "Not recording" })).toHaveAttribute(
       "aria-live",
       "polite",
