@@ -248,6 +248,74 @@ enum InterviewPlanVersionStatus {
   @@map("interview_plan_version_status")
 }
 
+enum CandidateStatus {
+  ACTIVE
+  ARCHIVED
+  MERGED
+
+  @@map("candidate_status")
+}
+
+enum CandidateSourceType {
+  MANUAL
+  REFERRAL
+  IMPORT
+  APPLICATION
+  INVITATION
+
+  @@map("candidate_source_type")
+}
+
+enum ApplicationStatus {
+  NEW
+  IN_REVIEW
+  INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+  WITHDRAWN
+  ARCHIVED
+
+  @@map("application_status")
+}
+
+enum CandidateDocumentType {
+  RESUME
+  COVER_LETTER
+  PORTFOLIO
+  OTHER
+
+  @@map("candidate_document_type")
+}
+
+enum CandidateDocumentStatus {
+  ACTIVE
+  DELETED
+
+  @@map("candidate_document_status")
+}
+
+enum CandidateTagStatus {
+  ACTIVE
+  ARCHIVED
+
+  @@map("candidate_tag_status")
+}
+
+enum CandidateNoteVisibility {
+  INTERNAL
+  PRIVATE
+
+  @@map("candidate_note_visibility")
+}
+
+enum CandidateNoteStatus {
+  ACTIVE
+  DELETED
+
+  @@map("candidate_note_status")
+}
+
 model Company {
   id            String        @id @default(cuid())
   name          String
@@ -259,28 +327,35 @@ model Company {
   updatedAt     DateTime      @updatedAt @map("updated_at")
   deletedAt     DateTime?     @map("deleted_at")
 
-  users                 User[]
-  roles                 Role[]
-  auditEvents           AuditEvent[]
-  idempotencyKeys       IdempotencyKey[]
-  settings              CompanySettings?
-  subscription          Subscription?
-  entitlements          Entitlement[]
-  usageCounters         UsageCounter[]
-  supportAccess         SupportAccessSession[]
-  legalHolds            LegalHold[]
-  privacyRequests       PrivacyRequest[]
-  exportRequests        ExportRequest[]
-  departments           Department[]
-  teams                 Team[]
-  teamMembers           TeamMember[]
-  locations             Location[]
-  hiringPipelines       HiringPipeline[]
-  pipelineStages        PipelineStage[]
-  jobs                  Job[]
-  jobTemplates          JobTemplate[]
-  interviewPlans        InterviewPlan[]
-  interviewPlanVersions InterviewPlanVersion[]
+  users                   User[]
+  roles                   Role[]
+  auditEvents             AuditEvent[]
+  idempotencyKeys         IdempotencyKey[]
+  settings                CompanySettings?
+  subscription            Subscription?
+  entitlements            Entitlement[]
+  usageCounters           UsageCounter[]
+  supportAccess           SupportAccessSession[]
+  legalHolds              LegalHold[]
+  privacyRequests         PrivacyRequest[]
+  exportRequests          ExportRequest[]
+  departments             Department[]
+  teams                   Team[]
+  teamMembers             TeamMember[]
+  locations               Location[]
+  hiringPipelines         HiringPipeline[]
+  pipelineStages          PipelineStage[]
+  jobs                    Job[]
+  jobTemplates            JobTemplate[]
+  interviewPlans          InterviewPlan[]
+  interviewPlanVersions   InterviewPlanVersion[]
+  candidates              Candidate[]
+  candidateApplications   CandidateApplication[]
+  candidateDocuments      CandidateDocument[]
+  candidateTags           CandidateTag[]
+  candidateTagAssignments CandidateTagAssignment[]
+  candidateNotes          CandidateNote[]
+  candidateMergeEvents    CandidateMergeEvent[]
 
   @@index([status])
   @@map("companies")
@@ -312,12 +387,14 @@ model User {
   updatedAt   DateTime   @updatedAt @map("updated_at")
   deletedAt   DateTime?  @map("deleted_at")
 
-  company            Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  roles              UserRole[]
-  legalHoldsCreated  LegalHold[]     @relation("LegalHoldCreator")
-  legalHoldsReleased LegalHold[]     @relation("LegalHoldReleaser")
-  exportRequests     ExportRequest[]
-  teamMemberships    TeamMember[]
+  company              Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  roles                UserRole[]
+  legalHoldsCreated    LegalHold[]           @relation("LegalHoldCreator")
+  legalHoldsReleased   LegalHold[]           @relation("LegalHoldReleaser")
+  exportRequests       ExportRequest[]
+  teamMemberships      TeamMember[]
+  candidateNotes       CandidateNote[]
+  candidateMergeEvents CandidateMergeEvent[]
 
   @@unique([companyId, id])
   @@unique([companyId, email])
@@ -566,7 +643,8 @@ model PrivacyRequest {
   createdAt      DateTime             @default(now()) @map("created_at")
   updatedAt      DateTime             @updatedAt @map("updated_at")
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate Candidate? @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Restrict)
 
   @@unique([companyId, id])
   @@index([companyId, candidateId])
@@ -719,8 +797,9 @@ model PipelineStage {
   updatedAt  DateTime              @updatedAt @map("updated_at")
   deletedAt  DateTime?             @map("deleted_at")
 
-  company  Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  pipeline HiringPipeline @relation(fields: [companyId, pipelineId], references: [companyId, id], onDelete: Cascade)
+  company      Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  pipeline     HiringPipeline         @relation(fields: [companyId, pipelineId], references: [companyId, id], onDelete: Cascade)
+  applications CandidateApplication[]
 
   @@unique([companyId, id])
   @@unique([companyId, pipelineId, slug])
@@ -750,12 +829,13 @@ model Job {
   updatedAt        DateTime       @updatedAt @map("updated_at")
   deletedAt        DateTime?      @map("deleted_at")
 
-  company    Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  department Department?     @relation(fields: [companyId, departmentId], references: [companyId, id], onDelete: Restrict)
-  team       Team?           @relation(fields: [companyId, teamId], references: [companyId, id], onDelete: Restrict)
-  location   Location?       @relation(fields: [companyId, locationId], references: [companyId, id], onDelete: Restrict)
-  pipeline   HiringPipeline  @relation(fields: [companyId, pipelineId], references: [companyId, id], onDelete: Restrict)
-  plans      InterviewPlan[]
+  company      Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  department   Department?            @relation(fields: [companyId, departmentId], references: [companyId, id], onDelete: Restrict)
+  team         Team?                  @relation(fields: [companyId, teamId], references: [companyId, id], onDelete: Restrict)
+  location     Location?              @relation(fields: [companyId, locationId], references: [companyId, id], onDelete: Restrict)
+  pipeline     HiringPipeline         @relation(fields: [companyId, pipelineId], references: [companyId, id], onDelete: Restrict)
+  plans        InterviewPlan[]
+  applications CandidateApplication[]
 
   @@unique([companyId, id])
   @@unique([companyId, slug])
@@ -838,4 +918,170 @@ model InterviewPlanVersion {
   @@unique([companyId, interviewPlanId, versionNumber])
   @@index([companyId, interviewPlanId, status])
   @@map("interview_plan_versions")
+}
+
+model Candidate {
+  id              String              @id @default(cuid())
+  companyId       String              @map("company_id")
+  primaryEmail    String?             @map("primary_email")
+  normalizedEmail String?             @map("normalized_email")
+  fullName        String              @map("full_name")
+  phone           String?
+  sourceType      CandidateSourceType @default(MANUAL) @map("source_type")
+  sourceLabel     String?             @map("source_label")
+  status          CandidateStatus     @default(ACTIVE)
+  profileJson     Json                @map("profile_json")
+  mergedIntoId    String?             @map("merged_into_id")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  deletedAt       DateTime?           @map("deleted_at")
+
+  company           Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  mergedInto        Candidate?               @relation("CandidateMergeTarget", fields: [companyId, mergedIntoId], references: [companyId, id], onDelete: Restrict)
+  mergedCandidates  Candidate[]              @relation("CandidateMergeTarget")
+  applications      CandidateApplication[]
+  documents         CandidateDocument[]
+  tagAssignments    CandidateTagAssignment[]
+  notes             CandidateNote[]
+  sourceMergeEvents CandidateMergeEvent[]    @relation("CandidateMergeSource")
+  targetMergeEvents CandidateMergeEvent[]    @relation("CandidateMergeTargetEvent")
+  privacyRequests   PrivacyRequest[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, normalizedEmail])
+  @@index([companyId, status])
+  @@index([companyId, fullName])
+  @@map("candidates")
+}
+
+model CandidateApplication {
+  id             String            @id @default(cuid())
+  companyId      String            @map("company_id")
+  candidateId    String            @map("candidate_id")
+  jobId          String            @map("job_id")
+  currentStageId String?           @map("current_stage_id")
+  status         ApplicationStatus @default(NEW)
+  appliedAt      DateTime          @default(now()) @map("applied_at")
+  rejectedAt     DateTime?         @map("rejected_at")
+  hiredAt        DateTime?         @map("hired_at")
+  metadataJson   Json              @map("metadata_json")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  deletedAt      DateTime?         @map("deleted_at")
+
+  company      Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate    Candidate      @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  job          Job            @relation(fields: [companyId, jobId], references: [companyId, id], onDelete: Restrict)
+  currentStage PipelineStage? @relation(fields: [companyId, currentStageId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@unique([companyId, candidateId, jobId])
+  @@index([companyId, jobId, status])
+  @@index([companyId, candidateId])
+  @@index([companyId, currentStageId])
+  @@map("candidate_applications")
+}
+
+model CandidateDocument {
+  id             String                  @id @default(cuid())
+  companyId      String                  @map("company_id")
+  candidateId    String                  @map("candidate_id")
+  type           CandidateDocumentType
+  status         CandidateDocumentStatus @default(ACTIVE)
+  fileName       String                  @map("file_name")
+  contentType    String                  @map("content_type")
+  storageKey     String                  @map("storage_key")
+  sizeBytes      Int                     @map("size_bytes")
+  checksumSha256 String                  @map("checksum_sha256")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+  deletedAt      DateTime?               @map("deleted_at")
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate Candidate @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@unique([companyId, storageKey])
+  @@index([companyId, candidateId, status])
+  @@map("candidate_documents")
+}
+
+model CandidateTag {
+  id        String             @id @default(cuid())
+  companyId String             @map("company_id")
+  name      String
+  slug      String
+  color     String?
+  status    CandidateTagStatus @default(ACTIVE)
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+  deletedAt DateTime?          @map("deleted_at")
+
+  company     Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  assignments CandidateTagAssignment[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, slug])
+  @@index([companyId, status])
+  @@map("candidate_tags")
+}
+
+model CandidateTagAssignment {
+  id          String   @id @default(cuid())
+  companyId   String   @map("company_id")
+  candidateId String   @map("candidate_id")
+  tagId       String   @map("tag_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  company   Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate Candidate    @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  tag       CandidateTag @relation(fields: [companyId, tagId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@unique([companyId, candidateId, tagId])
+  @@index([companyId, tagId])
+  @@map("candidate_tag_assignments")
+}
+
+model CandidateNote {
+  id           String                  @id @default(cuid())
+  companyId    String                  @map("company_id")
+  candidateId  String                  @map("candidate_id")
+  authorUserId String                  @map("author_user_id")
+  body         String
+  visibility   CandidateNoteVisibility @default(INTERNAL)
+  status       CandidateNoteStatus     @default(ACTIVE)
+  createdAt    DateTime                @default(now()) @map("created_at")
+  updatedAt    DateTime                @updatedAt @map("updated_at")
+  deletedAt    DateTime?               @map("deleted_at")
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidate Candidate @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  author    User      @relation(fields: [companyId, authorUserId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@index([companyId, candidateId, status])
+  @@index([companyId, authorUserId])
+  @@map("candidate_notes")
+}
+
+model CandidateMergeEvent {
+  id                String   @id @default(cuid())
+  companyId         String   @map("company_id")
+  sourceCandidateId String   @map("source_candidate_id")
+  targetCandidateId String   @map("target_candidate_id")
+  mergedByUserId    String   @map("merged_by_user_id")
+  reason            String
+  metadataJson      Json     @map("metadata_json")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sourceCandidate Candidate @relation("CandidateMergeSource", fields: [companyId, sourceCandidateId], references: [companyId, id], onDelete: Restrict)
+  targetCandidate Candidate @relation("CandidateMergeTargetEvent", fields: [companyId, targetCandidateId], references: [companyId, id], onDelete: Restrict)
+  mergedByUser    User      @relation(fields: [companyId, mergedByUserId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@index([companyId, sourceCandidateId])
+  @@index([companyId, targetCandidateId])
+  @@map("candidate_merge_events")
 }
