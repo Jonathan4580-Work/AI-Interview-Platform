@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { env } from "@/config";
+import { applySecurityHeaders } from "@/server/api";
 import { createRequestContext } from "@/shared";
 
 import type { NextRequest } from "next/server";
@@ -23,6 +24,7 @@ export function middleware(request: NextRequest): NextResponse {
 
   response.headers.set(env.REQUEST_ID_HEADER, context.requestId);
   response.headers.set(env.CORRELATION_ID_HEADER, context.correlationId);
+  applySecurityHeaders(response);
 
   return response;
 }
