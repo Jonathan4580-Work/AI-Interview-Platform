@@ -10,12 +10,16 @@ services:
       DATABASE_URL: postgresql://aptly:aptly@postgres:5432/aptly?schema=public
       DIRECT_DATABASE_URL: postgresql://aptly:aptly@postgres:5432/aptly?schema=public
       REDIS_URL: redis://redis:6379
+      OBJECT_STORAGE_ENDPOINT: http://minio:9000
+      OBJECT_STORAGE_PUBLIC_ENDPOINT: http://localhost:9000
     ports:
       - "3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
 
   worker:
@@ -29,10 +33,14 @@ services:
       DATABASE_URL: postgresql://aptly:aptly@postgres:5432/aptly?schema=public
       DIRECT_DATABASE_URL: postgresql://aptly:aptly@postgres:5432/aptly?schema=public
       REDIS_URL: redis://redis:6379
+      OBJECT_STORAGE_ENDPOINT: http://minio:9000
+      OBJECT_STORAGE_PUBLIC_ENDPOINT: http://localhost:9000
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
 
   postgres:
@@ -66,6 +74,38 @@ services:
       timeout: 5s
       retries: 5
 
+  minio:
+    image: minio/minio:latest
+    container_name: aptly-minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: aptlyminio
+      MINIO_ROOT_PASSWORD: aptlyminiosecret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: aptly-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint:
+      [
+        "/bin/sh",
+        "-c",
+        "mc alias set aptly http://minio:9000 aptlyminio aptlyminiosecret && mc mb --ignore-existing aptly/aptly-media-dev",
+      ]
+
 volumes:
   postgres-data:
   redis-data:
+  minio-data:

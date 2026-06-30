@@ -614,6 +614,105 @@ enum EmailEventType {
   @@map("email_event_type")
 }
 
+enum WorkflowStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+  PARTIALLY_COMPLETED
+
+  @@map("workflow_status")
+}
+
+enum WorkflowStepStatus {
+  PENDING
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  RETRY_SCHEDULED
+  FAILED
+  CANCELLED
+  SKIPPED
+
+  @@map("workflow_step_status")
+}
+
+enum WorkflowFailureKind {
+  RETRYABLE
+  TERMINAL
+
+  @@map("workflow_failure_kind")
+}
+
+enum WorkflowDeadLetterStatus {
+  OPEN
+  REPLAYED
+  CANCELLED
+  RESOLVED
+
+  @@map("workflow_dead_letter_status")
+}
+
+enum MediaOwnerType {
+  CANDIDATE
+  CANDIDATE_SESSION
+  INVITATION
+  INTERVIEW_SESSION
+  IDENTITY_VERIFICATION
+  EXPORT
+
+  @@map("media_owner_type")
+}
+
+enum MediaPurpose {
+  IDENTITY_SNAPSHOT
+  INTERVIEW_RECORDING
+  REPORT_EXPORT
+  GENERAL_ATTACHMENT
+
+  @@map("media_purpose")
+}
+
+enum MediaUploadStatus {
+  PENDING
+  AUTHORIZED
+  UPLOADING
+  COMPLETED
+  ABORTED
+  EXPIRED
+  FAILED
+
+  @@map("media_upload_status")
+}
+
+enum MediaProcessingStatus {
+  PENDING
+  READY
+  PROCESSING
+  FAILED
+  QUARANTINED
+  DELETED
+
+  @@map("media_processing_status")
+}
+
+enum MediaRetentionClass {
+  IDENTITY_VERIFICATION
+  RECORDING
+  EXPORT
+  OPERATIONAL
+
+  @@map("media_retention_class")
+}
+
+enum MediaUploadKind {
+  SINGLE_PART
+  MULTIPART
+
+  @@map("media_upload_kind")
+}
+
 model Company {
   id            String        @id @default(cuid())
   name          String
@@ -681,6 +780,13 @@ model Company {
   emailDeliveries         EmailDelivery[]
   emailDeliveryAttempts   EmailDeliveryAttempt[]
   emailEvents             EmailEvent[]
+  processingWorkflows     ProcessingWorkflow[]
+  processingWorkflowSteps ProcessingWorkflowStep[]
+  workflowStepAttempts    WorkflowStepAttempt[]
+  workflowDeadLetterJobs  WorkflowDeadLetterJob[]
+  mediaObjects            MediaObject[]
+  mediaUploadSessions     MediaUploadSession[]
+  mediaUploadParts        MediaUploadPart[]
 
   @@index([status])
   @@map("companies")
@@ -2155,4 +2261,233 @@ model EmailEvent {
   @@index([companyId, deliveryId, occurredAt])
   @@index([companyId, type, occurredAt])
   @@map("email_events")
+}
+
+model ProcessingWorkflow {
+  id               String         @id @default(cuid())
+  companyId        String         @map("company_id")
+  workflowType     String         @map("workflow_type")
+  subjectType      String         @map("subject_type")
+  subjectId        String         @map("subject_id")
+  status           WorkflowStatus @default(PENDING)
+  idempotencyKey   String         @map("idempotency_key")
+  currentStepKey   String?        @map("current_step_key")
+  requestId        String?        @map("request_id")
+  correlationId    String?        @map("correlation_id")
+  startedAt        DateTime?      @map("started_at")
+  completedAt      DateTime?      @map("completed_at")
+  failedAt         DateTime?      @map("failed_at")
+  cancelledAt      DateTime?      @map("cancelled_at")
+  failureKind      WorkflowFailureKind? @map("failure_kind")
+  failureCode      String?        @map("failure_code")
+  failureMessage   String?        @map("failure_message")
+  checkpointJson   Json           @map("checkpoint_json")
+  metadataJson     Json           @map("metadata_json")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  company Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  steps   ProcessingWorkflowStep[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, idempotencyKey])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, subjectType, subjectId])
+  @@index([companyId, workflowType, status])
+  @@map("processing_workflows")
+}
+
+model ProcessingWorkflowStep {
+  id                  String             @id @default(cuid())
+  companyId           String             @map("company_id")
+  workflowId          String             @map("workflow_id")
+  stepKey             String             @map("step_key")
+  queueName           String             @map("queue_name")
+  status              WorkflowStepStatus @default(PENDING)
+  sequence            Int
+  idempotencyKey      String             @map("idempotency_key")
+  dependencyStepKeys  String[]           @map("dependency_step_keys")
+  attemptCount        Int                @default(0) @map("attempt_count")
+  maxAttempts         Int                @default(3) @map("max_attempts")
+  nextRunAt           DateTime?          @map("next_run_at")
+  startedAt           DateTime?          @map("started_at")
+  completedAt         DateTime?          @map("completed_at")
+  failedAt            DateTime?          @map("failed_at")
+  cancelledAt         DateTime?          @map("cancelled_at")
+  failureKind         WorkflowFailureKind? @map("failure_kind")
+  failureCode         String?            @map("failure_code")
+  failureMessage      String?            @map("failure_message")
+  checkpointJson      Json               @map("checkpoint_json")
+  metadataJson        Json               @map("metadata_json")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+
+  company  Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  workflow ProcessingWorkflow      @relation(fields: [companyId, workflowId], references: [companyId, id], onDelete: Cascade)
+  attempts WorkflowStepAttempt[]
+  deadLetters WorkflowDeadLetterJob[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, idempotencyKey])
+  @@unique([companyId, workflowId, stepKey])
+  @@index([companyId, workflowId, sequence])
+  @@index([companyId, status, nextRunAt])
+  @@index([companyId, queueName, status])
+  @@map("processing_workflow_steps")
+}
+
+model WorkflowStepAttempt {
+  id             String               @id @default(cuid())
+  companyId      String               @map("company_id")
+  workflowId     String               @map("workflow_id")
+  stepId         String               @map("step_id")
+  attemptNumber  Int                  @map("attempt_number")
+  status         WorkflowStepStatus
+  failureKind    WorkflowFailureKind? @map("failure_kind")
+  errorCode      String?              @map("error_code")
+  errorMessage   String?              @map("error_message")
+  startedAt      DateTime             @map("started_at")
+  completedAt    DateTime?            @map("completed_at")
+  checkpointJson Json                 @map("checkpoint_json")
+  metadataJson   Json                 @map("metadata_json")
+  createdAt      DateTime             @default(now()) @map("created_at")
+
+  company Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  step    ProcessingWorkflowStep @relation(fields: [companyId, stepId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@unique([companyId, stepId, attemptNumber])
+  @@index([companyId, workflowId, createdAt])
+  @@index([companyId, status, createdAt])
+  @@map("workflow_step_attempts")
+}
+
+model WorkflowDeadLetterJob {
+  id              String                   @id @default(cuid())
+  companyId       String                   @map("company_id")
+  queueName       String                   @map("queue_name")
+  jobName         String                   @map("job_name")
+  bullJobId       String?                  @map("bull_job_id")
+  workflowId      String?                  @map("workflow_id")
+  stepId          String?                  @map("step_id")
+  status          WorkflowDeadLetterStatus @default(OPEN)
+  failureKind     WorkflowFailureKind      @map("failure_kind")
+  errorCode       String?                  @map("error_code")
+  errorMessage    String?                  @map("error_message")
+  payloadSummaryJson Json                  @map("payload_summary_json")
+  requestId       String?                  @map("request_id")
+  correlationId   String?                  @map("correlation_id")
+  replayedAt      DateTime?                @map("replayed_at")
+  cancelledAt     DateTime?                @map("cancelled_at")
+  resolvedAt      DateTime?                @map("resolved_at")
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  step    ProcessingWorkflowStep? @relation(fields: [companyId, stepId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@index([companyId, status, createdAt])
+  @@index([companyId, queueName, status])
+  @@index([companyId, workflowId])
+  @@map("workflow_dead_letter_jobs")
+}
+
+model MediaObject {
+  id                     String                @id @default(cuid())
+  companyId              String                @map("company_id")
+  ownerType              MediaOwnerType        @map("owner_type")
+  ownerId                String                @map("owner_id")
+  subjectType            MediaOwnerType        @map("subject_type")
+  subjectId              String                @map("subject_id")
+  purpose                MediaPurpose
+  storageProvider        String                @map("storage_provider")
+  bucket                 String
+  region                 String?
+  storageKey             String                @map("storage_key")
+  mimeType               String                @map("mime_type")
+  sizeBytes              BigInt?               @map("size_bytes")
+  expectedSizeBytes      BigInt?               @map("expected_size_bytes")
+  checksumSha256         String?               @map("checksum_sha256")
+  expectedChecksumSha256 String?               @map("expected_checksum_sha256")
+  uploadStatus           MediaUploadStatus     @default(PENDING) @map("upload_status")
+  processingStatus       MediaProcessingStatus @default(PENDING) @map("processing_status")
+  retentionClass         MediaRetentionClass   @map("retention_class")
+  encryptionRef          String?               @map("encryption_ref")
+  retentionDeleteAt      DateTime              @map("retention_delete_at")
+  legalHoldId            String?               @map("legal_hold_id")
+  legalHoldActive        Boolean               @default(false) @map("legal_hold_active")
+  completedAt            DateTime?             @map("completed_at")
+  deletedAt              DateTime?             @map("deleted_at")
+  deletionRequestedAt    DateTime?             @map("deletion_requested_at")
+  providerMetadataJson   Json                  @map("provider_metadata_json")
+  metadataJson           Json                  @map("metadata_json")
+  createdAt              DateTime              @default(now()) @map("created_at")
+  updatedAt              DateTime              @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  uploadSessions MediaUploadSession[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, storageKey])
+  @@index([companyId, ownerType, ownerId])
+  @@index([companyId, subjectType, subjectId])
+  @@index([companyId, purpose, uploadStatus])
+  @@index([companyId, processingStatus, createdAt])
+  @@index([companyId, retentionDeleteAt])
+  @@map("media_objects")
+}
+
+model MediaUploadSession {
+  id                    String            @id @default(cuid())
+  companyId             String            @map("company_id")
+  mediaObjectId         String            @map("media_object_id")
+  kind                  MediaUploadKind
+  status                MediaUploadStatus @default(AUTHORIZED)
+  providerUploadId      String?           @map("provider_upload_id")
+  idempotencyKey        String            @map("idempotency_key")
+  partSizeBytes         Int?              @map("part_size_bytes")
+  expectedPartCount     Int?              @map("expected_part_count")
+  expiresAt             DateTime          @map("expires_at")
+  completedAt           DateTime?         @map("completed_at")
+  abortedAt             DateTime?         @map("aborted_at")
+  requestId             String?           @map("request_id")
+  correlationId         String?           @map("correlation_id")
+  providerMetadataJson  Json              @map("provider_metadata_json")
+  metadataJson          Json              @map("metadata_json")
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  mediaObject MediaObject @relation(fields: [companyId, mediaObjectId], references: [companyId, id], onDelete: Cascade)
+  parts MediaUploadPart[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, idempotencyKey])
+  @@index([companyId, mediaObjectId, status])
+  @@index([companyId, status, expiresAt])
+  @@map("media_upload_sessions")
+}
+
+model MediaUploadPart {
+  id              String   @id @default(cuid())
+  companyId       String   @map("company_id")
+  uploadSessionId String   @map("upload_session_id")
+  mediaObjectId   String   @map("media_object_id")
+  partNumber      Int      @map("part_number")
+  etag            String?  @map("etag")
+  checksumSha256  String?  @map("checksum_sha256")
+  sizeBytes       BigInt?  @map("size_bytes")
+  uploadedAt      DateTime? @map("uploaded_at")
+  metadataJson    Json     @map("metadata_json")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  uploadSession MediaUploadSession @relation(fields: [companyId, uploadSessionId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@unique([companyId, uploadSessionId, partNumber])
+  @@index([companyId, mediaObjectId])
+  @@map("media_upload_parts")
 }

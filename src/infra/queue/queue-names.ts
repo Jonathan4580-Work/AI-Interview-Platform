@@ -1,5 +1,8 @@
 export const queueNames = [
   "email",
+  "orchestration",
+  "media",
+  "provider-bound",
   "interview-maintenance",
   "media-finalization",
   "transcription",

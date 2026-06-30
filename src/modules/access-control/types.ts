@@ -59,6 +59,13 @@ export const permissionKeys = [
   "email_deliveries:manage",
   "sender_domains:read",
   "sender_domains:manage",
+  "workflows:read",
+  "workflows:manage",
+  "media:read",
+  "media:manage",
+  "media:delete",
+  "queues:read",
+  "queues:manage",
 ] as const;
 
 export type PermissionKey = (typeof permissionKeys)[number];
