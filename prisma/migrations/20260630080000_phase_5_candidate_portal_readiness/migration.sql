@@ -10,6 +10,9 @@ CREATE TYPE "identity_verification_status" AS ENUM ('PENDING', 'SELF_ATTESTED', 
 CREATE TYPE "accommodation_request_type" AS ENUM ('WEBCAM_ALTERNATIVE', 'TIME_EXTENSION', 'ACCESSIBILITY_SUPPORT', 'OTHER');
 CREATE TYPE "candidate_request_status" AS ENUM ('OPEN', 'ACKNOWLEDGED', 'RESOLVED', 'CANCELLED');
 CREATE TYPE "candidate_support_category" AS ENUM ('TECHNICAL', 'ACCESSIBILITY', 'SCHEDULING', 'PRIVACY', 'OTHER');
+ALTER TYPE "notification_intent_type" ADD VALUE 'CANDIDATE_ACCOMMODATION_REQUESTED';
+ALTER TYPE "notification_intent_type" ADD VALUE 'CANDIDATE_SUPPORT_REQUESTED';
+ALTER TYPE "notification_intent_type" ADD VALUE 'CANDIDATE_WITHDRAWN';
 
 ALTER TABLE "candidate_invitations"
   ADD COLUMN "token_consumed_at" TIMESTAMP(3),

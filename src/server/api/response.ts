@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
 import { AuthenticationError, PasswordPolicyError } from "@/modules/auth";
+import { CandidatePortalError } from "@/modules/candidate-portal";
 
 import { ApiError, validationFailed } from "./errors";
 
@@ -90,6 +91,21 @@ export function normalizeApiError(error: unknown): ApiError {
   }
   if (error instanceof PasswordPolicyError) {
     return new ApiError(422, "validation_failed", error.message);
+  }
+  if (error instanceof CandidatePortalError) {
+    if (error.code === "session_required") {
+      return new ApiError(401, "unauthenticated", "Candidate session is required.");
+    }
+    if (error.code === "csrf_failed") {
+      return new ApiError(403, "csrf_failed", "Request verification failed.");
+    }
+    if (error.code === "invalid_link") {
+      return new ApiError(400, "bad_request", "Interview link cannot be used.");
+    }
+    if (error.code === "validation_failed") {
+      return new ApiError(422, "validation_failed", error.message);
+    }
+    return new ApiError(409, "conflict", error.message);
   }
   if (isPrismaKnownError(error, "P2025")) {
     return new ApiError(404, "not_found", "Resource was not found.");
