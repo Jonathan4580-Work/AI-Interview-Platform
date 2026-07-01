@@ -18,6 +18,8 @@
     "migrate:deploy": "prisma migrate deploy",
     "bootstrap:staging": "tsx scripts/bootstrap-staging.ts",
     "staging:reset-admin-passwords": "tsx scripts/staging-reset-admin-passwords.ts",
+    "staging:demo": "tsx scripts/staging-demo-mvp.ts",
+    "staging:mvp-smoke": "tsx scripts/staging-mvp-smoke.ts",
     "dev": "next dev",
     "start": "next start",
     "worker:dev": "tsx src/workers/index.ts",

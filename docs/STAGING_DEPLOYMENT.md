@@ -89,6 +89,66 @@ Smoke path:
 - Results-ready report.
 - Search/report visibility.
 
+## HR MVP Demo Setup
+
+Use the existing web service command for the Next.js application:
+
+```powershell
+node .next/standalone/server.js
+```
+
+Create a separate Railway worker service from the same Docker image for queued email and post-interview processing. Use this start command:
+
+```powershell
+npm run worker:prod
+```
+
+Set `STAGING_WORKER_SERVICE_ENABLED=true` only after that worker service is deployed and healthy. Do not claim the end-to-end interview flow works while the worker service is absent.
+
+Create synthetic demo data with environment-provided passwords:
+
+```powershell
+$env:APP_ENV="staging"
+$env:STAGING_DEMO_COMPANY_NAME="Aptly Synthetic Staging"
+$env:STAGING_DEMO_COMPANY_SLUG="aptly-synthetic-staging"
+$env:STAGING_DEMO_COMPANY_ADMIN_EMAIL="admin+staging@example.invalid"
+$env:STAGING_DEMO_COMPANY_ADMIN_NAME="Synthetic Company Admin"
+$env:STAGING_DEMO_COMPANY_ADMIN_PASSWORD="<secure password>"
+$env:STAGING_DEMO_HR_EMAIL="hr+staging@example.invalid"
+$env:STAGING_DEMO_HR_NAME="Synthetic HR User"
+$env:STAGING_DEMO_HR_PASSWORD="<secure password>"
+npm run staging:demo
+```
+
+The command prints the Company Workspace ID. Company Admin and HR users should choose **Company** on the login page and enter that Workspace ID.
+
+Run the staging MVP smoke check after using the UI to send the invitation and complete the candidate flow:
+
+```powershell
+$env:APP_ENV="staging"
+$env:STAGING_DEMO_COMPANY_SLUG="aptly-synthetic-staging"
+npm run staging:mvp-smoke
+```
+
+The smoke command reports blocked checks instead of faking success when the worker, object storage, invitation, interview completion, transcript, evaluation, or report is missing.
+
+## Object Storage For Candidate Recording
+
+Candidate browser recording requires real S3-compatible staging storage. Configure:
+
+- `OBJECT_STORAGE_PROVIDER`
+- `OBJECT_STORAGE_ENDPOINT`
+- `OBJECT_STORAGE_PUBLIC_ENDPOINT`
+- `OBJECT_STORAGE_REGION`
+- `OBJECT_STORAGE_BUCKET`
+- `OBJECT_STORAGE_FORCE_PATH_STYLE`
+- `OBJECT_STORAGE_ACCESS_KEY_ID`
+- `OBJECT_STORAGE_SECRET_ACCESS_KEY`
+- `OBJECT_STORAGE_SECRET_REF`
+- `OBJECT_STORAGE_CORS_ALLOWED_ORIGINS`
+
+Use private bucket access, short-lived signed URLs, multipart upload support, and CORS limited to the staging web origin. Without reachable object storage, recording upload, media verification, workflow processing, transcript, evaluation, and report creation remain blocked.
+
 ## Staging Exit Criteria
 
 - All repository checks pass.
