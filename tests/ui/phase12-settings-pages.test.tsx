@@ -39,7 +39,9 @@ describe("Phase 12 enterprise settings pages", () => {
     expect(screen.getByRole("heading", { name: "Sync Status" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Data Region" })).toBeInTheDocument();
     expect(
-      screen.queryByText(/best candidate|automated decision|production deployment/iu),
+      screen.queryByText(
+        /best candidate|automated decision|production deployment|phase 12|foundation ready|development foundation/iu,
+      ),
     ).toBeNull();
   });
 });

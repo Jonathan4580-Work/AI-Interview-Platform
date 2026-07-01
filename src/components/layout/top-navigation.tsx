@@ -17,7 +17,7 @@ interface TopNavigationProps {
 
 function TopNavigation({ user, workspace, onSignOut, onOpenMobileNavigation }: TopNavigationProps) {
   return (
-    <header className="sticky top-0 z-header flex h-14 items-center gap-3 border-b border-border bg-surface/95 px-4 backdrop-blur sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-header flex min-h-16 items-center gap-3 border-b border-border bg-surface/95 px-4 py-2 backdrop-blur sm:px-6 lg:px-8">
       <Button
         variant="quiet"
         size="icon"
@@ -28,7 +28,7 @@ function TopNavigation({ user, workspace, onSignOut, onOpenMobileNavigation }: T
         <Menu aria-hidden="true" />
       </Button>
       <div className="hidden min-w-0 lg:block">
-        <WorkspaceSwitcher workspace={workspace} className="h-9 w-64" />
+        <WorkspaceSwitcher workspace={workspace} className="w-64" />
       </div>
       <div className="min-w-0 flex-1">
         <form

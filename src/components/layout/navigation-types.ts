@@ -5,6 +5,7 @@ export interface ShellUser {
   name: string;
   email: string;
   initials: string;
+  roleLabel: string;
 }
 
 export interface ShellWorkspace {

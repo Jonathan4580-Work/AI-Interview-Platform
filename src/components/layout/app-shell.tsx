@@ -7,30 +7,29 @@ import { ContentContainer } from "@/components/layout/content-container";
 import { MobileNavigation } from "@/components/layout/mobile-navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopNavigation } from "@/components/layout/top-navigation";
-import {
-  createWorkspaceNavigation,
-  shellAudienceStorageKey,
-} from "@/components/layout/workspace-navigation";
+import { createWorkspaceNavigation } from "@/components/layout/workspace-navigation";
 
 import type {
   ShellNavigationItem,
   ShellUser,
   ShellWorkspace,
 } from "@/components/layout/navigation-types";
+import type { PermissionKey } from "@/modules/access-control";
 import type { ShellAudience } from "@/components/layout/workspace-navigation";
 import type { ReactNode } from "react";
 
 const defaultNavigation: readonly ShellNavigationItem[] = createWorkspaceNavigation("/");
 
 const defaultUser: ShellUser = {
-  name: "Workspace User",
-  email: "user@example.com",
-  initials: "WU",
+  name: "Account",
+  email: "",
+  initials: "A",
+  roleLabel: "Signed in",
 };
 
 const defaultWorkspace: ShellWorkspace = {
   name: "Workspace",
-  planLabel: "Company workspace",
+  planLabel: "Signed in",
 };
 
 interface AppShellProps {
@@ -38,6 +37,8 @@ interface AppShellProps {
   navigation?: readonly ShellNavigationItem[];
   user?: ShellUser;
   workspace?: ShellWorkspace;
+  audience?: ShellAudience;
+  permissions?: readonly PermissionKey[];
   onSignOut?: () => void | Promise<void>;
 }
 
@@ -46,12 +47,15 @@ function AppShell({
   navigation,
   user = defaultUser,
   workspace = defaultWorkspace,
+  audience = "company",
+  permissions,
   onSignOut,
 }: AppShellProps) {
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
-  const [audience] = useState<ShellAudience>(readShellAudience);
   const pathname = usePathname();
-  const resolvedNavigation = navigation ?? createWorkspaceNavigation(pathname, audience);
+  const permissionSet = permissions === undefined ? undefined : new Set(permissions);
+  const resolvedNavigation =
+    navigation ?? createWorkspaceNavigation(pathname, audience, permissionSet);
 
   return (
     <div className="min-h-dvh bg-canvas text-foreground">
@@ -80,13 +84,3 @@ function AppShell({
 }
 
 export { AppShell, defaultNavigation };
-
-function readShellAudience(): ShellAudience {
-  if (typeof window === "undefined") {
-    return "company";
-  }
-
-  return window.sessionStorage.getItem(shellAudienceStorageKey) === "platform"
-    ? "platform"
-    : "company";
-}

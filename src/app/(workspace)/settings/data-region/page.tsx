@@ -3,18 +3,15 @@ import { Phase12SettingsPage } from "@/components/settings/phase12-settings-page
 const items = [
   {
     label: "Tenant region",
-    description: "Each tenant can be assigned a primary data region for future residency controls.",
-    status: "development",
+    description: "Set the primary region policy for workspace data residency.",
   },
   {
     label: "Region-aware storage",
-    description: "Object storage configuration is region-aware without moving existing data.",
-    status: "ready",
+    description: "Storage policy follows the selected region where configured.",
   },
   {
     label: "Transfer restrictions",
     description: "Cross-region movement requires explicit policy and never occurs automatically.",
-    status: "ready",
   },
 ] as const;
 
@@ -23,7 +20,7 @@ export default function DataRegionSettingsPage() {
     <Phase12SettingsPage
       eyebrow="Settings"
       title="Data Region"
-      description="Review data-residency configuration foundations for future regional controls."
+      description="Review data-residency settings and cross-region transfer policy."
       items={items}
     />
   );

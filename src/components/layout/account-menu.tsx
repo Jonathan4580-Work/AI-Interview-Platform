@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, Settings, UserRound } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { useState } from "react";
 
 import { shellAudienceStorageKey } from "@/components/layout/workspace-navigation";
@@ -47,22 +47,28 @@ function AccountMenu({ user, onSignOut = signOut }: AccountMenuProps) {
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel>
-          <span className="block text-sm text-foreground">{user.name}</span>
-          <span className="block truncate text-xs font-normal text-muted-foreground">
-            {user.email}
+      <DropdownMenuContent
+        align="end"
+        sideOffset={8}
+        collisionPadding={16}
+        className="w-[min(20rem,calc(100vw-2rem))]"
+      >
+        <DropdownMenuLabel className="space-y-1.5">
+          <span className="block truncate text-sm text-foreground" title={user.name}>
+            {user.name}
           </span>
+          <span className="block truncate text-xs font-normal text-muted-foreground">
+            {user.roleLabel}
+          </span>
+          {user.email.length > 0 ? (
+            <span
+              className="block truncate text-xs font-normal text-muted-foreground"
+              title={user.email}
+            >
+              {user.email}
+            </span>
+          ) : null}
         </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem disabled>
-          <UserRound aria-hidden="true" />
-          Profile not available in this staging build
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled>
-          <Settings aria-hidden="true" />
-          Preferences not available in this staging build
-        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           disabled={isSigningOut}

@@ -25,26 +25,40 @@ function WorkspaceSwitcher({ workspace, workspaces = [], className }: WorkspaceS
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="secondary" className={cn("h-10 justify-start gap-3 px-2.5", className)}>
-          <span className="grid size-6 place-items-center rounded-sm bg-primary-soft text-xs font-semibold text-primary">
+        <Button
+          variant="secondary"
+          className={cn(
+            "min-h-12 justify-start gap-3 px-2.5 py-2 text-left leading-tight",
+            className,
+          )}
+        >
+          <span className="grid size-7 shrink-0 place-items-center rounded-sm bg-primary-soft text-xs font-semibold text-primary">
             {workspace.name.slice(0, 1).toUpperCase()}
           </span>
-          <span className="min-w-0 flex-1 text-left">
-            <span className="block truncate text-sm font-medium text-foreground">
+          <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 text-left">
+            <span className="block truncate text-sm font-medium leading-5 text-foreground">
               {workspace.name}
             </span>
             {workspace.planLabel ? (
-              <span className="block truncate text-xs text-muted-foreground">
+              <span className="block truncate text-xs leading-4 text-muted-foreground">
                 {workspace.planLabel}
               </span>
             ) : null}
           </span>
-          <ChevronsUpDown className="size-4 text-muted-foreground" aria-hidden="true" />
+          <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64">
+      <DropdownMenuContent
+        align="start"
+        collisionPadding={16}
+        className="w-[min(20rem,calc(100vw-2rem))]"
+      >
         <DropdownMenuLabel>Workspace</DropdownMenuLabel>
-        <DropdownMenuItem>{workspace.name}</DropdownMenuItem>
+        <DropdownMenuItem className="min-w-0">
+          <span className="truncate" title={workspace.name}>
+            {workspace.name}
+          </span>
+        </DropdownMenuItem>
         {workspaces.length > 0 ? (
           <>
             <DropdownMenuSeparator />

@@ -27,7 +27,7 @@ const navigationCards = [
     title: "Settings",
     href: "/settings/integrations",
     icon: Settings,
-    description: "Manage enterprise integration and workspace configuration foundations.",
+    description: "Manage enterprise integrations and workspace configuration.",
   },
 ] as const;
 

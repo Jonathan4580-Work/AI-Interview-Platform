@@ -3,18 +3,15 @@ import { Phase12SettingsPage } from "@/components/settings/phase12-settings-page
 const items = [
   {
     label: "SCIM 2.0 resources",
-    description: "User and group foundations with tenant-scoped external mappings.",
-    status: "development",
+    description: "Manage users and groups from your identity provider with tenant-scoped mappings.",
   },
   {
     label: "Token safety",
     description: "Bearer tokens are hashed or referenced through managed secrets.",
-    status: "ready",
   },
   {
     label: "Deprovisioning",
-    description: "User deactivation foundations revoke active sessions and preserve audit history.",
-    status: "ready",
+    description: "Deactivated users lose active sessions while audit history is preserved.",
   },
 ] as const;
 

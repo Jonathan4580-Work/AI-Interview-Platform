@@ -15,12 +15,8 @@ function NotificationButton({ unreadCount = 0 }: NotificationButtonProps) {
       size="icon"
       className="relative"
       disabled
-      aria-label={
-        hasUnread
-          ? `${String(unreadCount)} unread notifications; notifications are not available in this staging build`
-          : "Notifications are not available in this staging build"
-      }
-      title="Notifications are not available in this staging build"
+      aria-label={hasUnread ? `${String(unreadCount)} unread notifications` : "Notifications"}
+      title="Notifications"
     >
       <Bell aria-hidden="true" />
       {hasUnread ? (

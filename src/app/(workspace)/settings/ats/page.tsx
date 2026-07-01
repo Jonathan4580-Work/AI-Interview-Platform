@@ -3,19 +3,15 @@ import { Phase12SettingsPage } from "@/components/settings/phase12-settings-page
 const items = [
   {
     label: "Provider adapters",
-    description:
-      "Development ATS adapter plus boundaries for Greenhouse, Lever, Workday, Ashby, and others.",
-    status: "development",
+    description: "Prepare connections for Greenhouse, Lever, Workday, Ashby, and related systems.",
   },
   {
-    label: "Mapping foundation",
+    label: "Record mapping",
     description: "Jobs, candidates, applications, stages, and users map through separate tables.",
-    status: "ready",
   },
   {
     label: "Conflict policy",
     description: "Aptly wins, external wins, manual review, and field-specific rules are explicit.",
-    status: "ready",
   },
 ] as const;
 
@@ -24,7 +20,7 @@ export default function AtsSettingsPage() {
     <Phase12SettingsPage
       eyebrow="Integrations"
       title="ATS Connections"
-      description="Configure provider-neutral ATS integration foundations without polluting core records."
+      description="Configure recruiting-system connections while protecting core Aptly records."
       items={items}
     />
   );
