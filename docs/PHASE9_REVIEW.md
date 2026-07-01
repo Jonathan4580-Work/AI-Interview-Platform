@@ -24,7 +24,7 @@ No P0 issues remain open.
 
 3. Explicit safe reprocessing behavior was missing.
    - Risk: operators had no governed way to create a replacement evaluation version after transcript correction or provider recovery.
-   - Fix: added `EvaluationService.reprocessInterview` and `POST /api/internal/v1/evaluations/[interviewSessionId]/reprocess`. Reprocessing requires `evaluations:manage`, CSRF, authenticated user actor, and reason; it creates a new evaluation version and uses existing supersession behavior.
+   - Fix: added `EvaluationService.reprocessInterview` and `POST /api/internal/v1/evaluations/[evaluationVersionId]/reprocess`. Reprocessing requires `evaluations:manage`, CSRF, authenticated user actor, and reason; the route tenant-safely resolves the evaluation version to its interview session and creates a new evaluation version through the existing supersession behavior.
 
 ### P2
 

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-import { apiSuccess, parseJsonBody, withApiHandler } from "@/server/api";
+import { prisma } from "@/infra/database";
+import { apiSuccess, notFound, parseJsonBody, withApiHandler } from "@/server/api";
 
 import {
   createInternalEvaluationService,
@@ -16,7 +17,7 @@ const reprocessSchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  context: { readonly params: Promise<{ readonly interviewSessionId: string }> },
+  context: { readonly params: Promise<{ readonly evaluationVersionId: string }> },
 ) {
   return withApiHandler(async (innerRequest, apiContext) => {
     const phase9Context = await requirePhase9Context(
@@ -27,11 +28,23 @@ export async function POST(
         mutation: true,
       },
     );
-    const { interviewSessionId } = await context.params;
+    const { evaluationVersionId } = await context.params;
+    const parsedEvaluationVersionId = phase9IdSchema.parse(evaluationVersionId);
+    const existingEvaluation = await prisma.evaluationVersion.findFirst({
+      where: {
+        companyId: phase9Context.tenant.companyId,
+        id: parsedEvaluationVersionId,
+      },
+      select: { interviewSessionId: true },
+    });
+    if (existingEvaluation === null) {
+      throw notFound("Evaluation was not found.");
+    }
+
     const body = await parseJsonBody(innerRequest, reprocessSchema);
     const evaluation = await createInternalEvaluationService().reprocessInterview({
       context: phase9Context,
-      interviewSessionId: phase9IdSchema.parse(interviewSessionId) as never,
+      interviewSessionId: phase9IdSchema.parse(existingEvaluation.interviewSessionId) as never,
       reason: body.reason,
     });
     return apiSuccess(apiContext.requestContext, { evaluation }, { status: 201 });

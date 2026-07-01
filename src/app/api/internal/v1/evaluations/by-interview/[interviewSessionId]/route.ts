@@ -1,7 +1,7 @@
 import { prisma } from "@/infra/database";
 import { apiSuccess, notFound, withApiHandler } from "@/server/api";
 
-import { phase9IdSchema, requirePhase9Context } from "../../phase9/_shared";
+import { phase9IdSchema, requirePhase9Context } from "../../../phase9/_shared";
 
 import type { NextRequest } from "next/server";
 
