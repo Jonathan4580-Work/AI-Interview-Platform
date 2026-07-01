@@ -16,6 +16,7 @@
     "prisma:generate": "prisma generate",
     "prisma:validate": "dotenv -e .env.test -- prisma validate",
     "migrate:deploy": "prisma migrate deploy",
+    "bootstrap:staging": "tsx scripts/bootstrap-staging.ts",
     "dev": "next dev",
     "start": "next start",
     "worker:dev": "tsx src/workers/index.ts",

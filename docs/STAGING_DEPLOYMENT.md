@@ -32,11 +32,12 @@ No real candidate data may be copied into staging.
 8. Run migrations through the migrator target.
 9. Deploy web service.
 10. Deploy worker services.
-11. Configure email sandbox.
-12. Configure deterministic development or sandbox providers.
-13. Run synthetic interview flow.
-14. Run browser/device matrix.
-15. Run restore validation against an isolated staging restore.
+11. Bootstrap the first staging administrators with `npm run bootstrap:staging` from an interactive shell inside the staging service.
+12. Configure email sandbox.
+13. Configure deterministic development or sandbox providers.
+14. Run synthetic interview flow.
+15. Run browser/device matrix.
+16. Run restore validation against an isolated staging restore.
 
 ## Staging Environment Rules
 
@@ -46,6 +47,27 @@ No real candidate data may be copied into staging.
 - Session, CSRF, token pepper, encryption, SMTP, object-storage, and backup references must use managed `secret://` identifiers.
 - Railway private-network PostgreSQL and Redis URLs are allowed in staging.
 - Final production still requires PostgreSQL TLS parameters and `rediss://`.
+
+## Staging Administrator Bootstrap
+
+Run `npm run bootstrap:staging` only in a staging environment with `APP_ENV=staging`. The script is idempotent: it upserts the first Platform Admin, upserts the staging company/workspace, creates the central `company_admin` role, grants all current RBAC permissions to that role, and upserts the first Company Admin assignment.
+
+Required inputs:
+
+- `BOOTSTRAP_PLATFORM_ADMIN_EMAIL`
+- `BOOTSTRAP_PLATFORM_ADMIN_NAME`
+- `BOOTSTRAP_COMPANY_NAME`
+- `BOOTSTRAP_COMPANY_SLUG`
+- `BOOTSTRAP_COMPANY_ADMIN_EMAIL`
+- `BOOTSTRAP_COMPANY_ADMIN_NAME`
+
+Password input:
+
+- Prefer the secure interactive prompt.
+- Use `BOOTSTRAP_ADMIN_PASSWORD` only for non-interactive one-time runs.
+- `BOOTSTRAP_PLATFORM_ADMIN_PASSWORD` and `BOOTSTRAP_COMPANY_ADMIN_PASSWORD` may be supplied when separate initial passwords are required.
+
+The script does not print passwords. Bootstrap credentials are marked email-verified because these are operator-provisioned staging accounts, not email-invited users.
 
 ## Staging Smoke Test
 
