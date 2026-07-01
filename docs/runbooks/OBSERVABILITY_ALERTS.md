@@ -48,3 +48,16 @@
 ## Local Validation
 
 Phase 11 tests validate that required metric names exist, metric labels avoid PII, and alert documentation covers every critical failure mode. External alert-manager wiring is a Phase 13 deployment task.
+
+## Phase 13 Production Activation Status
+
+The alert catalog is ready to configure in a production observability platform, but no live alert routing was activated during Phase 13 because infrastructure access was not available.
+
+Before an external pilot:
+
+- Configure alert destinations and on-call ownership.
+- Validate one synthetic alert per severity level.
+- Confirm every production alert links to a runbook.
+- Confirm metric labels remain bounded and PII-safe.
+- Confirm transcript text, prompt text, evidence excerpts, media URLs, email bodies, provider payloads, and candidate notes are excluded from telemetry.
+- Record the observability workspace, dashboard URLs, and alert routing owner in the deployment checklist.
