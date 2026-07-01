@@ -1,4 +1,4 @@
-﻿-- CreateEnum
+-- CreateEnum
 CREATE TYPE "transcript_status" AS ENUM ('PENDING', 'PROCESSING', 'READY', 'FAILED', 'SUPERSEDED');
 
 -- CreateEnum
