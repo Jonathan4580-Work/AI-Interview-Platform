@@ -13,6 +13,7 @@ import type {
   OutboxEventId,
   OutboxEventRecord,
   OutboxEventStore,
+  TransactionalOutboxEventStore,
 } from "@/modules/events";
 
 describe("transactional event outbox foundation", () => {
@@ -82,13 +83,94 @@ describe("transactional event outbox foundation", () => {
       "2026-07-01T00:00:08.000Z",
     );
   });
+
+  it("rolls back business and outbox writes together when an atomic operation fails", async () => {
+    const store = new TransactionalMemoryOutboxStore();
+    const service = new OutboxService(store, () => now);
+
+    await expect(
+      service.createEventAtomically(
+        {
+          companyId,
+          eventKey: "interview.completed",
+          schemaVersion: "v1",
+          aggregateType: "interview_session",
+          aggregateId: "interview_1",
+          payload: { interviewSessionId: "interview_1", status: "completed" },
+        },
+        async (transactionStore) => {
+          await transactionStore.create({
+            companyId,
+            eventKey: "business.side_effect",
+            schemaVersion: "v1",
+            aggregateType: "test",
+            aggregateId: "business_1",
+            occurredAt: now,
+            availableAt: now,
+            payload: { sideEffectId: "business_1" },
+          });
+          throw new Error("business failure");
+        },
+      ),
+    ).rejects.toThrow("business failure");
+
+    await expect(
+      store.findByAggregate({
+        companyId,
+        aggregateType: "interview_session",
+        aggregateId: "interview_1",
+      }),
+    ).resolves.toHaveLength(0);
+    await expect(
+      store.findByAggregate({
+        companyId,
+        aggregateType: "test",
+        aggregateId: "business_1",
+      }),
+    ).resolves.toHaveLength(0);
+  });
+
+  it("preserves aggregate ordering by occurrence timestamp", async () => {
+    const store = new MemoryOutboxStore();
+    const service = new OutboxService(store, () => now);
+
+    await service.createEvent({
+      companyId,
+      eventKey: "interview.completed",
+      schemaVersion: "v1",
+      aggregateType: "interview_session",
+      aggregateId: "interview_1",
+      occurredAt: new Date("2026-07-01T00:00:02.000Z"),
+      payload: { status: "completed" },
+    });
+    await service.createEvent({
+      companyId,
+      eventKey: "interview.started",
+      schemaVersion: "v1",
+      aggregateType: "interview_session",
+      aggregateId: "interview_1",
+      occurredAt: new Date("2026-07-01T00:00:01.000Z"),
+      payload: { status: "started" },
+    });
+
+    const events = await store.findByAggregate({
+      companyId,
+      aggregateType: "interview_session",
+      aggregateId: "interview_1",
+    });
+
+    expect(events.map((event) => event.eventKey)).toEqual([
+      "interview.started",
+      "interview.completed",
+    ]);
+  });
 });
 
 const companyId = toTenantId("coutbox001");
 const now = new Date("2026-07-01T00:00:00.000Z");
 
 class MemoryOutboxStore implements OutboxEventStore {
-  private readonly events: OutboxEventRecord[] = [];
+  protected events: OutboxEventRecord[] = [];
 
   public create(
     input: CreateOutboxEventInput & { readonly occurredAt: Date; readonly availableAt: Date },
@@ -118,12 +200,37 @@ class MemoryOutboxStore implements OutboxEventStore {
     readonly aggregateId: string;
   }): Promise<readonly OutboxEventRecord[]> {
     return Promise.resolve(
-      this.events.filter(
-        (event) =>
-          event.companyId === input.companyId &&
-          event.aggregateType === input.aggregateType &&
-          event.aggregateId === input.aggregateId,
-      ),
+      this.events
+        .filter(
+          (event) =>
+            event.companyId === input.companyId &&
+            event.aggregateType === input.aggregateType &&
+            event.aggregateId === input.aggregateId,
+        )
+        .sort((left, right) => left.occurredAt.getTime() - right.occurredAt.getTime()),
     );
+  }
+
+  protected cloneEvents(): OutboxEventRecord[] {
+    return [...this.events];
+  }
+
+  protected replaceEvents(events: readonly OutboxEventRecord[]): void {
+    this.events = [...events];
+  }
+}
+
+class TransactionalMemoryOutboxStore
+  extends MemoryOutboxStore
+  implements TransactionalOutboxEventStore
+{
+  public async transaction<T>(operation: (store: OutboxEventStore) => Promise<T>): Promise<T> {
+    const snapshot = this.cloneEvents();
+    try {
+      return await operation(this);
+    } catch (error) {
+      this.replaceEvents(snapshot);
+      throw error;
+    }
   }
 }

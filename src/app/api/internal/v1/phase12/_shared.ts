@@ -15,7 +15,10 @@ export const secretReferenceSchema = z
   .trim()
   .min(1)
   .max(240)
-  .regex(/^[a-zA-Z0-9/_:.-]+$/u, "Secret references must use managed secret identifiers.");
+  .regex(
+    /^secret:\/\/[a-zA-Z0-9/_:.-]+$/u,
+    "Secret references must use managed secret identifiers.",
+  );
 
 export const providerNameSchema = z.string().trim().min(1).max(80);
 

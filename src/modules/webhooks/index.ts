@@ -3,6 +3,8 @@ export {
   assertWebhookReplayAllowed,
   signWebhook,
   validateWebhookEndpoint,
+  validateWebhookRedirect,
+  validateWebhookResolvedAddresses,
   verifyWebhookSignature,
 } from "./security";
 export {

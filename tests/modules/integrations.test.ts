@@ -5,9 +5,11 @@ import {
   IntegrationMappingError,
   IntegrationSyncError,
   advanceSyncCheckpoint,
+  assertNoDuplicateIntegrationMapping,
   assertSafeIntegrationSyncPayload,
   createInitialSyncCheckpoint,
   createIntegrationMapping,
+  integrationExternalMappingKey,
   resolveIntegrationConflict,
 } from "@/modules/integrations";
 import { toTenantId } from "@/modules/tenant";
@@ -49,6 +51,38 @@ describe("ATS integration foundation", () => {
     ).toThrow(IntegrationMappingError);
   });
 
+  it("prevents duplicate candidate and application mappings per tenant and connection", () => {
+    const candidate = createIntegrationMapping({
+      companyId,
+      integrationConnectionId,
+      mappingType: "candidate",
+      externalId: "Greenhouse-Candidate-1",
+      aptlyResourceType: "candidate",
+      aptlyResourceId: "candidate_1",
+      conflictPolicy: "manual_review",
+    });
+    const application = createIntegrationMapping({
+      companyId,
+      integrationConnectionId,
+      mappingType: "application",
+      externalId: "Greenhouse-Application-1",
+      aptlyResourceType: "candidate_application",
+      aptlyResourceId: "application_1",
+      conflictPolicy: "manual_review",
+    });
+    const existing = new Set([
+      integrationExternalMappingKey(candidate),
+      integrationExternalMappingKey(application),
+    ]);
+
+    expect(() => {
+      assertNoDuplicateIntegrationMapping(existing, candidate);
+    }).toThrow(IntegrationMappingError);
+    expect(() => {
+      assertNoDuplicateIntegrationMapping(existing, application);
+    }).toThrow(IntegrationMappingError);
+  });
+
   it("resolves conflict policies without silent overwrites", () => {
     expect(
       resolveIntegrationConflict({
@@ -85,6 +119,19 @@ describe("ATS integration foundation", () => {
     expect(first.records.map((item) => item.externalId)).toEqual(["job-1", "candidate-1"]);
     expect(second.records.map((item) => item.externalId)).toEqual(["application-1"]);
     expect(next.recordsProcessed).toBe(2);
+  });
+
+  it("persists provider rate-limit state in sync checkpoints", () => {
+    const rateLimitedUntil = new Date("2026-07-01T00:05:00.000Z");
+    const next = advanceSyncCheckpoint({
+      checkpoint: createInitialSyncCheckpoint(),
+      recordsProcessed: 0,
+      nextCursor: { pageNumber: 1 },
+      providerRateLimitedUntil: rateLimitedUntil,
+    });
+
+    expect(next.providerRateLimitedUntil).toBe(rateLimitedUntil);
+    expect(next.cursor).toEqual({ pageNumber: 1 });
   });
 
   it("keeps integration sync queue payloads ID-only and safe", () => {

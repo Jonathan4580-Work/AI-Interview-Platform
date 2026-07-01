@@ -8,6 +8,8 @@ import {
   nextWebhookAttemptAt,
   signWebhook,
   validateWebhookEndpoint,
+  validateWebhookRedirect,
+  validateWebhookResolvedAddresses,
   verifyWebhookSignature,
   webhookPayloadAllowlist,
 } from "@/modules/webhooks";
@@ -60,6 +62,39 @@ describe("webhook foundation", () => {
         signingSecretRef: "plain-secret",
       });
     }).toThrow(WebhookDomainError);
+  });
+
+  it("blocks private IPv4, private IPv6, link-local, metadata, and unsafe redirect targets", () => {
+    expect(() => validateWebhookEndpoint("https://10.0.0.10/hook")).toThrow(WebhookSecurityError);
+    expect(() => validateWebhookEndpoint("https://100.64.0.1/hook")).toThrow(WebhookSecurityError);
+    expect(() => validateWebhookEndpoint("https://169.254.169.254/hook")).toThrow(
+      WebhookSecurityError,
+    );
+    expect(() => validateWebhookEndpoint("https://[fd00::1]/hook")).toThrow(WebhookSecurityError);
+    expect(() => validateWebhookEndpoint("https://[fe80::1]/hook")).toThrow(WebhookSecurityError);
+    expect(() =>
+      validateWebhookRedirect({
+        originalEndpoint: "https://hooks.example.com/aptly",
+        redirectEndpoint: "https://127.0.0.1/internal",
+        production: true,
+      }),
+    ).toThrow(WebhookSecurityError);
+  });
+
+  it("requires DNS resolution to be revalidated before delivery to reduce rebinding risk", () => {
+    expect(() => {
+      validateWebhookResolvedAddresses({
+        hostname: "hooks.example.com",
+        addresses: ["203.0.113.20"],
+      });
+    }).not.toThrow();
+
+    expect(() => {
+      validateWebhookResolvedAddresses({
+        hostname: "hooks.example.com",
+        addresses: ["192.168.1.10"],
+      });
+    }).toThrow(WebhookSecurityError);
   });
 
   it("signs requests and rejects stale or replayed deliveries", () => {

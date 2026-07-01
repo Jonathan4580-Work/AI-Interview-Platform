@@ -45,6 +45,36 @@ export function createIntegrationMapping(input: {
   };
 }
 
+export function integrationExternalMappingKey(input: {
+  readonly companyId: TenantId;
+  readonly integrationConnectionId: IntegrationConnectionId;
+  readonly mappingType: IntegrationMappingType;
+  readonly externalId: string;
+}): string {
+  const externalId = input.externalId.trim();
+  if (externalId.length === 0) {
+    throw new IntegrationMappingError("External integration ID is required.");
+  }
+  return [
+    input.companyId,
+    input.integrationConnectionId,
+    input.mappingType,
+    externalId.toLowerCase(),
+  ].join(":");
+}
+
+export function assertNoDuplicateIntegrationMapping(
+  existingKeys: ReadonlySet<string>,
+  mapping: IntegrationMappingRecord,
+): void {
+  const key = integrationExternalMappingKey(mapping);
+  if (existingKeys.has(key)) {
+    throw new IntegrationMappingError(
+      "Integration mapping already exists for this external record.",
+    );
+  }
+}
+
 export function resolveIntegrationConflict(input: {
   readonly policy: IntegrationConflictPolicy;
   readonly aptlyValue: unknown;

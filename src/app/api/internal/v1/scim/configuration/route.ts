@@ -37,14 +37,14 @@ export const POST = withApiHandler(async (request, { requestContext }) => {
   const generatedToken = createScimBearerToken();
   const tokenHash = hashScimBearerToken(generatedToken);
   const pagination = parseScimPagination(body.pagination ?? {});
+  const [tokenHashAlgorithm] = tokenHash.split(":");
 
   return apiSuccess(
     requestContext,
     {
       ...phase12Status("scim_configuration_validation", tenant.companyId),
       accepted: true,
-      tokenPrefix: generatedToken.slice(0, 9),
-      tokenHashPreview: tokenHash.split(":").slice(0, 2).join(":"),
+      tokenHashAlgorithm,
       tokenSecretRef: body.tokenSecretRef === undefined ? null : "[redacted]",
       provisioningEnabled: body.provisioningEnabled,
       deprovisionRevokesSessions: body.deprovisionRevokesSessions,

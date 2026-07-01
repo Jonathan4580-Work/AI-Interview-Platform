@@ -5,7 +5,9 @@ export {
 } from "./types";
 export {
   IntegrationMappingError,
+  assertNoDuplicateIntegrationMapping,
   createIntegrationMapping,
+  integrationExternalMappingKey,
   resolveIntegrationConflict,
 } from "./mapping";
 export { DevelopmentAtsAdapter } from "./providers";

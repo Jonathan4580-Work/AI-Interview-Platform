@@ -15,4 +15,5 @@ export type {
   OutboxEventRecord,
   OutboxEventStatus,
   OutboxEventStore,
+  TransactionalOutboxEventStore,
 } from "./types";

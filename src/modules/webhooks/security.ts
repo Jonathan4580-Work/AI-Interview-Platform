@@ -66,6 +66,40 @@ export function validateWebhookEndpoint(
   return parsed;
 }
 
+export function validateWebhookRedirect(input: {
+  readonly originalEndpoint: string;
+  readonly redirectEndpoint: string;
+  readonly production?: boolean;
+}): URL {
+  const original = validateWebhookEndpoint(input.originalEndpoint, {
+    production: input.production,
+  });
+  const redirect = validateWebhookEndpoint(input.redirectEndpoint, {
+    production: input.production,
+  });
+
+  if (redirect.protocol !== original.protocol) {
+    throw new WebhookSecurityError("Webhook redirects must not downgrade or change protocol.");
+  }
+  return redirect;
+}
+
+export function validateWebhookResolvedAddresses(input: {
+  readonly hostname: string;
+  readonly addresses: readonly string[];
+}): void {
+  if (input.addresses.length === 0) {
+    throw new WebhookSecurityError("Webhook endpoint DNS resolution returned no addresses.");
+  }
+  for (const address of input.addresses) {
+    if (isUnsafeHost(address)) {
+      throw new WebhookSecurityError(
+        "Webhook endpoint resolved to a private or otherwise unsafe address.",
+      );
+    }
+  }
+}
+
 export function assertWebhookReplayAllowed(input: {
   readonly eventId: string;
   readonly seenEventIds: ReadonlySet<string>;
@@ -85,7 +119,7 @@ function timingSafeStringEqual(left: string, right: string): boolean {
 }
 
 function isUnsafeHost(hostname: string): boolean {
-  const normalized = hostname.toLowerCase();
+  const normalized = hostname.toLowerCase().replace(/^\[/u, "").replace(/\]$/u, "");
   if (
     normalized === "localhost" ||
     normalized.endsWith(".localhost") ||
@@ -103,13 +137,28 @@ function isUnsafeHost(hostname: string): boolean {
     const parts = normalized.split(".").map((part) => Number.parseInt(part, 10));
     const [first = 0, second = 0] = parts;
     return (
+      first === 0 ||
       first === 10 ||
       first === 127 ||
+      (first === 100 && second >= 64 && second <= 127) ||
       (first === 169 && second === 254) ||
       (first === 172 && second >= 16 && second <= 31) ||
-      (first === 192 && second === 168)
+      (first === 192 && second === 0) ||
+      (first === 192 && second === 168) ||
+      (first === 198 && (second === 18 || second === 19)) ||
+      first >= 224
     );
   }
 
-  return normalized === "::1" || normalized.startsWith("fc") || normalized.startsWith("fd");
+  if (normalized.startsWith("::ffff:")) {
+    return isUnsafeHost(normalized.slice(7));
+  }
+
+  return (
+    normalized === "::" ||
+    normalized === "::1" ||
+    normalized.startsWith("fc") ||
+    normalized.startsWith("fd") ||
+    normalized.startsWith("fe80:")
+  );
 }

@@ -96,6 +96,14 @@ describe("queue worker contracts", () => {
         waitingJobs: 0,
       }),
     ).toBe(0.5);
+    expect(
+      calculateTenantFairnessRatio({
+        queueName: "integrations",
+        companyId: "company_1",
+        activeJobs: 500,
+        waitingJobs: 100,
+      }),
+    ).toBe(1);
   });
 
   it("rejects worker deployments with incompatible queue contracts", () => {

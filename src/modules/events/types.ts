@@ -53,3 +53,7 @@ export interface OutboxEventStore {
     readonly aggregateId: string;
   }): Promise<readonly OutboxEventRecord[]>;
 }
+
+export interface TransactionalOutboxEventStore extends OutboxEventStore {
+  transaction<T>(operation: (store: OutboxEventStore) => Promise<T>): Promise<T>;
+}

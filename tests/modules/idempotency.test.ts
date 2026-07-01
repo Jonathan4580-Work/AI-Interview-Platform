@@ -66,7 +66,7 @@ describe("idempotency module", () => {
 
   it("returns existing records for matching replayed payloads", async () => {
     const service = new IdempotencyService(new RecordingIdempotencyStore());
-    const expiresAt = new Date("2026-07-01T00:00:00.000Z");
+    const expiresAt = new Date("2099-07-01T00:00:00.000Z");
 
     const first = await service.begin({
       key: "key-1",
@@ -86,7 +86,7 @@ describe("idempotency module", () => {
 
   it("rejects idempotency key reuse with different payloads", async () => {
     const service = new IdempotencyService(new RecordingIdempotencyStore());
-    const expiresAt = new Date("2026-07-01T00:00:00.000Z");
+    const expiresAt = new Date("2099-07-01T00:00:00.000Z");
 
     await service.begin({
       key: "key-1",
