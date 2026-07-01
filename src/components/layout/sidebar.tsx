@@ -23,22 +23,33 @@ function Sidebar({ navigation, workspace, className }: SidebarProps) {
       </div>
       <WorkspaceSwitcher workspace={workspace} className="mb-4 w-full" />
       <nav className="space-y-1" aria-label="Primary">
-        {navigation.map((item) => (
-          <a
-            key={item.label}
-            href={item.href ?? "#"}
-            aria-current={item.current ? "page" : undefined}
-            aria-disabled={item.disabled ? "true" : undefined}
-            className={cn(
-              "flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium text-slate transition-colors duration-base hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              item.current && "bg-primary-soft text-primary",
-              item.disabled && "pointer-events-none opacity-50",
-            )}
-          >
-            <item.icon className="size-4" aria-hidden="true" />
-            <span className="truncate">{item.label}</span>
-          </a>
-        ))}
+        {navigation.map((item) =>
+          item.disabled || item.href === undefined ? (
+            <div
+              key={item.label}
+              aria-disabled="true"
+              className="flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground opacity-70"
+              title="Not available in this staging build"
+            >
+              <item.icon className="size-4" aria-hidden="true" />
+              <span className="truncate">{item.label}</span>
+              <span className="sr-only">Not available in this staging build</span>
+            </div>
+          ) : (
+            <a
+              key={item.label}
+              href={item.href}
+              aria-current={item.current ? "page" : undefined}
+              className={cn(
+                "flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium text-slate transition-colors duration-base hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                item.current && "bg-primary-soft text-primary",
+              )}
+            >
+              <item.icon className="size-4" aria-hidden="true" />
+              <span className="truncate">{item.label}</span>
+            </a>
+          ),
+        )}
       </nav>
     </aside>
   );

@@ -46,6 +46,7 @@ export default function WorkspaceOverviewPage() {
             <a
               key={item.title}
               href={item.href}
+              aria-label={`Open ${item.title}`}
               className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Card className="h-full transition-colors duration-base hover:border-primary/40 hover:bg-muted/40">

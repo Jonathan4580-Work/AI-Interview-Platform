@@ -6,12 +6,14 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, vi } from "vitest";
 
 import { LoginForm } from "@/components/auth/login-form";
+import { shellAudienceStorageKey } from "@/components/layout/workspace-navigation";
 import { ForgotPasswordForm, ResetPasswordForm } from "@/components/auth/password-reset-forms";
 
 const locationAssign = vi.fn();
 const missingWorkspaceRoute = ["", "workspace"].join("/");
 
 afterEach(() => {
+  window.sessionStorage.clear();
   locationAssign.mockReset();
   vi.restoreAllMocks();
 });
@@ -81,6 +83,7 @@ describe("authentication forms", () => {
     await waitFor(() => {
       expect(locationAssign).toHaveBeenCalledWith("/");
     });
+    expect(window.sessionStorage.getItem(shellAudienceStorageKey)).toBe("company");
     expect(locationAssign).not.toHaveBeenCalledWith(missingWorkspaceRoute);
   });
 
@@ -117,6 +120,7 @@ describe("authentication forms", () => {
     await waitFor(() => {
       expect(locationAssign).toHaveBeenCalledWith("/settings/integrations");
     });
+    expect(window.sessionStorage.getItem(shellAudienceStorageKey)).toBe("platform");
     expect(locationAssign).not.toHaveBeenCalledWith(missingWorkspaceRoute);
   });
 

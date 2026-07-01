@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getPostLoginRedirect } from "@/lib/auth/post-login-redirect";
 import { login } from "@/lib/auth/session-client";
 
+import { shellAudienceStorageKey } from "@/components/layout/workspace-navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
@@ -87,6 +88,7 @@ function LoginForm({
         return;
       }
 
+      persistShellAudience(response.data.subject.type);
       navigate(getPostLoginRedirect(response.data.subject));
     } catch {
       setErrors({ form: "Unable to sign in right now." });
@@ -172,3 +174,8 @@ function LoginForm({
 }
 
 export { LoginForm };
+
+function persistShellAudience(subjectType: string): void {
+  const audience = subjectType === "platform_user" ? "platform" : "company";
+  window.sessionStorage.setItem(shellAudienceStorageKey, audience);
+}

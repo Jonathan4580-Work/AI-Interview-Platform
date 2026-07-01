@@ -1,35 +1,26 @@
 "use client";
 
-import {
-  Briefcase,
-  ClipboardList,
-  FileText,
-  LayoutDashboard,
-  Settings,
-  UsersRound,
-} from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 import { ContentContainer } from "@/components/layout/content-container";
 import { MobileNavigation } from "@/components/layout/mobile-navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopNavigation } from "@/components/layout/top-navigation";
+import {
+  createWorkspaceNavigation,
+  shellAudienceStorageKey,
+} from "@/components/layout/workspace-navigation";
 
 import type {
   ShellNavigationItem,
   ShellUser,
   ShellWorkspace,
 } from "@/components/layout/navigation-types";
+import type { ShellAudience } from "@/components/layout/workspace-navigation";
 import type { ReactNode } from "react";
 
-const defaultNavigation: readonly ShellNavigationItem[] = [
-  { label: "Dashboard", icon: LayoutDashboard, current: true, disabled: true },
-  { label: "Roles", icon: Briefcase, disabled: true },
-  { label: "Candidates", icon: UsersRound, disabled: true },
-  { label: "Interviews", icon: ClipboardList, disabled: true },
-  { label: "Reports", icon: FileText, disabled: true },
-  { label: "Settings", icon: Settings, disabled: true },
-];
+const defaultNavigation: readonly ShellNavigationItem[] = createWorkspaceNavigation("/");
 
 const defaultUser: ShellUser = {
   name: "Workspace User",
@@ -47,24 +38,30 @@ interface AppShellProps {
   navigation?: readonly ShellNavigationItem[];
   user?: ShellUser;
   workspace?: ShellWorkspace;
+  onSignOut?: () => void | Promise<void>;
 }
 
 function AppShell({
   children,
-  navigation = defaultNavigation,
+  navigation,
   user = defaultUser,
   workspace = defaultWorkspace,
+  onSignOut,
 }: AppShellProps) {
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const [audience] = useState<ShellAudience>(readShellAudience);
+  const pathname = usePathname();
+  const resolvedNavigation = navigation ?? createWorkspaceNavigation(pathname, audience);
 
   return (
     <div className="min-h-dvh bg-canvas text-foreground">
       <div className="flex min-h-dvh">
-        <Sidebar navigation={navigation} workspace={workspace} />
+        <Sidebar navigation={resolvedNavigation} workspace={workspace} />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopNavigation
             user={user}
             workspace={workspace}
+            onSignOut={onSignOut}
             onOpenMobileNavigation={() => {
               setMobileNavigationOpen(true);
             }}
@@ -75,7 +72,7 @@ function AppShell({
       <MobileNavigation
         open={mobileNavigationOpen}
         onOpenChange={setMobileNavigationOpen}
-        navigation={navigation}
+        navigation={resolvedNavigation}
         workspace={workspace}
       />
     </div>
@@ -83,3 +80,13 @@ function AppShell({
 }
 
 export { AppShell, defaultNavigation };
+
+function readShellAudience(): ShellAudience {
+  if (typeof window === "undefined") {
+    return "company";
+  }
+
+  return window.sessionStorage.getItem(shellAudienceStorageKey) === "platform"
+    ? "platform"
+    : "company";
+}
