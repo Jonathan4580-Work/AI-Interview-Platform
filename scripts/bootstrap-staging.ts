@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { resolve } from "node:path";
-import { stdin as input, stdout as output } from "node:process";
+import { stdout as output } from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { hashPassword } from "../src/modules/auth/password";
@@ -8,62 +8,242 @@ import { permissionKeys } from "../src/modules/access-control/types";
 
 const companyAdminRoleKey = "company_admin";
 
-interface BootstrapInput {
+type EntityBootstrapStatus = "created" | "already existed";
+
+export interface StagingBootstrapInput {
   readonly platformAdminEmail: string;
   readonly platformAdminName: string;
+  readonly platformAdminPassword: string;
   readonly companyName: string;
   readonly companySlug: string;
   readonly companyAdminEmail: string;
   readonly companyAdminName: string;
-  readonly platformAdminPassword: string;
   readonly companyAdminPassword: string;
 }
 
-interface BootstrapResult {
+export interface StagingBootstrapResult {
+  readonly platformAdminStatus: EntityBootstrapStatus;
+  readonly companyStatus: EntityBootstrapStatus;
+  readonly companyAdminStatus: EntityBootstrapStatus;
   readonly platformAdminEmail: string;
   readonly companyAdminEmail: string;
   readonly companyId: string;
   readonly companySlug: string;
 }
 
-async function bootstrapStaging(): Promise<BootstrapResult> {
-  if (process.env.APP_ENV !== "staging") {
-    throw new Error("Staging bootstrap requires APP_ENV=staging.");
-  }
+interface PlatformUserRecord {
+  readonly id: string;
+  readonly email: string;
+  readonly status: "ACTIVE" | "DISABLED";
+}
 
-  const inputValues = await loadBootstrapInput();
-  const now = new Date();
-  const prisma = new PrismaClient();
+interface CompanyRecord {
+  readonly id: string;
+  readonly slug: string;
+  readonly status: "ACTIVE" | "SUSPENDED" | "TRIALING" | "ARCHIVED";
+  readonly deletedAt: Date | null;
+}
 
-  try {
-    const platformPasswordHash = hashPassword(inputValues.platformAdminPassword);
-    const companyPasswordHash =
-      inputValues.companyAdminPassword === inputValues.platformAdminPassword
-        ? platformPasswordHash
-        : hashPassword(inputValues.companyAdminPassword);
+interface UserRecord {
+  readonly id: string;
+  readonly email: string;
+  readonly status: "INVITED" | "ACTIVE" | "DISABLED";
+  readonly deletedAt: Date | null;
+}
 
-    const result = await prisma.$transaction(async (tx) => {
-      const platformAdmin = await tx.platformUser.upsert({
-        where: { email: inputValues.platformAdminEmail },
-        update: {
-          name: inputValues.platformAdminName,
+interface RoleRecord {
+  readonly id: string;
+}
+
+interface PermissionRecord {
+  readonly id: string;
+}
+
+export interface StagingBootstrapTransaction {
+  readonly platformUser: {
+    findUnique(input: {
+      readonly where: { readonly email: string };
+    }): Promise<PlatformUserRecord | null>;
+    create(input: {
+      readonly data: {
+        readonly email: string;
+        readonly name: string;
+        readonly status: "ACTIVE";
+      };
+    }): Promise<PlatformUserRecord>;
+  };
+  readonly company: {
+    findUnique(input: { readonly where: { readonly slug: string } }): Promise<CompanyRecord | null>;
+    create(input: {
+      readonly data: {
+        readonly name: string;
+        readonly slug: string;
+        readonly status: "ACTIVE";
+      };
+    }): Promise<CompanyRecord>;
+  };
+  readonly permission: {
+    createMany(input: {
+      readonly data: readonly { readonly key: string; readonly description: string }[];
+      readonly skipDuplicates: true;
+    }): Promise<unknown>;
+    findMany(input: {
+      readonly where: { readonly key: { readonly in: readonly string[] } };
+      readonly select: { readonly id: true };
+    }): Promise<PermissionRecord[]>;
+  };
+  readonly role: {
+    upsert(input: {
+      readonly where: {
+        readonly companyId_key: {
+          readonly companyId: string;
+          readonly key: string;
+        };
+      };
+      readonly update: {
+        readonly name: string;
+        readonly description: string;
+        readonly isSystem: true;
+      };
+      readonly create: {
+        readonly companyId: string;
+        readonly name: string;
+        readonly key: string;
+        readonly description: string;
+        readonly isSystem: true;
+      };
+    }): Promise<RoleRecord>;
+  };
+  readonly rolePermission: {
+    createMany(input: {
+      readonly data: readonly { readonly roleId: string; readonly permissionId: string }[];
+      readonly skipDuplicates: true;
+    }): Promise<unknown>;
+  };
+  readonly user: {
+    findUnique(input: {
+      readonly where: {
+        readonly companyId_email: {
+          readonly companyId: string;
+          readonly email: string;
+        };
+      };
+    }): Promise<UserRecord | null>;
+    create(input: {
+      readonly data: {
+        readonly companyId: string;
+        readonly email: string;
+        readonly name: string;
+        readonly status: "ACTIVE";
+      };
+    }): Promise<UserRecord>;
+    update(input: {
+      readonly where: {
+        readonly companyId_email: {
+          readonly companyId: string;
+          readonly email: string;
+        };
+      };
+      readonly data: {
+        readonly status: "ACTIVE";
+      };
+    }): Promise<UserRecord>;
+  };
+  readonly authCredential: {
+    findUnique(
+      input:
+        | { readonly where: { readonly platformUserId: string } }
+        | {
+            readonly where: {
+              readonly companyId_userId: {
+                readonly companyId: string;
+                readonly userId: string;
+              };
+            };
+          },
+    ): Promise<object | null>;
+    create(input: {
+      readonly data:
+        | {
+            readonly subjectType: "PLATFORM_USER";
+            readonly platformUserId: string;
+            readonly passwordHash: string;
+            readonly emailVerifiedAt: Date;
+            readonly passwordUpdatedAt: Date;
+          }
+        | {
+            readonly subjectType: "USER";
+            readonly companyId: string;
+            readonly userId: string;
+            readonly passwordHash: string;
+            readonly emailVerifiedAt: Date;
+            readonly passwordUpdatedAt: Date;
+          };
+    }): Promise<unknown>;
+  };
+  readonly userRole: {
+    upsert(input: {
+      readonly where: {
+        readonly userId_roleId: {
+          readonly userId: string;
+          readonly roleId: string;
+        };
+      };
+      readonly update: { readonly companyId: string };
+      readonly create: {
+        readonly companyId: string;
+        readonly userId: string;
+        readonly roleId: string;
+      };
+    }): Promise<unknown>;
+  };
+}
+
+export interface StagingBootstrapDatabase {
+  $transaction<T>(operation: (tx: StagingBootstrapTransaction) => Promise<T>): Promise<T>;
+}
+
+interface BootstrapDependencies {
+  readonly prisma: StagingBootstrapDatabase;
+  readonly now?: Date;
+}
+
+export async function bootstrapStaging(
+  input: StagingBootstrapInput,
+  dependencies: BootstrapDependencies,
+): Promise<StagingBootstrapResult> {
+  const normalized = normalizeInput(input);
+  const now = dependencies.now ?? new Date();
+  const platformPasswordHash = hashPassword(normalized.platformAdminPassword);
+  const companyPasswordHash = hashPassword(normalized.companyAdminPassword);
+
+  return dependencies.prisma.$transaction(async (tx) => {
+    const existingPlatformAdmin = await tx.platformUser.findUnique({
+      where: { email: normalized.platformAdminEmail },
+    });
+    const platformAdminWasCreated = existingPlatformAdmin === null;
+    if (existingPlatformAdmin !== null && existingPlatformAdmin.status === "DISABLED") {
+      throw new Error(
+        "Platform Admin exists but is disabled. Reactivate it manually before reuse.",
+      );
+    }
+
+    const platformAdmin =
+      existingPlatformAdmin ??
+      (await tx.platformUser.create({
+        data: {
+          email: normalized.platformAdminEmail,
+          name: normalized.platformAdminName,
           status: "ACTIVE",
         },
-        create: {
-          email: inputValues.platformAdminEmail,
-          name: inputValues.platformAdminName,
-          status: "ACTIVE",
-        },
-      });
+      }));
 
-      await tx.authCredential.upsert({
-        where: { platformUserId: platformAdmin.id },
-        update: {
-          passwordHash: platformPasswordHash,
-          emailVerifiedAt: now,
-          passwordUpdatedAt: now,
-        },
-        create: {
+    const existingPlatformCredential = await tx.authCredential.findUnique({
+      where: { platformUserId: platformAdmin.id },
+    });
+    if (existingPlatformCredential === null) {
+      await tx.authCredential.create({
+        data: {
           subjectType: "PLATFORM_USER",
           platformUserId: platformAdmin.id,
           passwordHash: platformPasswordHash,
@@ -71,96 +251,124 @@ async function bootstrapStaging(): Promise<BootstrapResult> {
           passwordUpdatedAt: now,
         },
       });
+    }
 
-      const company = await tx.company.upsert({
-        where: { slug: inputValues.companySlug },
-        update: {
-          name: inputValues.companyName,
+    const existingCompany = await tx.company.findUnique({
+      where: { slug: normalized.companySlug },
+    });
+    const companyWasCreated = existingCompany === null;
+    if (existingCompany !== null && existingCompany.deletedAt !== null) {
+      throw new Error("Company slug exists for a deleted workspace. Restore or choose a new slug.");
+    }
+    if (
+      existingCompany !== null &&
+      (existingCompany.status === "ARCHIVED" || existingCompany.status === "SUSPENDED")
+    ) {
+      throw new Error(
+        "Company slug exists but the workspace is not active. Reactivate it manually.",
+      );
+    }
+
+    const company =
+      existingCompany ??
+      (await tx.company.create({
+        data: {
+          name: normalized.companyName,
+          slug: normalized.companySlug,
           status: "ACTIVE",
-          deletedAt: null,
         },
-        create: {
-          name: inputValues.companyName,
-          slug: inputValues.companySlug,
-          status: "ACTIVE",
-        },
-      });
+      }));
 
-      await tx.permission.createMany({
-        data: permissionKeys.map((key) => ({
-          key,
-          description: `System permission: ${key}`,
-        })),
-        skipDuplicates: true,
-      });
+    await tx.permission.createMany({
+      data: permissionKeys.map((key) => ({
+        key,
+        description: `System permission: ${key}`,
+      })),
+      skipDuplicates: true,
+    });
 
-      const companyAdminRole = await tx.role.upsert({
-        where: {
-          companyId_key: {
-            companyId: company.id,
-            key: companyAdminRoleKey,
-          },
-        },
-        update: {
-          name: "Company Admin",
-          description: "Full workspace administration role.",
-          isSystem: true,
-        },
-        create: {
+    const companyAdminRole = await tx.role.upsert({
+      where: {
+        companyId_key: {
           companyId: company.id,
-          name: "Company Admin",
           key: companyAdminRoleKey,
-          description: "Full workspace administration role.",
-          isSystem: true,
         },
-      });
+      },
+      update: {
+        name: "Company Admin",
+        description: "Full workspace administration role.",
+        isSystem: true,
+      },
+      create: {
+        companyId: company.id,
+        name: "Company Admin",
+        key: companyAdminRoleKey,
+        description: "Full workspace administration role.",
+        isSystem: true,
+      },
+    });
 
-      const permissions = await tx.permission.findMany({
-        where: { key: { in: [...permissionKeys] } },
-        select: { id: true },
-      });
+    const permissions = await tx.permission.findMany({
+      where: { key: { in: [...permissionKeys] } },
+      select: { id: true },
+    });
 
-      await tx.rolePermission.createMany({
-        data: permissions.map((permission) => ({
-          roleId: companyAdminRole.id,
-          permissionId: permission.id,
-        })),
-        skipDuplicates: true,
-      });
+    await tx.rolePermission.createMany({
+      data: permissions.map((permission) => ({
+        roleId: companyAdminRole.id,
+        permissionId: permission.id,
+      })),
+      skipDuplicates: true,
+    });
 
-      const companyAdmin = await tx.user.upsert({
-        where: {
-          companyId_email: {
-            companyId: company.id,
-            email: inputValues.companyAdminEmail,
-          },
-        },
-        update: {
-          name: inputValues.companyAdminName,
-          status: "ACTIVE",
-          deletedAt: null,
-        },
-        create: {
+    const existingCompanyAdmin = await tx.user.findUnique({
+      where: {
+        companyId_email: {
           companyId: company.id,
-          email: inputValues.companyAdminEmail,
-          name: inputValues.companyAdminName,
-          status: "ACTIVE",
+          email: normalized.companyAdminEmail,
         },
-      });
+      },
+    });
+    const companyAdminWasCreated = existingCompanyAdmin === null;
+    if (
+      existingCompanyAdmin !== null &&
+      (existingCompanyAdmin.deletedAt !== null || existingCompanyAdmin.status === "DISABLED")
+    ) {
+      throw new Error("Company Admin exists but cannot be reused. Reactivate it manually.");
+    }
 
-      await tx.authCredential.upsert({
-        where: {
-          companyId_userId: {
-            companyId: company.id,
-            userId: companyAdmin.id,
-          },
+    const companyAdmin =
+      existingCompanyAdmin !== null && existingCompanyAdmin.status === "INVITED"
+        ? await tx.user.update({
+            where: {
+              companyId_email: {
+                companyId: company.id,
+                email: normalized.companyAdminEmail,
+              },
+            },
+            data: { status: "ACTIVE" },
+          })
+        : (existingCompanyAdmin ??
+          (await tx.user.create({
+            data: {
+              companyId: company.id,
+              email: normalized.companyAdminEmail,
+              name: normalized.companyAdminName,
+              status: "ACTIVE",
+            },
+          })));
+
+    const existingCompanyCredential = await tx.authCredential.findUnique({
+      where: {
+        companyId_userId: {
+          companyId: company.id,
+          userId: companyAdmin.id,
         },
-        update: {
-          passwordHash: companyPasswordHash,
-          emailVerifiedAt: now,
-          passwordUpdatedAt: now,
-        },
-        create: {
+      },
+    });
+    if (existingCompanyCredential === null) {
+      await tx.authCredential.create({
+        data: {
           subjectType: "USER",
           companyId: company.id,
           userId: companyAdmin.id,
@@ -169,158 +377,157 @@ async function bootstrapStaging(): Promise<BootstrapResult> {
           passwordUpdatedAt: now,
         },
       });
+    }
 
-      await tx.userRole.upsert({
-        where: {
-          userId_roleId: {
-            userId: companyAdmin.id,
-            roleId: companyAdminRole.id,
-          },
-        },
-        update: { companyId: company.id },
-        create: {
-          companyId: company.id,
+    await tx.userRole.upsert({
+      where: {
+        userId_roleId: {
           userId: companyAdmin.id,
           roleId: companyAdminRole.id,
         },
-      });
-
-      return {
-        platformAdminEmail: platformAdmin.email,
-        companyAdminEmail: companyAdmin.email,
+      },
+      update: { companyId: company.id },
+      create: {
         companyId: company.id,
-        companySlug: company.slug,
-      };
+        userId: companyAdmin.id,
+        roleId: companyAdminRole.id,
+      },
     });
 
-    return result;
+    return {
+      platformAdminStatus: platformAdminWasCreated ? "created" : "already existed",
+      companyStatus: companyWasCreated ? "created" : "already existed",
+      companyAdminStatus: companyAdminWasCreated ? "created" : "already existed",
+      platformAdminEmail: platformAdmin.email,
+      companyAdminEmail: companyAdmin.email,
+      companyId: company.id,
+      companySlug: company.slug,
+    };
+  });
+}
+
+export function loadBootstrapInputFromEnv(source: NodeJS.ProcessEnv): StagingBootstrapInput {
+  return {
+    platformAdminEmail: requiredEmail(source, "BOOTSTRAP_PLATFORM_ADMIN_EMAIL"),
+    platformAdminName: requiredText(source, "BOOTSTRAP_PLATFORM_ADMIN_NAME"),
+    platformAdminPassword: requiredText(source, "BOOTSTRAP_PLATFORM_ADMIN_PASSWORD"),
+    companyName: requiredText(source, "BOOTSTRAP_COMPANY_NAME"),
+    companySlug: requiredSlug(source, "BOOTSTRAP_COMPANY_SLUG"),
+    companyAdminEmail: requiredEmail(source, "BOOTSTRAP_COMPANY_ADMIN_EMAIL"),
+    companyAdminName: requiredText(source, "BOOTSTRAP_COMPANY_ADMIN_NAME"),
+    companyAdminPassword: requiredText(source, "BOOTSTRAP_COMPANY_ADMIN_PASSWORD"),
+  };
+}
+
+export function renderBootstrapResult(result: StagingBootstrapResult): string {
+  return [
+    "Staging bootstrap complete.",
+    `Platform Admin: ${result.platformAdminStatus}`,
+    `Company/workspace: ${result.companyStatus}`,
+    `Company Admin: ${result.companyAdminStatus}`,
+    "",
+    `Platform Admin email: ${result.platformAdminEmail}`,
+    `Company Admin email: ${result.companyAdminEmail}`,
+    `Company Workspace ID: ${result.companyId}`,
+    `Company slug: ${result.companySlug}`,
+    "",
+    "Platform login: choose Platform; Workspace ID is not required.",
+    "Company login: choose Company; enter the printed Workspace ID.",
+    "",
+  ].join("\n");
+}
+
+async function runCli(): Promise<void> {
+  if (process.env.APP_ENV !== "staging") {
+    throw new Error("Staging bootstrap requires APP_ENV=staging.");
+  }
+
+  const prisma = new PrismaClient();
+  try {
+    const result = await bootstrapStaging(loadBootstrapInputFromEnv(process.env), {
+      prisma: createPrismaBootstrapDatabase(prisma),
+    });
+    output.write(renderBootstrapResult(result));
   } finally {
     await prisma.$disconnect();
   }
 }
 
-async function loadBootstrapInput(): Promise<BootstrapInput> {
-  const sharedPassword =
-    process.env.BOOTSTRAP_ADMIN_PASSWORD?.trim() ?? (await promptHidden("Admin password: "));
-
+function createPrismaBootstrapDatabase(prisma: PrismaClient): StagingBootstrapDatabase {
   return {
-    platformAdminEmail: requiredEmail("BOOTSTRAP_PLATFORM_ADMIN_EMAIL"),
-    platformAdminName: optionalText("BOOTSTRAP_PLATFORM_ADMIN_NAME", "Staging Platform Admin"),
-    companyName: requiredText("BOOTSTRAP_COMPANY_NAME"),
-    companySlug: requiredSlug("BOOTSTRAP_COMPANY_SLUG"),
-    companyAdminEmail: requiredEmail("BOOTSTRAP_COMPANY_ADMIN_EMAIL"),
-    companyAdminName: optionalText("BOOTSTRAP_COMPANY_ADMIN_NAME", "Staging Company Admin"),
-    platformAdminPassword: process.env.BOOTSTRAP_PLATFORM_ADMIN_PASSWORD?.trim() ?? sharedPassword,
-    companyAdminPassword: process.env.BOOTSTRAP_COMPANY_ADMIN_PASSWORD?.trim() ?? sharedPassword,
+    $transaction: async (operation) =>
+      prisma.$transaction((tx) => operation(tx as unknown as StagingBootstrapTransaction)),
   };
 }
 
-function requiredText(name: string): string {
-  const value = process.env[name]?.trim();
-  if (value === undefined || value.length === 0) {
+function normalizeInput(input: StagingBootstrapInput): StagingBootstrapInput {
+  return {
+    platformAdminEmail: normalizeEmail(input.platformAdminEmail),
+    platformAdminName: normalizeRequiredText(
+      input.platformAdminName,
+      "BOOTSTRAP_PLATFORM_ADMIN_NAME",
+    ),
+    platformAdminPassword: normalizeRequiredText(
+      input.platformAdminPassword,
+      "BOOTSTRAP_PLATFORM_ADMIN_PASSWORD",
+    ),
+    companyName: normalizeRequiredText(input.companyName, "BOOTSTRAP_COMPANY_NAME"),
+    companySlug: normalizeSlug(input.companySlug),
+    companyAdminEmail: normalizeEmail(input.companyAdminEmail),
+    companyAdminName: normalizeRequiredText(input.companyAdminName, "BOOTSTRAP_COMPANY_ADMIN_NAME"),
+    companyAdminPassword: normalizeRequiredText(
+      input.companyAdminPassword,
+      "BOOTSTRAP_COMPANY_ADMIN_PASSWORD",
+    ),
+  };
+}
+
+function requiredText(source: NodeJS.ProcessEnv, name: string): string {
+  return normalizeRequiredText(source[name], name);
+}
+
+function requiredEmail(source: NodeJS.ProcessEnv, name: string): string {
+  return normalizeEmail(requiredText(source, name));
+}
+
+function requiredSlug(source: NodeJS.ProcessEnv, name: string): string {
+  return normalizeSlug(requiredText(source, name));
+}
+
+function normalizeRequiredText(value: string | undefined, name: string): string {
+  const trimmed = value?.trim();
+  if (trimmed === undefined || trimmed.length === 0) {
     throw new Error(`${name} is required.`);
   }
 
-  return value;
+  return trimmed;
 }
 
-function optionalText(name: string, fallback: string): string {
-  const value = process.env[name]?.trim();
-  return value === undefined || value.length === 0 ? fallback : value;
-}
-
-function requiredEmail(name: string): string {
-  const value = requiredText(name).toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(value)) {
-    throw new Error(`${name} must be a valid email address.`);
+function normalizeEmail(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(normalized)) {
+    throw new Error("Bootstrap email values must be valid email addresses.");
   }
 
-  return value;
+  return normalized;
 }
 
-function requiredSlug(name: string): string {
-  const value = requiredText(name).toLowerCase();
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(value)) {
-    throw new Error(`${name} must contain lowercase letters, numbers, and single hyphens only.`);
-  }
-
-  return value;
-}
-
-async function promptHidden(prompt: string): Promise<string> {
-  if (!input.isTTY) {
+function normalizeSlug(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(normalized)) {
     throw new Error(
-      "BOOTSTRAP_ADMIN_PASSWORD is required when no interactive terminal is attached.",
+      "BOOTSTRAP_COMPANY_SLUG must contain lowercase letters, numbers, and single hyphens only.",
     );
   }
 
-  output.write(prompt);
-  input.setRawMode(true);
-  input.resume();
-  input.setEncoding("utf8");
-
-  return new Promise((resolve, reject) => {
-    let value = "";
-
-    const cleanup = (): void => {
-      input.setRawMode(false);
-      input.pause();
-      input.removeListener("data", onData);
-      output.write("\n");
-    };
-
-    const onData = (char: string): void => {
-      if (char === "\u0003") {
-        cleanup();
-        reject(new Error("Bootstrap cancelled."));
-        return;
-      }
-      if (char === "\r" || char === "\n") {
-        cleanup();
-        resolve(value.trim());
-        return;
-      }
-      if (char === "\u007f" || char === "\b") {
-        value = value.slice(0, -1);
-        return;
-      }
-
-      value += char;
-    };
-
-    input.on("data", onData);
-  });
-}
-
-function printResult(result: BootstrapResult): void {
-  output.write(
-    [
-      "Staging bootstrap complete.",
-      "",
-      "Platform Admin",
-      `Email: ${result.platformAdminEmail}`,
-      "Login account type: Platform",
-      "Workspace ID: not required",
-      "",
-      "Company Admin",
-      `Email: ${result.companyAdminEmail}`,
-      `Workspace ID: ${result.companyId}`,
-      `Workspace slug: ${result.companySlug}`,
-      "Login account type: Company",
-      "",
-      "Email verification: not required for these bootstrap accounts; credentials were marked verified.",
-      "",
-    ].join("\n"),
-  );
+  return normalized;
 }
 
 const executedPath = resolve(process.argv[1]);
 if (fileURLToPath(import.meta.url) === executedPath) {
-  bootstrapStaging()
-    .then(printResult)
-    .catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : "Unknown bootstrap failure.";
-      console.error(`Staging bootstrap failed: ${message}`);
-      process.exitCode = 1;
-    });
+  runCli().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : "Unknown bootstrap failure.";
+    console.error(`Staging bootstrap failed: ${message}`);
+    process.exitCode = 1;
+  });
 }

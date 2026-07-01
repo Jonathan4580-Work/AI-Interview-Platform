@@ -63,9 +63,9 @@ Required inputs:
 
 Password input:
 
-- Prefer the secure interactive prompt.
-- Use `BOOTSTRAP_ADMIN_PASSWORD` only for non-interactive one-time runs.
-- `BOOTSTRAP_PLATFORM_ADMIN_PASSWORD` and `BOOTSTRAP_COMPANY_ADMIN_PASSWORD` may be supplied when separate initial passwords are required.
+- `BOOTSTRAP_PLATFORM_ADMIN_PASSWORD` is required.
+- `BOOTSTRAP_COMPANY_ADMIN_PASSWORD` is required.
+- Existing account passwords are never reset silently. If an account already has credentials, the script reuses them and leaves the password hash unchanged.
 
 The script does not print passwords. Bootstrap credentials are marked email-verified because these are operator-provisioned staging accounts, not email-invited users.
 
