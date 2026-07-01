@@ -9,9 +9,13 @@ describe("production deployment artifacts", () => {
 
     expect(dockerfile).toContain("FROM builder AS migrator");
     expect(dockerfile).toContain("npm prune --omit=dev");
+    expect(dockerfile).toContain("/app/.next/standalone ./.next/standalone");
+    expect(dockerfile).toContain("/app/.next/static ./.next/standalone/.next/static");
+    expect(dockerfile).toContain("/app/public ./.next/standalone/public");
     expect(dockerfile).toContain("USER aptly");
     expect(dockerfile).toContain("HEALTHCHECK");
-    expect(dockerfile).toContain('CMD ["npm", "run", "start"]');
+    expect(dockerfile).toContain('CMD ["node", ".next/standalone/server.js"]');
+    expect(dockerfile).not.toContain('CMD ["npm", "run", "start"]');
     expect(dockerfile).not.toContain('CMD ["npm", "run", "dev"]');
   });
 
@@ -34,6 +38,17 @@ describe("production deployment artifacts", () => {
     expect(workflow).toContain("npm audit");
     expect(workflow).toContain("docker build --target runner");
     expect(workflow).toContain("if: false");
+  });
+
+  it("selects the Dockerfile for Railway standalone deployments", () => {
+    const railway = JSON.parse(read("railway.json")) as {
+      readonly build?: { readonly builder?: string; readonly dockerfilePath?: string };
+      readonly deploy?: { readonly startCommand?: string };
+    };
+
+    expect(railway.build?.builder).toBe("DOCKERFILE");
+    expect(railway.build?.dockerfilePath).toBe("Dockerfile");
+    expect(railway.deploy?.startCommand).toBe("node .next/standalone/server.js");
   });
 });
 
