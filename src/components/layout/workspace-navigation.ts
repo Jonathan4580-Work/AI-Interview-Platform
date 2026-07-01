@@ -1,8 +1,10 @@
 import {
   BarChart3,
+  BriefcaseBusiness,
+  Building2,
+  CalendarCheck,
   Database,
   Download,
-  GitCompareArrows,
   Globe2,
   KeyRound,
   Link2,
@@ -10,6 +12,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  UserRound,
 } from "lucide-react";
 
 import type { ShellNavigationItem } from "@/components/layout/navigation-types";
@@ -17,10 +20,14 @@ import type { PermissionKey } from "@/modules/access-control";
 
 export const workspaceNavigationRoutes = [
   "/",
+  "/jobs",
+  "/candidates",
+  "/interviews",
   "/search",
   "/reports",
   "/reports/comparison",
   "/exports",
+  "/settings/company",
   "/settings/integrations",
   "/settings/webhooks",
   "/settings/sso",
@@ -45,18 +52,24 @@ export const shellAudienceStorageKey = "aptly_shell_audience";
 export type ShellAudience = "company" | "platform";
 
 const companyNavigationDefinitions = [
-  { label: "Overview", href: "/", icon: BarChart3, permission: undefined },
-  { label: "Search", href: "/search", icon: Search, permission: "search:workspace" },
+  { label: "Dashboard", href: "/", icon: BarChart3, permission: undefined },
+  { label: "Jobs", href: "/jobs", icon: BriefcaseBusiness, permission: "jobs:read" },
+  { label: "Candidates", href: "/candidates", icon: UserRound, permission: "candidates:read" },
+  { label: "Interviews", href: "/interviews", icon: CalendarCheck, permission: "interviews:read" },
   { label: "Reports", href: "/reports", icon: BarChart3, permission: "reports:read" },
-  {
-    label: "Comparison",
-    href: "/reports/comparison",
-    icon: GitCompareArrows,
-    permission: "reports:comparison_read",
-  },
+  { label: "Search", href: "/search", icon: Search, permission: "search:workspace" },
   { label: "Exports", href: "/exports", icon: Download, permission: "exports:read" },
   {
-    label: "Settings",
+    label: "Company settings",
+    href: "/settings/company",
+    icon: Building2,
+    permission: "tenant:read",
+  },
+] as const satisfies readonly NavigationDefinition[];
+
+const platformNavigationDefinitions = [
+  {
+    label: "Integrations",
     href: "/settings/integrations",
     icon: Settings,
     permission: "integrations:read",
@@ -78,10 +91,6 @@ const companyNavigationDefinitions = [
     permission: "data_residency:read",
   },
 ] as const satisfies readonly NavigationDefinition[];
-
-const platformNavigationDefinitions = companyNavigationDefinitions.filter((item) =>
-  item.href.startsWith("/settings"),
-);
 
 export function createWorkspaceNavigation(
   pathname: string,

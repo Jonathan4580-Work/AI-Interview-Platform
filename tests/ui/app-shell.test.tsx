@@ -5,7 +5,6 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, vi } from "vitest";
 
-import WorkspaceOverviewPage from "@/app/(workspace)/page";
 import { AppShell } from "@/components/layout/app-shell";
 import {
   platformNavigationRoutes,
@@ -51,7 +50,7 @@ describe("application shell", () => {
   });
 
   it("links the sidebar only to implemented authenticated routes", () => {
-    navigationState.pathname = "/reports/comparison";
+    navigationState.pathname = "/interviews";
     render(
       <AppShell workspace={{ name: "Acme Hiring" }} permissions={permissionKeys}>
         <p>Content</p>
@@ -60,15 +59,26 @@ describe("application shell", () => {
 
     const primaryNavigation = screen.getByRole("navigation", { name: "Primary" });
     const links = within(primaryNavigation).getAllByRole("link");
-    expect(links.map((link) => link.getAttribute("href"))).toEqual([...workspaceNavigationRoutes]);
-    expect(within(primaryNavigation).getByRole("link", { name: "Comparison" })).toHaveAttribute(
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([
+      "/",
+      "/jobs",
+      "/candidates",
+      "/interviews",
+      "/reports",
+      "/search",
+      "/exports",
+      "/settings/company",
+    ]);
+    expect(within(primaryNavigation).getByRole("link", { name: "Interviews" })).toHaveAttribute(
       "aria-current",
       "page",
     );
 
     expect(within(primaryNavigation).queryByText("Roles")).toBeNull();
-    expect(within(primaryNavigation).queryByText("Candidates")).toBeNull();
-    expect(within(primaryNavigation).queryByText("Interviews")).toBeNull();
+    expect(within(primaryNavigation).queryByText("Webhooks")).toBeNull();
+    expect(within(primaryNavigation).queryByText("SSO")).toBeNull();
+    expect(within(primaryNavigation).queryByText("SCIM")).toBeNull();
+    expect(within(primaryNavigation).queryByText("ATS")).toBeNull();
     expect(links.some((link) => link.getAttribute("href") === "#")).toBe(false);
   });
 
@@ -103,7 +113,7 @@ describe("application shell", () => {
     );
 
     const primaryNavigation = screen.getByRole("navigation", { name: "Primary" });
-    expect(within(primaryNavigation).getByRole("link", { name: "Overview" })).toHaveAttribute(
+    expect(within(primaryNavigation).getByRole("link", { name: "Dashboard" })).toHaveAttribute(
       "href",
       "/",
     );
@@ -181,22 +191,35 @@ describe("application shell", () => {
   });
 
   it("does not expose internal phase language to company users", () => {
-    render(<WorkspaceOverviewPage />);
+    render(
+      <AppShell workspace={{ name: "Acme Hiring" }} permissions={permissionKeys}>
+        <p>Operational hiring workspace</p>
+      </AppShell>,
+    );
 
     expect(
       screen.queryByText(/Phase|Foundation|Development foundation|Foundation ready/iu),
     ).toBeNull();
   });
 
-  it("renders overview cards as accessible links to existing pages", () => {
-    render(<WorkspaceOverviewPage />);
-
-    expect(screen.getByRole("link", { name: "Open Search" })).toHaveAttribute("href", "/search");
-    expect(screen.getByRole("link", { name: "Open Reports" })).toHaveAttribute("href", "/reports");
-    expect(screen.getByRole("link", { name: "Open Exports" })).toHaveAttribute("href", "/exports");
-    expect(screen.getByRole("link", { name: "Open Settings" })).toHaveAttribute(
-      "href",
+  it("uses operational company routes for the product navigation", () => {
+    expect(workspaceNavigationRoutes).toEqual([
+      "/",
+      "/jobs",
+      "/candidates",
+      "/interviews",
+      "/search",
+      "/reports",
+      "/reports/comparison",
+      "/exports",
+      "/settings/company",
       "/settings/integrations",
-    );
+      "/settings/webhooks",
+      "/settings/sso",
+      "/settings/scim",
+      "/settings/ats",
+      "/settings/integration-sync",
+      "/settings/data-region",
+    ]);
   });
 });
