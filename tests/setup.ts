@@ -1,5 +1,6 @@
 Object.assign(process.env, {
   NODE_ENV: "test",
+  APP_ENV: "test",
   APP_NAME: "Aptly Test",
   APP_URL: "http://localhost:3000",
   LOG_LEVEL: "silent",

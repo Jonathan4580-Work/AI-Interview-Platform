@@ -11,6 +11,7 @@ const secretReferenceSchema = z
 const environmentSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    APP_ENV: z.enum(["development", "test", "staging", "production"]),
     APP_NAME: z.string().min(1).default("Aptly"),
     APP_URL: z.string().url().default("http://localhost:3000"),
     CANDIDATE_APP_URL: z.string().url().optional(),
@@ -79,15 +80,14 @@ const environmentSchema = z
     RELEASE_IMAGE_VERSION: z.string().min(1).max(128).optional(),
   })
   .superRefine((value, context) => {
-    if (value.NODE_ENV !== "production") {
+    const isDeployedEnvironment = value.APP_ENV === "staging" || value.APP_ENV === "production";
+    if (!isDeployedEnvironment) {
       return;
     }
 
     requireHttpsUrl(context, "APP_URL", value.APP_URL);
     requireHttpsUrl(context, "CANDIDATE_APP_URL", value.CANDIDATE_APP_URL);
     requireHttpsUrl(context, "INTERNAL_APP_URL", value.INTERNAL_APP_URL);
-    requireTlsDatabaseUrl(context, value.DATABASE_URL);
-    requireTlsRedisUrl(context, value.REDIS_URL);
     requireSecretRef(context, "SESSION_SECRET_REF", value.SESSION_SECRET_REF);
     requireSecretRef(context, "CSRF_SECRET_REF", value.CSRF_SECRET_REF);
     requireSecretRef(context, "TOKEN_PEPPER_SECRET_REF", value.TOKEN_PEPPER_SECRET_REF);
@@ -95,6 +95,11 @@ const environmentSchema = z
     requireSecretRef(context, "SMTP_SECRET_REF", value.SMTP_SECRET_REF);
     requireSecretRef(context, "OBJECT_STORAGE_SECRET_REF", value.OBJECT_STORAGE_SECRET_REF);
     requireSecretRef(context, "BACKUP_STORAGE_SECRET_REF", value.BACKUP_STORAGE_SECRET_REF);
+
+    if (value.APP_ENV === "production") {
+      requireTlsDatabaseUrl(context, value.DATABASE_URL);
+      requireTlsRedisUrl(context, value.REDIS_URL);
+    }
 
     if (value.EMAIL_DELIVERY_MODE === "smtp") {
       requireProductionEmail(context, value);

@@ -14,7 +14,12 @@ Validate a candidate production environment file:
 npm.cmd run validate:production-env -- .env.production
 ```
 
-The script forces `NODE_ENV=production` and fails closed when security-critical values are missing or insecure.
+The script forces `NODE_ENV=production` for optimized runtime validation. The deployment tier is controlled separately by required `APP_ENV`.
+
+- `APP_ENV=development`: local development validation.
+- `APP_ENV=test`: automated test validation.
+- `APP_ENV=staging`: deployed staging validation. HTTPS public URLs and managed `secret://` references are required, but Railway private-network PostgreSQL and Redis URLs are allowed.
+- `APP_ENV=production`: final production validation. HTTPS public URLs, managed `secret://` references, PostgreSQL TLS, and `rediss://` Redis are required.
 
 ## Build-Time vs Runtime Variables
 
@@ -44,6 +49,7 @@ All variables in `.env.production.example` are server-only unless a future varia
 ## Required Production Variables
 
 - `APP_URL`, `CANDIDATE_APP_URL`, `INTERNAL_APP_URL`: HTTPS only.
+- `APP_ENV=production`: final production infrastructure validation.
 - `DATABASE_URL`: managed PostgreSQL with `sslmode=require` or stronger.
 - `REDIS_URL`: `rediss://` only.
 - `SESSION_SECRET_REF`, `CSRF_SECRET_REF`, `TOKEN_PEPPER_SECRET_REF`, `ENCRYPTION_KEY_SECRET_REF`: managed secret references.
@@ -83,9 +89,19 @@ Keep optional providers disabled until configured:
 
 Production validation fails when:
 
+- `APP_ENV` is missing or invalid.
 - App URLs are not HTTPS.
 - PostgreSQL does not enforce TLS.
 - Redis does not use `rediss://`.
 - Required secret references are absent or do not use `secret://`.
 - Production SMTP is enabled without host, port, from address, and reply-to address.
 - DeepSeek is selected without API key or managed secret reference.
+
+Staging validation fails when:
+
+- `APP_ENV` is missing or not `staging`.
+- Public app URLs are not HTTPS.
+- Required secret references are absent or do not use `secret://`.
+- Production SMTP is enabled without host, port, from address, and reply-to address.
+
+Staging validation intentionally permits Railway private-network `DATABASE_URL` and `redis://` `REDIS_URL` values. This exception is not applied when `APP_ENV=production`.

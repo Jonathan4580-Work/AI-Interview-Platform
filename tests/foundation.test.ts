@@ -9,6 +9,7 @@ describe("foundation scaffold", () => {
 
     expect(environment.APP_NAME).toBe("Aptly Test");
     expect(environment.NODE_ENV).toBe("test");
+    expect(environment.APP_ENV).toBe("test");
     expect(environment.REQUEST_ID_HEADER).toBe("x-request-id");
     expect(environment.SMTP_SECRET_REF).toBe("test/smtp");
   });
