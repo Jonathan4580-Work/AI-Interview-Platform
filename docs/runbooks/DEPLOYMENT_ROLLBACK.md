@@ -56,6 +56,30 @@ Phase 11 prepares deployment safety rules only. It does not perform production d
 - Candidate token exchange smoke.
 - Workflow processing smoke with development providers in non-production.
 
+## Phase 13 Launch Rollback Controls
+
+Kill switches or disable actions required before external pilot:
+
+- Candidate interviews: disable new interview starts while allowing compatible in-progress sessions to finish.
+- Browser monitoring: set platform or tenant monitoring disable flag.
+- AI evaluation: disable provider-bound evaluation workers or switch provider only outside production.
+- Email delivery: switch tenant/platform email to disabled or preview where safe.
+- Webhooks: disable subscriptions and pause webhook workers.
+- ATS sync: disable integration connections and pause integration workers.
+- SCIM: disable SCIM configuration and revoke tokens.
+- SSO requirement: revert tenant login policy to local allowed while preserving break-glass admin.
+- Exports: pause export workers and signed download issuance if leakage is suspected.
+- Background workers: drain and stop affected worker classes.
+
+Rollback verification:
+
+- Web health passes.
+- Worker queue depth stabilizes.
+- Audit writes succeed.
+- Tenant isolation smoke passes.
+- Candidate communication is sent if interviews were interrupted.
+- Provider integrations remain disabled until root cause review is complete.
+
 ## Preview and Staging Data Policy
 
 - No production candidate recordings or transcripts in preview environments.

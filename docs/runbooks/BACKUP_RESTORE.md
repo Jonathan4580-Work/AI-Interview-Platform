@@ -89,6 +89,37 @@ Aptly does not support self-service tenant-level point-in-time restore in Phase 
 
 Phase 11 added executable backup, restore, and verification scripts. The local environment can validate command structure and verification checks. A full data restore drill requires `pg_dump`, `pg_restore`, and an isolated PostgreSQL target with compatible extensions and credentials.
 
+## Phase 13 Production Validation
+
+Status: procedure prepared; managed-infrastructure drill not performed.
+
+Production launch requires:
+
+1. Managed PostgreSQL PITR enabled.
+2. Backup storage configured with restricted access.
+3. Object-storage versioning and lifecycle policies enabled.
+4. Isolated restore environment available.
+5. Restore drill from latest backup or PITR timestamp.
+6. Schema verification.
+7. Critical row-count verification.
+8. Tenant-scoped record verification.
+9. Application readiness against restored data.
+10. Synthetic interview smoke against restored environment where safe.
+
+Do not claim the 15-minute RPO or 4-hour RTO is proven until a timed managed-infrastructure drill records actual backup age, restore duration, verification duration, and any manual recovery steps.
+
+Production restore evidence to capture:
+
+- Backup timestamp.
+- Restore start/end.
+- Schema verification result.
+- Tenant isolation test result.
+- Object-storage recovery notes.
+- Redis/queue recreation steps.
+- RPO achieved.
+- RTO achieved.
+- Operator approval.
+
 ## Rollback Guidance
 
 - Prefer forward fixes after production launch.
