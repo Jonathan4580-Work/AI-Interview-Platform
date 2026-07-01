@@ -107,7 +107,7 @@ async function searchCandidates(
     category: "candidate",
     title: record.fullName,
     subtitle: record.primaryEmail,
-    href: `/workspace/candidates/${record.id}`,
+    href: searchHref(record.id),
     score: score(query, [record.fullName, record.primaryEmail]),
     matchedFields: matchedFields(query, [
       ["candidate_name", record.fullName],
@@ -145,7 +145,7 @@ async function searchJobs(
     category: "job",
     title: record.title,
     subtitle: record.slug,
-    href: `/workspace/jobs/${record.id}`,
+    href: searchHref(record.id),
     score: score(query, [record.title, record.slug]),
     matchedFields: matchedFields(query, [
       ["job_title", record.title],
@@ -185,7 +185,7 @@ async function searchApplications(
     category: "application",
     title: `${record.candidate.fullName} for ${record.job.title}`,
     subtitle: record.status,
-    href: `/workspace/applications/${record.id}`,
+    href: searchHref(record.id),
     score: score(query, [record.candidate.fullName, record.job.title, record.status]),
     matchedFields: matchedFields(query, [["application_status", record.status]]),
     updatedAt: record.updatedAt,
@@ -227,7 +227,7 @@ async function searchInvitations(
     category: "invitation",
     title: record.candidate.fullName,
     subtitle: record.email,
-    href: `/workspace/invitations/${record.id}`,
+    href: searchHref(record.id),
     score: score(query, [record.candidate.fullName, record.email, record.status]),
     matchedFields: matchedFields(query, [
       ["invitation_email", record.email],
@@ -270,7 +270,7 @@ async function searchInterviews(
     category: "interview",
     title: record.candidate.fullName,
     subtitle: record.status,
-    href: `/workspace/interviews/${record.id}`,
+    href: searchHref(record.id),
     score: score(query, [record.candidate.fullName, record.status]),
     matchedFields: matchedFields(query, [["interview_status", record.status]]),
     updatedAt: record.updatedAt,
@@ -315,7 +315,7 @@ async function searchReports(
     category: "report",
     title: record.interviewSession.candidate.fullName,
     subtitle: record.status,
-    href: `/workspace/reports/${record.id}`,
+    href: "/reports",
     score: score(query, [record.interviewSession.candidate.fullName, record.status]),
     matchedFields: matchedFields(query, [["report_status", record.status]]),
     updatedAt: record.updatedAt,
@@ -326,6 +326,10 @@ async function searchReports(
       interviewSessionId: record.interviewSessionId,
     },
   }));
+}
+
+function searchHref(recordId: string): string {
+  return `/search?query=${encodeURIComponent(recordId)}`;
 }
 
 function matchedFields(

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { z } from "zod";
 
+import { getPostLoginRedirect } from "@/lib/auth/post-login-redirect";
 import { login } from "@/lib/auth/session-client";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -28,6 +29,9 @@ const loginFormSchema = z.discriminatedUnion("mode", [
 
 type LoginFormErrors = Partial<Record<"companyId" | "email" | "password" | "form", string>>;
 type LoginMode = "company" | "platform";
+interface LoginFormProps {
+  navigate?: (path: string) => void;
+}
 interface FormSubmitEvent {
   preventDefault: () => void;
   currentTarget: HTMLFormElement;
@@ -38,7 +42,11 @@ function getFormString(formData: FormData, key: string): string {
   return typeof value === "string" ? value : "";
 }
 
-function LoginForm() {
+function LoginForm({
+  navigate = (path) => {
+    window.location.assign(path);
+  },
+}: LoginFormProps) {
   const [mode, setMode] = useState<LoginMode>("company");
   const [errors, setErrors] = useState<LoginFormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -79,7 +87,7 @@ function LoginForm() {
         return;
       }
 
-      window.location.assign("/workspace");
+      navigate(getPostLoginRedirect(response.data.subject));
     } catch {
       setErrors({ form: "Unable to sign in right now." });
     } finally {

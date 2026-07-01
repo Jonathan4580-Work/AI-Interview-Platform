@@ -140,7 +140,7 @@ function result(overrides: {
     category: overrides.category ?? "candidate",
     title: overrides.title,
     subtitle: null,
-    href: `/workspace/${overrides.id}`,
+    href: `/search?query=${encodeURIComponent(overrides.id)}`,
     score: overrides.score,
     matchedFields: ["candidate_name"],
     updatedAt: new Date(overrides.updatedAt),
