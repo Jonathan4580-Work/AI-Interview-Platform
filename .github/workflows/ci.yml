@@ -1,0 +1,63 @@
+name: Aptly CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Repository verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build validation
+        run: npm run build
+
+      - name: Test suite
+        run: npm run test
+
+      - name: Dependency audit
+        run: npm audit
+
+      - name: Docker Compose validation
+        run: docker compose config --quiet
+
+      - name: Container build
+        run: docker build --target runner --build-arg BUILDKIT_INLINE_CACHE=1 -t aptly:${{ github.sha }} .
+
+      - name: Migrator image build
+        run: docker build --target migrator -t aptly-migrator:${{ github.sha }} .
+
+  production-approval-placeholder:
+    name: Production deployment gate
+    runs-on: ubuntu-latest
+    needs: verify
+    if: false
+    steps:
+      - name: Deployment intentionally disabled
+        run: |
+          echo "Production deployment requires a configured environment, managed secrets, and explicit approval."
+          exit 1

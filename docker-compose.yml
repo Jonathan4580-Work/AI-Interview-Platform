@@ -3,7 +3,7 @@ services:
     build:
       context: .
     container_name: aptly-web
-    command: ["npm", "run", "dev"]
+    command: ["npm", "run", "start"]
     env_file:
       - .env.example
     environment:
@@ -26,7 +26,7 @@ services:
     build:
       context: .
     container_name: aptly-worker
-    command: ["npm", "run", "worker:dev"]
+    command: ["npm", "run", "worker:prod"]
     env_file:
       - .env.example
     environment:

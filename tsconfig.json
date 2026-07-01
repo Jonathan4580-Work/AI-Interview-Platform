@@ -30,6 +30,7 @@
     "src/**/*.tsx",
     "tests/**/*.ts",
     "tests/**/*.tsx",
+    "scripts/**/*.ts",
     "*.config.*"
   ],
   "exclude": ["node_modules"]

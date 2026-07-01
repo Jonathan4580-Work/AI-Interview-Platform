@@ -1,0 +1,75 @@
+services:
+  web:
+    image: ${APTLY_IMAGE:?set APTLY_IMAGE}
+    command: ["npm", "run", "start"]
+    restart: unless-stopped
+    env_file:
+      - path: .env.production
+        required: false
+    environment:
+      PORT: "3000"
+      RELEASE_IMAGE_VERSION: ${APTLY_IMAGE_TAG:-unversioned}
+      RELEASE_COMMIT_SHA: ${APTLY_COMMIT_SHA:-unknown}
+    ports:
+      - "3000:3000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+    healthcheck:
+      test: ["CMD", "node", "scripts/healthcheck.mjs"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+
+  worker-email:
+    image: ${APTLY_IMAGE:?set APTLY_IMAGE}
+    command: ["npm", "run", "worker:prod"]
+    restart: unless-stopped
+    env_file:
+      - path: .env.production
+        required: false
+    environment:
+      APTLY_WORKER_CLASS: email
+      RELEASE_IMAGE_VERSION: ${APTLY_IMAGE_TAG:-unversioned}
+      RELEASE_COMMIT_SHA: ${APTLY_COMMIT_SHA:-unknown}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+    stop_grace_period: 60s
+    security_opt:
+      - no-new-privileges:true
+
+  worker-orchestration:
+    image: ${APTLY_IMAGE:?set APTLY_IMAGE}
+    command: ["npm", "run", "worker:prod"]
+    restart: unless-stopped
+    env_file:
+      - path: .env.production
+        required: false
+    environment:
+      APTLY_WORKER_CLASS: orchestration
+      RELEASE_IMAGE_VERSION: ${APTLY_IMAGE_TAG:-unversioned}
+      RELEASE_COMMIT_SHA: ${APTLY_COMMIT_SHA:-unknown}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+    stop_grace_period: 60s
+    security_opt:
+      - no-new-privileges:true
+
+  migration:
+    build:
+      context: .
+      target: migrator
+    image: ${APTLY_MIGRATOR_IMAGE:-aptly-migrator:local}
+    command: ["npm", "run", "migrate:deploy"]
+    profiles: ["migration"]
+    env_file:
+      - path: .env.production
+        required: false
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
