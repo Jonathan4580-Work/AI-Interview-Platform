@@ -12,7 +12,8 @@ RUN npm ci
 FROM deps AS builder
 COPY . .
 RUN npm run prisma:generate \
-  && npm run build
+  && npm run build \
+  && npm run next:build
 
 FROM builder AS migrator
 CMD ["npm", "run", "migrate:deploy"]

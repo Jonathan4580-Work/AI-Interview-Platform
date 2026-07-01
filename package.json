@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "npm run typecheck && npm run prisma:validate",
+    "next:build": "dotenv -e .env.test -- next build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",

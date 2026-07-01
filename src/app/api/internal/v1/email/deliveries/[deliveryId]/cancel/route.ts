@@ -1,7 +1,6 @@
 import { apiSuccess, withApiHandler } from "@/server/api";
 
-import { emailActorFromAuth, requireEmailTenant } from "../../../_shared";
-import { createEmailApiService } from "../../route";
+import { createEmailApiService, emailActorFromAuth, requireEmailTenant } from "../../../_shared";
 
 export const POST = withApiHandler(async (request, { requestContext }) => {
   const { auth, tenant } = await requireEmailTenant(request, "email_deliveries:manage", true);

@@ -1,8 +1,15 @@
 import { z } from "zod";
 
+import { createQueue } from "@/infra/queue";
 import { prisma } from "@/infra/database";
 import { AuditWriter, PrismaAuditEventStore } from "@/modules/audit";
 import type { PermissionKey } from "@/modules/access-control";
+import {
+  DefaultEmailProviderFactory,
+  EmailService,
+  PrismaEmailRepository,
+  type EmailDeliveryJob,
+} from "@/modules/email";
 import type { CompanyActor, CompanyUserId, TenantContext } from "@/modules/tenant";
 import { assertCsrf, forbidden } from "@/server/api";
 import {
@@ -118,4 +125,13 @@ export function emailActorFromAuth(auth: AuthenticatedContext): CompanyActor {
   return auth.kind === "platform"
     ? { type: "platform_user", id: auth.subject.platformUserId }
     : { type: "user", id: auth.subject.userId as unknown as CompanyUserId };
+}
+
+export function createEmailApiService(): EmailService {
+  return new EmailService(
+    new PrismaEmailRepository(),
+    new DefaultEmailProviderFactory(),
+    createQueue("email") as import("bullmq").Queue<EmailDeliveryJob>,
+    new AuditWriter(new PrismaAuditEventStore()),
+  );
 }

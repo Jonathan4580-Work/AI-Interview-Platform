@@ -1,18 +1,11 @@
 import { z } from "zod";
 
-import { createQueue } from "@/infra/queue";
-import { AuditWriter, PrismaAuditEventStore } from "@/modules/audit";
-import {
-  DefaultEmailProviderFactory,
-  EmailService,
-  PrismaEmailRepository,
-  type EmailDeliveryJob,
-} from "@/modules/email";
 import { prisma } from "@/infra/database";
 import { apiSuccess, parseJsonBody, withApiHandler } from "@/server/api";
 
 import {
   assertTenantEmailEnabled,
+  createEmailApiService,
   emailActorFromAuth,
   emailAddressSchema,
   emailTemplateKeySchema,
@@ -87,12 +80,3 @@ export const POST = withApiHandler(async (request, { requestContext }) => {
 
   return apiSuccess(requestContext, { delivery: queued }, { status: 201 });
 });
-
-export function createEmailApiService(): EmailService {
-  return new EmailService(
-    new PrismaEmailRepository(),
-    new DefaultEmailProviderFactory(),
-    createQueue("email") as import("bullmq").Queue<EmailDeliveryJob>,
-    new AuditWriter(new PrismaAuditEventStore()),
-  );
-}

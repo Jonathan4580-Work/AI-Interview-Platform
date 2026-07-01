@@ -21,17 +21,23 @@
       "@/modules/*": ["src/modules/*"],
       "@/shared/*": ["src/shared/*"]
     },
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "vitest/globals"],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
   },
   "include": [
-    "next-env.d.ts",
+    "*.config.*",
     "middleware.ts",
+    "next-env.d.ts",
+    "scripts/**/*.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     "tests/**/*.ts",
     "tests/**/*.tsx",
-    "scripts/**/*.ts",
-    "*.config.*"
+    ".next/types/**/*.ts"
   ],
   "exclude": ["node_modules"]
 }

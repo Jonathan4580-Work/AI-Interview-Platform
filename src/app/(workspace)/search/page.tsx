@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-export default function WorkspaceSearchPage({
+export default async function WorkspaceSearchPage({
   searchParams,
 }: {
-  readonly searchParams?: { readonly query?: string };
+  readonly searchParams?: Promise<{ readonly query?: string }>;
 }) {
-  const query = searchParams?.query?.trim() ?? "";
+  const resolvedSearchParams = await searchParams;
+  const query = resolvedSearchParams?.query?.trim() ?? "";
 
   return (
     <ContentContainer className="gap-6">
