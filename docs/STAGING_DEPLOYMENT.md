@@ -150,6 +150,19 @@ npm run staging:demo
 ```
 
 The command prints the Company Workspace ID. Company Admin and HR users should choose **Company** on the login page and enter that Workspace ID.
+Rerunning `npm run staging:demo` refreshes the existing synthetic Company Admin and HR password hashes from the environment-provided passwords without creating duplicate users, changing email verification, or printing secrets.
+
+Refresh an existing staging company user's password, such as the demo HR user, without recreating demo data:
+
+```powershell
+$env:APP_ENV="staging"
+$env:STAGING_COMPANY_WORKSPACE_ID="<printed workspace id>"
+$env:STAGING_COMPANY_USER_EMAIL="hr+staging@example.invalid"
+$env:STAGING_COMPANY_USER_PASSWORD="<secure password>"
+npm run staging:reset-company-user-password
+```
+
+The reset command is staging-only, scopes the email lookup to the provided workspace ID, requires an existing user and password credential, revokes active sessions for that user, writes a redacted audit event, and prints only the workspace ID, normalized email, success state, and revoked session count.
 
 Run the staging MVP smoke check after using the UI to send the invitation and complete the candidate flow:
 

@@ -11,6 +11,9 @@ describe("staging MVP commands", () => {
 
     expect(packageJson.scripts?.["staging:demo"]).toBe("tsx scripts/staging-demo-mvp.ts");
     expect(packageJson.scripts?.["staging:mvp-smoke"]).toBe("tsx scripts/staging-mvp-smoke.ts");
+    expect(packageJson.scripts?.["staging:reset-company-user-password"]).toBe(
+      "tsx scripts/staging-reset-company-user-password.ts",
+    );
   });
 
   it("keeps demo credentials environment-driven and staging-only", () => {
@@ -20,6 +23,18 @@ describe("staging MVP commands", () => {
     expect(script).toContain("STAGING_DEMO_COMPANY_ADMIN_PASSWORD");
     expect(script).toContain("STAGING_DEMO_HR_PASSWORD");
     expect(script).not.toContain("Password123");
+  });
+
+  it("refreshes existing demo company-user credentials without changing verification state", () => {
+    const script = read("scripts/staging-demo-mvp.ts");
+
+    expect(script).toContain("await tx.authCredential.update({");
+    expect(script).toContain("passwordUpdatedAt: input.now");
+    expect(script).toContain(
+      "where: { companyId_userId: { companyId: input.companyId, userId: user.id } }",
+    );
+    expect(script).toContain("await tx.userRole.upsert({");
+    expect(script).not.toContain("emailVerifiedAt: null");
   });
 
   it("documents worker and object-storage blockers in the smoke command", () => {

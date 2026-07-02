@@ -18,6 +18,7 @@
     "migrate:deploy": "prisma migrate deploy",
     "bootstrap:staging": "tsx scripts/bootstrap-staging.ts",
     "staging:reset-admin-passwords": "tsx scripts/staging-reset-admin-passwords.ts",
+    "staging:reset-company-user-password": "tsx scripts/staging-reset-company-user-password.ts",
     "staging:demo": "tsx scripts/staging-demo-mvp.ts",
     "staging:mvp-smoke": "tsx scripts/staging-mvp-smoke.ts",
     "staging:object-storage-smoke": "tsx scripts/object-storage-smoke.ts",

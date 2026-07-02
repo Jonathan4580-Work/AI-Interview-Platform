@@ -63,11 +63,10 @@ describe("candidate interview room", () => {
   it("renders accessible interview controls and privacy indicators", async () => {
     render(<InterviewRoomClient />);
 
+    expect(screen.getByRole("heading", { name: "Current question" })).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Current question" })).toBeInTheDocument();
+      expect(screen.getByText("Tell us about the work you are proudest of.")).toBeInTheDocument();
     });
-
-    expect(screen.getByText("Tell us about the work you are proudest of.")).toBeInTheDocument();
     expect(screen.getByLabelText("Camera preview")).toBeInTheDocument();
     expect(screen.getByLabelText("Interview controls")).toBeInTheDocument();
     expect(screen.getByText("Recording is shown explicitly")).toBeInTheDocument();

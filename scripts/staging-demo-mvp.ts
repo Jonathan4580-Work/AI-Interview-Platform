@@ -345,14 +345,23 @@ async function upsertCompanyUser(
   const credential = await tx.authCredential.findUnique({
     where: { companyId_userId: { companyId: input.companyId, userId: user.id } },
   });
+  const passwordHash = hashPassword(input.password);
   if (credential === null) {
     await tx.authCredential.create({
       data: {
         subjectType: "USER",
         companyId: input.companyId,
         userId: user.id,
-        passwordHash: hashPassword(input.password),
+        passwordHash,
         emailVerifiedAt: input.now,
+        passwordUpdatedAt: input.now,
+      },
+    });
+  } else {
+    await tx.authCredential.update({
+      where: { companyId_userId: { companyId: input.companyId, userId: user.id } },
+      data: {
+        passwordHash,
         passwordUpdatedAt: input.now,
       },
     });
