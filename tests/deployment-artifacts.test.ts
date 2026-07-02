@@ -24,7 +24,8 @@ describe("production deployment artifacts", () => {
 
     expect(dockerfile).toContain("# syntax=docker/dockerfile");
     expect(dockerfile).toContain("npm ci");
-    expect(dockerfile).toContain("--mount=type=cache,id=aptly-worker-npm,target=/root/.npm");
+    expect(dockerfile).toContain("RUN npm ci");
+    expect(dockerfile).not.toContain("--mount=type=cache");
     expect(dockerfile).toContain("npm run prisma:generate");
     expect(dockerfile).toContain("npm prune --omit=dev");
     expect(dockerfile).toContain("scripts/worker-healthcheck.mjs");
