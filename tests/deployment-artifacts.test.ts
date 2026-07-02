@@ -19,6 +19,22 @@ describe("production deployment artifacts", () => {
     expect(dockerfile).not.toContain('CMD ["npm", "run", "dev"]');
   });
 
+  it("defines a dedicated worker image without a Next.js production build", () => {
+    const dockerfile = read("Dockerfile.worker");
+
+    expect(dockerfile).toContain("# syntax=docker/dockerfile");
+    expect(dockerfile).toContain("npm ci");
+    expect(dockerfile).toContain("--mount=type=cache,target=/root/.npm");
+    expect(dockerfile).toContain("npm run prisma:generate");
+    expect(dockerfile).toContain("npm prune --omit=dev");
+    expect(dockerfile).toContain("scripts/worker-healthcheck.mjs");
+    expect(dockerfile).toContain("USER aptly");
+    expect(dockerfile).toContain('CMD ["npm", "run", "worker:prod"]');
+    expect(dockerfile).not.toContain("npm run next:build");
+    expect(dockerfile).not.toContain(".next/standalone");
+    expect(dockerfile).not.toContain('CMD ["node", ".next/standalone/server.js"]');
+  });
+
   it("keeps production compose as a template without embedded secrets", () => {
     const compose = read("docker-compose.production.example.yml");
 

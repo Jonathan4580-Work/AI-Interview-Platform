@@ -20,8 +20,8 @@ Recommended providers:
 
 Preferred initial production shape:
 
-- One web service from the Aptly image running `npm run start`.
-- Separate worker services from the same image running `npm run worker:prod`.
+- One web service from the Aptly web image running `node .next/standalone/server.js`.
+- Separate worker services from the dedicated `Dockerfile.worker` image running `npm run worker:prod`.
 - One one-off migrator image target running `npm run migrate:deploy`.
 - Managed PostgreSQL, Redis, and object storage.
 
@@ -33,18 +33,18 @@ Aptly remains a modular monolith. Phase 12 created extraction seams, but product
 
 ## Runtime Components
 
-| Component           | Recommended production form                                       | Status                                                    |
-| ------------------- | ----------------------------------------------------------------- | --------------------------------------------------------- |
-| Next.js web app     | Managed container service, HTTPS ingress, health/readiness probes | Implemented as container artifact; not deployed           |
-| Workers             | Separate container services by worker class                       | Implemented as shared worker entrypoint; topology pending |
-| PostgreSQL          | Managed PostgreSQL 16+, TLS, PITR, connection pooling             | Requires infrastructure                                   |
-| Redis/BullMQ        | Managed Redis with TLS and auth                                   | Requires infrastructure                                   |
-| Object storage      | Private S3-compatible buckets, SSE, CORS-limited origins          | Requires infrastructure                                   |
-| Email               | Transactional provider or SMTP with verified sender domain        | Requires credentials/DNS                                  |
-| Domain/TLS          | Managed TLS, HSTS after validation                                | Requires DNS/control plane                                |
-| Secrets             | Managed secret store references only                              | Requires secret store                                     |
-| Metrics/logs/alerts | Low-cardinality telemetry, alert routing, runbooks                | Requires observability provider                           |
-| Backups             | Managed DB backups/PITR plus object-storage versioning            | Requires infrastructure                                   |
+| Component           | Recommended production form                                           | Status                                                    |
+| ------------------- | --------------------------------------------------------------------- | --------------------------------------------------------- |
+| Next.js web app     | Managed container service, HTTPS ingress, health/readiness probes     | Implemented as container artifact; not deployed           |
+| Workers             | Separate container services by worker class using `Dockerfile.worker` | Implemented as shared worker entrypoint; topology pending |
+| PostgreSQL          | Managed PostgreSQL 16+, TLS, PITR, connection pooling                 | Requires infrastructure                                   |
+| Redis/BullMQ        | Managed Redis with TLS and auth                                       | Requires infrastructure                                   |
+| Object storage      | Private S3-compatible buckets, SSE, CORS-limited origins              | Requires infrastructure                                   |
+| Email               | Transactional provider or SMTP with verified sender domain            | Requires credentials/DNS                                  |
+| Domain/TLS          | Managed TLS, HSTS after validation                                    | Requires DNS/control plane                                |
+| Secrets             | Managed secret store references only                                  | Requires secret store                                     |
+| Metrics/logs/alerts | Low-cardinality telemetry, alert routing, runbooks                    | Requires observability provider                           |
+| Backups             | Managed DB backups/PITR plus object-storage versioning                | Requires infrastructure                                   |
 
 ## Sizing Assumptions
 

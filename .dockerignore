@@ -5,6 +5,7 @@ coverage
 node_modules
 npm-debug.log*
 Dockerfile
+Dockerfile.worker
 docker-compose*.yml
 .env
 .env.local

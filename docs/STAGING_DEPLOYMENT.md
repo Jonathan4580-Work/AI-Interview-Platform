@@ -31,7 +31,7 @@ No real candidate data may be copied into staging.
 7. Build and publish image.
 8. Run migrations through the migrator target.
 9. Deploy web service.
-10. Deploy worker services.
+10. Deploy worker services with `Dockerfile.worker`, not the web `Dockerfile`.
 11. Bootstrap the first staging administrators with `npm run bootstrap:staging` from an interactive shell inside the staging service.
 12. Configure email sandbox.
 13. Configure deterministic development or sandbox providers.
@@ -97,11 +97,19 @@ Use the existing web service command for the Next.js application:
 node .next/standalone/server.js
 ```
 
-Create a separate Railway worker service from the same Docker image for queued email and post-interview processing. Use this start command:
+Create a separate Railway worker service from the same repository for queued email and post-interview processing. The worker service must select the dedicated worker Dockerfile:
+
+```powershell
+Dockerfile.worker
+```
+
+That image intentionally skips the Next.js production build and runs the worker entrypoint directly. Use this start command:
 
 ```powershell
 npm run worker:prod
 ```
+
+If Railway uses the Dockerfile command, no custom start command is required because `Dockerfile.worker` already has `CMD ["npm", "run", "worker:prod"]`. If Railway overrides commands per service, set the worker start command to `npm run worker:prod`.
 
 Set `STAGING_WORKER_SERVICE_ENABLED=true` only after that worker service is deployed and healthy. Do not claim the end-to-end interview flow works while the worker service is absent.
 

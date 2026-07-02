@@ -2,7 +2,7 @@
 
 ## Status
 
-Implemented: Dockerfile, migrator target, production compose template, healthcheck script, CI foundation, environment validation.
+Implemented: web Dockerfile, dedicated worker Dockerfile, migrator target, production compose template, healthcheck scripts, CI foundation, environment validation.
 
 Not performed: image registry publication, staging deployment, production deployment, live migration, DNS/TLS validation, or provider connection.
 
@@ -10,14 +10,16 @@ Not performed: image registry publication, staging deployment, production deploy
 
 - Web image target: `runner`.
 - Migration image target: `migrator`.
+- Web command: `node .next/standalone/server.js`.
+- Worker Dockerfile: `Dockerfile.worker`.
 - Worker command: `npm run worker:prod`.
-- Web command: `npm run start`.
 
 Build locally:
 
 ```powershell
 docker build --target runner -t aptly:<commit> .
 docker build --target migrator -t aptly-migrator:<commit> .
+docker build -f Dockerfile.worker -t aptly-worker:<commit> .
 ```
 
 Validate production compose template:
@@ -85,7 +87,8 @@ Rollout rules:
 
 - `/health`: basic process health.
 - `/ready`: dependency readiness.
-- Container healthcheck: `scripts/healthcheck.mjs`.
+- Web container healthcheck: `scripts/healthcheck.mjs`.
+- Worker container healthcheck: `scripts/worker-healthcheck.mjs`, which verifies Redis readiness without opening an HTTP port.
 - Database connectivity.
 - Redis connectivity.
 - Queue backlog.
