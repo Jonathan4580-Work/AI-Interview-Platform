@@ -9,7 +9,7 @@ RUN apt-get update -y \
 
 FROM base AS deps
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+RUN --mount=type=cache,id=aptly-worker-npm,target=/root/.npm npm ci
 
 FROM deps AS generated
 COPY prisma ./prisma
