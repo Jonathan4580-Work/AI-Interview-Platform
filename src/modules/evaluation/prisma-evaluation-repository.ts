@@ -342,7 +342,7 @@ function mapEvaluationVersion(
 }
 
 function toPrismaProvider(value: EvaluationProviderKey) {
-  return value.toUpperCase() as "DEVELOPMENT" | "DEEPSEEK";
+  return value.toUpperCase() as "DETERMINISTIC" | "OPENAI";
 }
 
 function mapOverride(input: {

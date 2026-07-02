@@ -8,7 +8,7 @@ Scope: Phase 8 Monitoring Warnings only. This review covered consent enforcement
 
 Phase 8 is approved for Phase 9 after the hardening fixes listed below.
 
-No transcription, speech-to-text processing, AI interviewer behavior, DeepSeek integration, evaluation, competency scoring, hiring recommendation, candidate ranking, reports, analytics dashboards, HR dashboards, admin dashboards, or Phase 9 functionality was added during this review.
+No transcription, speech-to-text processing, AI interviewer behavior, OpenAI integration, evaluation, competency scoring, hiring recommendation, candidate ranking, reports, analytics dashboards, HR dashboards, admin dashboards, or Phase 9 functionality was added during this review.
 
 Monitoring remains warning-only. Monitoring events do not update candidate scores, application status, interview completion, hiring decisions, workflow results, or candidate ranking.
 

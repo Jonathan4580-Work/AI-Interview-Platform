@@ -80,7 +80,7 @@ This runbook covers Aptly production-pilot incident handling for:
 
 - Do not change candidate/application status.
 - Keep evaluation workflows failed or retry-scheduled according to provider error classification.
-- DeepSeek remains optional in non-production and development provider fixtures must not be used for production decisions.
+- OpenAI is the production evaluation provider. Deterministic provider fixtures must not be used for production decisions.
 
 ### Backup or Restore Failure
 

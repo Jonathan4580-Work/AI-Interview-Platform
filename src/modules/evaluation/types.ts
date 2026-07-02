@@ -13,7 +13,7 @@ export type EvaluationRunId = Brand<string, "EvaluationRunId">;
 export type EvaluationVersionId = Brand<string, "EvaluationVersionId">;
 export type EvaluationCompetencyScoreId = Brand<string, "EvaluationCompetencyScoreId">;
 
-export type EvaluationProviderKey = "development" | "deepseek";
+export type EvaluationProviderKey = "deterministic" | "openai";
 export type EvaluationStatus = "pending" | "processing" | "ready" | "failed" | "superseded";
 export type ConfidenceLevel = "high" | "moderate" | "limited" | "insufficient_evidence";
 

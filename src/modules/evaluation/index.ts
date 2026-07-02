@@ -1,8 +1,10 @@
 export {
   createEvaluationProvider,
-  DeepSeekEvaluationProvider,
-  DevelopmentEvaluationProvider,
+  DeterministicEvaluationProvider,
   EvaluationProviderError,
+  getOpenAIEvaluationSchema,
+  OpenAIEvaluationProvider,
+  parseOpenAIProviderOutput,
 } from "./providers";
 export { PrismaEvaluationRepository } from "./prisma-evaluation-repository";
 export { EvaluationDomainError, EvaluationService, validateProviderResult } from "./service";

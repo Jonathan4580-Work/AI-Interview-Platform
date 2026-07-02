@@ -34,7 +34,7 @@ No real candidate data may be copied into staging.
 10. Deploy worker services with `Dockerfile.worker`, not the web `Dockerfile`.
 11. Bootstrap the first staging administrators with `npm run bootstrap:staging` from an interactive shell inside the staging service.
 12. Configure email sandbox.
-13. Configure deterministic development or sandbox providers.
+13. Configure deterministic local/test providers or OpenAI staging evaluation with `EVALUATION_PROVIDER=openai`, server-only `OPENAI_API_KEY`, `OPENAI_MODEL=gpt-5-mini`, and `OPENAI_API_URL=https://api.openai.com/v1`.
 14. Run synthetic interview flow.
 15. Run browser/device matrix.
 16. Run restore validation against an isolated staging restore.
@@ -47,6 +47,8 @@ No real candidate data may be copied into staging.
 - Session, CSRF, token pepper, encryption, SMTP, object-storage, and backup references must use managed `secret://` identifiers.
 - Railway private-network PostgreSQL and Redis URLs are allowed in staging.
 - Final production still requires PostgreSQL TLS parameters and `rediss://`.
+- If OpenAI evaluation is enabled, `OPENAI_API_KEY` must be configured on both web and worker services. It must not use a `NEXT_PUBLIC_` prefix.
+- Run `npm run staging:openai-smoke` from a staging shell after setting OpenAI credentials.
 
 ## Staging Administrator Bootstrap
 

@@ -241,7 +241,7 @@ Owns rubric-based evaluation and AI provider abstraction.
 Responsibilities:
 
 - Provider-agnostic evaluation interface.
-- DeepSeek adapter later.
+- OpenAI production evaluation adapter.
 - Rubric scoring.
 - Evidence citations.
 - Evaluation versioning.
@@ -532,7 +532,7 @@ The evaluation module should define:
 - Confidence and uncertainty fields
 - Evidence citation mapping
 
-DeepSeek integration is planned for evaluation only and should be added as an adapter, not embedded directly in business logic.
+OpenAI is the only production evaluation provider and remains isolated behind the evaluation provider adapter.
 
 AI output is decision support only. HR-facing UI must preserve human ownership of recommendations, score overrides, and final decisions.
 

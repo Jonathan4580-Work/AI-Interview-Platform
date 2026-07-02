@@ -30,7 +30,7 @@ Phase 11 reviewed security controls across authentication, candidate sessions, C
 ## Remaining Accepted Risks
 
 - In-memory rate limiting must move to Redis or edge infrastructure before horizontally scaled production.
-- DeepSeek live integration still requires provider-specific staging validation with a real key.
+- OpenAI live integration still requires provider-specific staging validation with a real key.
 - Full browser/media load testing requires Phase 13 staging infrastructure.
 - Query plan verification against production-sized data remains a Phase 13 readiness task.
 - Screen-reader and real-device accessibility checks remain manual before production pilot.

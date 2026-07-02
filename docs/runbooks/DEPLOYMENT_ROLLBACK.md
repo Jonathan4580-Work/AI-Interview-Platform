@@ -54,7 +54,7 @@ Phase 11 prepares deployment safety rules only. It does not perform production d
 - Queue depth and oldest job age.
 - Audit write path.
 - Candidate token exchange smoke.
-- Workflow processing smoke with development providers in non-production.
+- Workflow processing smoke with deterministic providers in non-production.
 
 ## Phase 13 Launch Rollback Controls
 

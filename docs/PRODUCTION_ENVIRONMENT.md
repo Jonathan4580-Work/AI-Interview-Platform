@@ -30,7 +30,7 @@ Runtime-only:
 - SMTP/provider configuration.
 - Object-storage credentials and secret references.
 - Session, CSRF, token pepper, and encryption secret references.
-- DeepSeek/provider secrets.
+- OpenAI provider secrets.
 - SSO, SCIM, ATS, webhook secret references.
 - Worker concurrency.
 - Observability endpoints.
@@ -61,7 +61,8 @@ All variables in `.env.production.example` are server-only unless a future varia
 
 Keep optional providers disabled until configured:
 
-- `EVALUATION_PROVIDER=development` until DeepSeek is approved.
+- `EVALUATION_PROVIDER=openai` when production evaluation is enabled.
+- `OPENAI_API_KEY`, `OPENAI_MODEL`, and `OPENAI_API_URL` only when OpenAI evaluation is enabled.
 - `TRANSCRIPTION_PROVIDER=development` until a production STT provider is selected.
 - `WEBHOOK_SIGNING_SECRET_REF` only when real outbound webhooks are enabled.
 - `SSO_GOOGLE_CLIENT_SECRET_REF` and `SSO_MICROSOFT_CLIENT_SECRET_REF` only after provider setup.
@@ -78,7 +79,7 @@ Keep optional providers disabled until configured:
 | Application encryption key          | Managed KMS/secret store                  | Rotate through key-version support before deleting old key           |
 | SMTP credentials                    | Managed secret store                      | Rotate after provider key creation and delivery smoke test           |
 | Object-storage access keys          | Managed secret store or workload identity | Prefer workload identity; rotate key with upload/download smoke test |
-| DeepSeek key                        | Managed secret store                      | Rotate with provider health and schema validation                    |
+| OpenAI key                          | Managed secret store                      | Rotate with provider health and schema validation                    |
 | Webhook signing secrets             | Managed secret store                      | Support per-subscription rotation window                             |
 | SCIM bearer token material          | Hash or managed secret reference          | Rotate per tenant; revoke old token after propagation                |
 | SSO OAuth client secrets            | Managed secret store                      | Rotate in IdP first, then Aptly                                      |
@@ -95,7 +96,7 @@ Production validation fails when:
 - Redis does not use `rediss://`.
 - Required secret references are absent or do not use `secret://`.
 - Production SMTP is enabled without host, port, from address, and reply-to address.
-- DeepSeek is selected without API key or managed secret reference.
+- OpenAI is selected without server-only `OPENAI_API_KEY`.
 
 Staging validation fails when:
 

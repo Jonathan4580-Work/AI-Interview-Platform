@@ -61,11 +61,10 @@ const environmentSchema = z
     WORKER_WEBHOOKS_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(5),
     WORKER_TENANT_FAIRNESS_LIMIT: z.coerce.number().int().min(1).max(100).default(10),
     TRANSCRIPTION_PROVIDER: z.enum(["development"]).default("development"),
-    EVALUATION_PROVIDER: z.enum(["development", "deepseek"]).default("development"),
-    DEEPSEEK_API_URL: z.string().url().default("https://api.deepseek.com/chat/completions"),
-    DEEPSEEK_API_KEY: z.string().min(1).optional(),
-    DEEPSEEK_SECRET_REF: secretReferenceSchema.optional(),
-    DEEPSEEK_MODEL: z.string().min(1).default("deepseek-chat"),
+    EVALUATION_PROVIDER: z.enum(["deterministic", "openai"]).default("deterministic"),
+    OPENAI_API_URL: z.string().url().default("https://api.openai.com/v1"),
+    OPENAI_API_KEY: z.string().min(1).optional(),
+    OPENAI_MODEL: z.string().min(1).default("gpt-5-mini"),
     EVALUATION_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
     APTLY_MONITORING_ENABLED: z.enum(["true", "false"]).default("true"),
     WEBHOOK_SIGNING_SECRET_REF: secretReferenceSchema.optional(),
@@ -104,8 +103,16 @@ const environmentSchema = z
     if (value.EMAIL_DELIVERY_MODE === "smtp") {
       requireProductionEmail(context, value);
     }
-    if (value.EVALUATION_PROVIDER === "deepseek" && value.DEEPSEEK_API_KEY === undefined) {
-      requireSecretRef(context, "DEEPSEEK_SECRET_REF", value.DEEPSEEK_SECRET_REF);
+    if (
+      (value.APP_ENV === "staging" || value.APP_ENV === "production") &&
+      value.EVALUATION_PROVIDER === "openai" &&
+      value.OPENAI_API_KEY === undefined
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["OPENAI_API_KEY"],
+        message: "OPENAI_API_KEY is required when OpenAI evaluation is enabled.",
+      });
     }
   });
 

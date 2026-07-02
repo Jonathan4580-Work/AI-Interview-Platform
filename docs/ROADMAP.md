@@ -320,9 +320,10 @@ Deliverables:
 - Score override and decision history.
 - Results-ready notification.
 
-DeepSeek:
+OpenAI:
 
-- Integrate only as an evaluation provider adapter when approved.
+- Use as the only production AI evaluation provider.
+- Keep local and automated tests on the deterministic provider.
 - Keep normalized evaluation schema provider independent.
 
 Exit criteria:

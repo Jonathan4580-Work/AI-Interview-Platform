@@ -10,10 +10,12 @@ import {
 import { AuditWriter, type AuditEventStore, type PersistedAuditEventInput } from "@/modules/audit";
 import { env } from "@/config";
 import {
-  DeepSeekEvaluationProvider,
-  DevelopmentEvaluationProvider,
+  OpenAIEvaluationProvider,
+  DeterministicEvaluationProvider,
   EvaluationDomainError,
   EvaluationService,
+  createEvaluationProvider,
+  parseOpenAIProviderOutput,
   validateProviderResult,
   type EvaluationOverrideRecord,
   type EvaluationProviderResult,
@@ -33,7 +35,9 @@ import type {
 describe("evaluation foundation", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    env.DEEPSEEK_API_KEY = originalDeepSeekApiKey;
+    env.EVALUATION_PROVIDER = originalEvaluationProvider;
+    env.OPENAI_API_KEY = originalOpenAIApiKey;
+    env.OPENAI_MODEL = originalOpenAIModel;
     env.EVALUATION_PROVIDER_TIMEOUT_MS = originalProviderTimeoutMs;
   });
 
@@ -54,8 +58,8 @@ describe("evaluation foundation", () => {
     expect(JSON.stringify(redacted)).not.toContain("candidate@example.com");
   });
 
-  it("development provider returns deterministic evidence-linked results", async () => {
-    const provider = new DevelopmentEvaluationProvider();
+  it("deterministic provider returns deterministic evidence-linked results", async () => {
+    const provider = new DeterministicEvaluationProvider();
     const redactedInput = redactEvaluationInput({
       interviewSessionId,
       transcriptVersionId,
@@ -66,13 +70,13 @@ describe("evaluation foundation", () => {
     const first = await provider.evaluate({ redactedInput, governance });
     const second = await provider.evaluate({ redactedInput, governance });
 
-    expect(first.provider).toBe("development");
+    expect(first.provider).toBe("deterministic");
     expect(first.providerResponseHash).toBe(second.providerResponseHash);
     expect(first.competencies[0]?.evidence[0]?.transcriptSegmentId).toBe("segment_1");
   });
 
-  it("development provider marks missing transcript evidence as insufficient", async () => {
-    const provider = new DevelopmentEvaluationProvider();
+  it("deterministic provider marks missing transcript evidence as insufficient", async () => {
+    const provider = new DeterministicEvaluationProvider();
     const redactedInput = redactEvaluationInput({
       interviewSessionId,
       transcriptVersionId,
@@ -87,11 +91,19 @@ describe("evaluation foundation", () => {
     expect(result.competencies[0]?.score).toBeNull();
   });
 
-  it("DeepSeek adapter remains optional without an API key", async () => {
-    env.DEEPSEEK_API_KEY = undefined;
+  it("selects deterministic and OpenAI providers from configuration", () => {
+    env.EVALUATION_PROVIDER = "deterministic";
+    expect(createEvaluationProvider()).toBeInstanceOf(DeterministicEvaluationProvider);
+
+    env.EVALUATION_PROVIDER = "openai";
+    expect(createEvaluationProvider()).toBeInstanceOf(OpenAIEvaluationProvider);
+  });
+
+  it("OpenAI adapter remains unavailable without an API key", async () => {
+    env.OPENAI_API_KEY = undefined;
 
     await expect(
-      new DeepSeekEvaluationProvider().evaluate({
+      new OpenAIEvaluationProvider().evaluate({
         redactedInput: redactEvaluationInput({
           interviewSessionId,
           transcriptVersionId,
@@ -103,50 +115,58 @@ describe("evaluation foundation", () => {
     ).rejects.toMatchObject({ code: "provider_unavailable" });
   });
 
-  it("normalizes malformed DeepSeek output", async () => {
-    env.DEEPSEEK_API_KEY = "test-key";
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              choices: [{ message: { content: "{not-json" } }],
-              usage: { total_tokens: 12 },
-            }),
-        }),
-      ),
+  it("OpenAI adapter returns validated structured responses", async () => {
+    env.OPENAI_API_KEY = "test-key";
+    env.OPENAI_MODEL = "gpt-5-mini";
+
+    const provider = new OpenAIEvaluationProvider(
+      createOpenAIClientFixture({
+        outputText: JSON.stringify(createOpenAIProviderOutput()),
+      }),
     );
 
-    await expect(
-      new DeepSeekEvaluationProvider().evaluate({
-        redactedInput: redactEvaluationInput({
-          interviewSessionId,
-          transcriptVersionId,
-          rubric: governance.rubric,
-          segments: [createSegment()],
-        }),
-        governance,
+    const result = await provider.evaluate({
+      redactedInput: redactEvaluationInput({
+        interviewSessionId,
+        transcriptVersionId,
+        rubric: governance.rubric,
+        segments: [createSegment()],
       }),
+      governance,
+    });
+
+    expect(result.provider).toBe("openai");
+    expect(result.providerModel).toBe("gpt-5-mini");
+    expect(result.usage).toMatchObject({ inputTokens: 10, outputTokens: 20, totalTokens: 30 });
+    expect(result.competencies[0]?.evidence[0]?.excerpt).toBe("reliable payment workflow");
+  });
+
+  it("normalizes malformed OpenAI output", async () => {
+    env.OPENAI_API_KEY = "test-key";
+
+    await expect(
+      new OpenAIEvaluationProvider(createOpenAIClientFixture({ outputText: "{not-json" })).evaluate(
+        {
+          redactedInput: redactEvaluationInput({
+            interviewSessionId,
+            transcriptVersionId,
+            rubric: governance.rubric,
+            segments: [createSegment()],
+          }),
+          governance,
+        },
+      ),
     ).rejects.toMatchObject({ code: "malformed_output" });
   });
 
-  it("normalizes DeepSeek provider timeouts", async () => {
-    env.DEEPSEEK_API_KEY = "test-key";
-    env.EVALUATION_PROVIDER_TIMEOUT_MS = 1_000;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((_url: unknown, init: { readonly signal?: AbortSignal }) => {
-        init.signal?.dispatchEvent(new Event("abort"));
-        const error = new Error("aborted");
-        error.name = "AbortError";
-        return Promise.reject(error);
-      }),
-    );
-
+  it("normalizes OpenAI provider timeouts", async () => {
+    env.OPENAI_API_KEY = "test-key";
     await expect(
-      new DeepSeekEvaluationProvider().evaluate({
+      new OpenAIEvaluationProvider(
+        createOpenAIClientFixture({
+          rejectWith: Object.assign(new Error("Request timeout"), { name: "TimeoutError" }),
+        }),
+      ).evaluate({
         redactedInput: redactEvaluationInput({
           interviewSessionId,
           transcriptVersionId,
@@ -156,6 +176,72 @@ describe("evaluation foundation", () => {
         governance,
       }),
     ).rejects.toMatchObject({ code: "provider_timeout" });
+  });
+
+  it("normalizes OpenAI rate limits and authentication failures", async () => {
+    env.OPENAI_API_KEY = "test-key";
+    await expect(
+      new OpenAIEvaluationProvider(
+        createOpenAIClientFixture({
+          rejectWith: Object.assign(new Error("rate limited"), { status: 429 }),
+        }),
+      ).evaluate({
+        redactedInput: redactEvaluationInput({
+          interviewSessionId,
+          transcriptVersionId,
+          rubric: governance.rubric,
+          segments: [createSegment()],
+        }),
+        governance,
+      }),
+    ).rejects.toMatchObject({ code: "provider_retryable" });
+
+    await expect(
+      new OpenAIEvaluationProvider(
+        createOpenAIClientFixture({
+          rejectWith: Object.assign(new Error("unauthorized"), { status: 401 }),
+        }),
+      ).evaluate({
+        redactedInput: redactEvaluationInput({
+          interviewSessionId,
+          transcriptVersionId,
+          rubric: governance.rubric,
+          segments: [createSegment()],
+        }),
+        governance,
+      }),
+    ).rejects.toMatchObject({ code: "provider_unavailable" });
+  });
+
+  it("rejects incomplete OpenAI schema output before persistence", () => {
+    expect(() =>
+      parseOpenAIProviderOutput(
+        JSON.stringify({
+          overallScore: 3,
+          overallConfidence: "moderate",
+          summary: "Missing required fields.",
+        }),
+      ),
+    ).toThrow();
+  });
+
+  it("keeps OpenAI secrets out of provider output metadata", async () => {
+    env.OPENAI_API_KEY = "sk-test-secret";
+    const result = await new OpenAIEvaluationProvider(
+      createOpenAIClientFixture({
+        outputText: JSON.stringify(createOpenAIProviderOutput()),
+      }),
+    ).evaluate({
+      redactedInput: redactEvaluationInput({
+        interviewSessionId,
+        transcriptVersionId,
+        rubric: governance.rubric,
+        segments: [createSegment()],
+      }),
+      governance,
+    });
+
+    expect(JSON.stringify(result)).not.toContain("sk-test-secret");
   });
 
   it("rejects fabricated evidence excerpts", () => {
@@ -254,7 +340,9 @@ describe("evaluation foundation", () => {
 });
 
 const tenant: TenantContext = { companyId: "company_test" as TenantId };
-const originalDeepSeekApiKey = env.DEEPSEEK_API_KEY;
+const originalEvaluationProvider = env.EVALUATION_PROVIDER;
+const originalOpenAIApiKey = env.OPENAI_API_KEY;
+const originalOpenAIModel = env.OPENAI_MODEL;
 const originalProviderTimeoutMs = env.EVALUATION_PROVIDER_TIMEOUT_MS;
 const interviewSessionId = "interview_1" as InterviewSessionId;
 const transcriptId = "transcript_1" as TranscriptId;
@@ -303,7 +391,7 @@ function createService(repo: InMemoryEvaluationRepository, audit: InMemoryAuditS
   return new EvaluationService(
     repo,
     new InMemoryGovernanceRepository(),
-    new DevelopmentEvaluationProvider(),
+    new DeterministicEvaluationProvider(),
     new AuditWriter(audit),
     () => new Date("2026-07-01T00:00:00.000Z"),
   );
@@ -426,7 +514,7 @@ function createProviderResult(overrides: {
 }): EvaluationProviderResult {
   const now = new Date("2026-07-01T00:00:00.000Z");
   return {
-    provider: "development",
+    provider: "deterministic",
     providerModel: "fixture",
     providerModelVersion: "fixture-v1",
     requestStartedAt: now,
@@ -464,4 +552,63 @@ function createProviderResult(overrides: {
     providerResponseHash: "response_hash",
     metadata: {},
   };
+}
+
+function createOpenAIProviderOutput(): unknown {
+  return {
+    overallScore: 3,
+    overallConfidence: "moderate",
+    summary: "Decision-support summary based on cited transcript evidence.",
+    recommendation: "Review the cited evidence before making a hiring decision.",
+    competencies: [
+      {
+        competencyKey: "communication",
+        label: "Communication",
+        score: 3,
+        confidence: "moderate",
+        rationale: "Assessment is based on transcript evidence.",
+        incomplete: false,
+        evidence: [
+          {
+            transcriptSegmentId: "segment_1",
+            interviewTurnId: "turn_1",
+            claim: "Evidence supports the competency assessment.",
+            excerpt: "reliable payment workflow",
+          },
+        ],
+      },
+    ],
+    strengths: ["Provided relevant evidence."],
+    developmentAreas: ["Human review required."],
+    limitations: [],
+  };
+}
+
+function createOpenAIClientFixture(input: {
+  readonly outputText?: string;
+  readonly rejectWith?: Error;
+}) {
+  return {
+    responses: {
+      create: vi.fn(() => {
+        if (input.rejectWith !== undefined) {
+          return Promise.reject(input.rejectWith);
+        }
+        return Promise.resolve({
+          id: "resp_test",
+          created_at: 1_783_000_000,
+          output_text: input.outputText ?? JSON.stringify(createOpenAIProviderOutput()),
+          error: null,
+          incomplete_details: null,
+          usage: {
+            input_tokens: 10,
+            output_tokens: 20,
+            total_tokens: 30,
+            input_tokens_details: { cached_tokens: 0 },
+            output_tokens_details: { reasoning_tokens: 0 },
+          },
+        });
+      }),
+    },
+  } as never;
 }

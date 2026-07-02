@@ -10,7 +10,7 @@ describe("environment validation", () => {
       NODE_ENV: "development",
       APP_ENV: "development",
       APP_URL: "http://localhost:3000",
-      EVALUATION_PROVIDER: "development",
+      EVALUATION_PROVIDER: "deterministic",
     });
   });
 
@@ -83,6 +83,26 @@ describe("environment validation", () => {
       REDIS_URL: "rediss://:secret@redis.example.com:6379",
       SMTP_SECRET_REF: "secret://production/aptly/smtp",
     });
+  });
+
+  it("requires OpenAI API key when OpenAI evaluation is selected in staging", () => {
+    expect(() => loadEnvironment(stagingEnv({ EVALUATION_PROVIDER: "openai" }))).toThrow();
+    expect(
+      loadEnvironment(
+        stagingEnv({
+          EVALUATION_PROVIDER: "openai",
+          OPENAI_API_KEY: "sk-staging-test",
+          OPENAI_MODEL: "gpt-5-mini",
+        }),
+      ),
+    ).toMatchObject({
+      EVALUATION_PROVIDER: "openai",
+      OPENAI_MODEL: "gpt-5-mini",
+    });
+  });
+
+  it("rejects unsupported evaluation provider configuration", () => {
+    expect(() => loadEnvironment(baseEnv({ EVALUATION_PROVIDER: "legacy_provider" }))).toThrow();
   });
 });
 

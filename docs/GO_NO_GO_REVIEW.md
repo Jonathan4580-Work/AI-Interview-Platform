@@ -44,7 +44,7 @@ This recommendation is based on repository readiness being strong while live inf
 - Live production deployment.
 - Live DNS propagation and certificate issuance.
 - Live SMTP/transactional email deliverability.
-- Live DeepSeek integration.
+- Live OpenAI integration.
 - Live Google/Microsoft OIDC flows.
 - Live SCIM provisioning from an identity provider.
 - Live ATS synchronization.
@@ -54,7 +54,7 @@ This recommendation is based on repository readiness being strong while live inf
 
 ## Requires Credentials
 
-- Production database, Redis, object storage, email, observability, backup storage, DeepSeek, transcription, Google/Microsoft OIDC, SCIM, ATS, and webhook-provider credentials.
+- Production database, Redis, object storage, email, observability, backup storage, OpenAI, transcription, Google/Microsoft OIDC, SCIM, ATS, and webhook-provider credentials.
 
 ## Requires Infrastructure Access
 

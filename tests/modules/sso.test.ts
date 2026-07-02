@@ -104,7 +104,7 @@ describe("SSO foundation", () => {
     }).not.toThrow();
   });
 
-  it("validates safe account linking and development provider metadata", async () => {
+  it("validates safe account linking and deterministic provider metadata", async () => {
     expect(() => {
       validateAccountLinking({
         ssoEmail: "recruiter@example.com",

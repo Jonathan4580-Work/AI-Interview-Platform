@@ -13,27 +13,30 @@ No live provider credentials are configured. No production provider connection w
 - Record timeout, retry, quota, regional policy, and rollback behavior.
 - Disable provider integrations before rolling back provider-bound workers.
 
-## DeepSeek
+## OpenAI
 
 Required before production use:
 
 - Approved API key in managed secret store.
-- `EVALUATION_PROVIDER=deepseek`.
-- `DEEPSEEK_SECRET_REF` or runtime `DEEPSEEK_API_KEY` from secret manager.
+- `EVALUATION_PROVIDER=openai`.
+- Server-only `OPENAI_API_KEY` injected by the deployment secret manager.
+- `OPENAI_MODEL`, defaulting to `gpt-5-mini` for staging unless a different approved model is selected.
+- `OPENAI_API_URL`, defaulting to `https://api.openai.com/v1`.
 - Timeout and retry validation.
 - Malformed output validation.
 - Usage/cost metadata review.
-- Schema validation smoke test.
+- Schema validation smoke test with `npm run staging:openai-smoke`.
 
 Rules:
 
-- Development provider remains available outside production.
-- DeepSeek output never exposes chain-of-thought.
+- Deterministic provider remains available for local development and automated tests.
+- OpenAI output never exposes chain-of-thought.
 - AI output never changes candidate/application status automatically.
+- `OPENAI_API_KEY` must never be exposed through browser bundles, API responses, logs, audit records, health endpoints, or documentation examples.
 
 ## Transcription Provider
 
-Current status: development provider only.
+Current status: provider-neutral transcription remains deterministic only.
 
 Before production:
 

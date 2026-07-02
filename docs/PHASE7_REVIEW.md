@@ -8,7 +8,7 @@ Scope: Phase 7 Browser Interview Session only. This review covered the candidate
 
 Phase 7 is approved for Phase 8 after the hardening fixes listed below.
 
-No camera monitoring, face detection, looking-away detection, multiple-face detection, focus-loss scoring, adaptive AI follow-ups, transcription processors, DeepSeek integration, evaluation, scoring, reports, analytics dashboards, HR dashboards, or admin dashboards were added during this review.
+No camera monitoring, face detection, looking-away detection, multiple-face detection, focus-loss scoring, adaptive AI follow-ups, transcription processors, OpenAI integration, evaluation, scoring, reports, analytics dashboards, HR dashboards, or admin dashboards were added during this review.
 
 ## Findings
 

@@ -2,7 +2,7 @@
 
 ## Scope
 
-This review covers the Railway staging product surface for the HR-to-candidate-to-results workflow. It does not certify live external providers. The only externally allowed pending credentials are production SMTP or transactional-email credentials and a production DeepSeek API key.
+This review covers the Railway staging product surface for the HR-to-candidate-to-results workflow. It does not certify live external providers. The only externally allowed pending credentials are production SMTP or transactional-email credentials and a production OpenAI API key.
 
 ## Evidence Available In Repository
 
@@ -35,7 +35,7 @@ This review covers the Railway staging product surface for the HR-to-candidate-t
 | Monitoring notices         | implemented; requires browser/Railway verification                                  | Neutral monitoring notices/events are separate from scoring.                                                                                            |
 | Worker processing          | implemented; requires Railway worker log/smoke verification                         | Worker starts email and orchestration; media finalization, transcription, evaluation, reporting, and notifications run as workflow steps.               |
 | Transcription              | implemented; requires completed interview smoke                                     | Development provider is deterministic and does not need external credentials.                                                                           |
-| Evaluation                 | implemented; requires completed interview smoke                                     | Development provider is deterministic; DeepSeek remains optional.                                                                                       |
+| Evaluation                 | implemented; requires completed interview smoke                                     | Deterministic provider is available for local/test runs; OpenAI is the production evaluation provider.                                                  |
 | Reports                    | implemented; requires completed interview smoke                                     | HR report generation exists and keeps AI decision support separate.                                                                                     |
 | Search                     | implemented; requires Railway smoke verification                                    | Tenant-scoped search page/API exist.                                                                                                                    |
 | Exports                    | implemented; requires Railway smoke verification                                    | Export page/API and signed download foundations exist.                                                                                                  |
@@ -84,4 +84,4 @@ Do not mark staging complete until all three pass with synthetic data.
 - Object storage must be configured and pass `npm run staging:object-storage-smoke` in Railway.
 - The complete candidate browser recording flow must be exercised in Railway after object storage is configured.
 - Email preview must be verified from the existing delivery/provider surface. Production SMTP credentials remain external.
-- DeepSeek production API key remains external; deterministic development evaluation is available without it.
+- OpenAI production API key remains external; deterministic evaluation is available without it.

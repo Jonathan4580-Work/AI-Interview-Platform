@@ -80,7 +80,7 @@ Large-data query-plan validation remains a Phase 13 staging task.
 ## Remaining Accepted Risks
 
 - In-memory rate limiting is not horizontally shared and must be replaced or backed by Redis/edge controls before scaled production.
-- DeepSeek live API behavior requires staging validation with a real key.
+- OpenAI live API behavior requires staging validation with a real key.
 - Object-storage restore and media latency testing require staging infrastructure.
 - Full scheduled retention deletion workers remain future operational work.
 - Manual accessibility testing remains required before production pilot.

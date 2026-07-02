@@ -1,0 +1,2 @@
+ALTER TYPE "evaluation_provider_key" RENAME VALUE 'DEVELOPMENT' TO 'DETERMINISTIC';
+ALTER TYPE "evaluation_provider_key" RENAME VALUE 'DEEPSEEK' TO 'OPENAI';

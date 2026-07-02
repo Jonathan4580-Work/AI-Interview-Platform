@@ -32,7 +32,7 @@ No P0 issues remain open.
    - Fix: `EvaluationVersionRecord` now exposes `reviewedAt`, and review audit records that value.
 
 2. Provider-edge tests were incomplete.
-   - Fix: added focused tests for DeepSeek-without-key behavior, provider timeout normalization, malformed provider output normalization, low-evidence development provider behavior, and reprocessing version creation.
+   - Fix: added focused tests for OpenAI-without-key behavior, provider timeout normalization, malformed provider output normalization, low-evidence deterministic provider behavior, and reprocessing version creation.
 
 ## Review Results
 
@@ -58,7 +58,7 @@ Transcripts:
 Providers:
 
 - Development transcription and evaluation providers are deterministic and work without external keys.
-- DeepSeek remains optional. Without a key, the adapter returns normalized `provider_unavailable`.
+- OpenAI is the production evaluation provider. Without a key, the adapter returns normalized `provider_unavailable`.
 - Provider timeout, retryable failures, malformed JSON, and schema failures are normalized.
 - Provider secrets are never stored in PostgreSQL, audit logs, queue payloads, or provider metadata.
 
@@ -107,7 +107,7 @@ Notifications:
 
 ## Remaining Accepted Risks
 
-- DeepSeek live API behavior still requires manual integration testing with real credentials in a controlled environment.
+- OpenAI live API behavior still requires manual integration testing with real credentials in a controlled environment.
 - Legal-hold blocking and physical deletion are delegated to existing lifecycle/media modules and were not expanded in this review.
 - Redaction policy currently covers direct email and phone identifiers. Broader NLP-based PII redaction should be evaluated before regulated-enterprise rollout.
 - Transcript correction does not yet have a dedicated internal API in this review; service-level correction exists and reprocessing can be invoked after approved corrections.
@@ -115,7 +115,7 @@ Notifications:
 
 ## Provider And Manual Testing Still Required
 
-- DeepSeek live request/response validation with a non-production key.
+- OpenAI live request/response validation with a non-production key.
 - Provider timeout and retry behavior against real network failures.
 - Manual review of prompt/rubric publication workflows with seeded enterprise data.
 - Manual audit-log review for transcript access, reprocessing, override, and decision events.

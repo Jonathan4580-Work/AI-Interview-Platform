@@ -9,7 +9,7 @@ import {
   hashCandidateToken,
   timingSafeHashEqual,
 } from "@/modules/candidate-portal";
-import { DevelopmentEvaluationProvider } from "@/modules/evaluation";
+import { DeterministicEvaluationProvider } from "@/modules/evaluation";
 import { WorkspaceSearchService, type WorkspaceSearchProvider } from "@/modules/search";
 import { toTenantId } from "@/modules/tenant";
 
@@ -61,7 +61,7 @@ describe("synthetic interview smoke flow", () => {
       "notify_results_ready",
     ]);
 
-    const evaluation = await new DevelopmentEvaluationProvider().evaluate({
+    const evaluation = await new DeterministicEvaluationProvider().evaluate({
       redactedInput: {
         schemaVersion: AI_EVALUATION_SCHEMA_VERSION,
         redactionPolicyVersion: AI_REDACTION_POLICY_VERSION,
@@ -85,7 +85,7 @@ describe("synthetic interview smoke flow", () => {
       governance,
     });
 
-    expect(evaluation.provider).toBe("development");
+    expect(evaluation.provider).toBe("deterministic");
     expect(evaluation.providerResponseHash).toHaveLength(64);
     expect(evaluation.competencies[0]?.evidence[0]?.transcriptSegmentId).toBe(
       "synthetic_segment_1",

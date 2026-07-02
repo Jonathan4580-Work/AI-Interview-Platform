@@ -12,7 +12,7 @@ Phase 13 prepared Aptly for a controlled production launch without provisioning 
 | CI/CD foundation            | Implemented                    | GitHub Actions validates build, lint, tests, audit, compose config, and container build.                   |
 | Staging deployment          | Requires infrastructure access | Manifests and steps exist, but no staging environment was available.                                       |
 | Production deployment       | Requires infrastructure access | No production deployment was performed.                                                                    |
-| Provider credentials        | Requires credentials           | DeepSeek, SSO, SCIM, ATS, SMTP, object storage, and observability credentials remain external.             |
+| Provider credentials        | Requires credentials           | OpenAI, SSO, SCIM, ATS, SMTP, object storage, and observability credentials remain external.               |
 | DNS/TLS/email domain setup  | Requires infrastructure access | Records and verification steps are documented but not applied.                                             |
 | Backup/restore drill        | Partially verified             | Repository procedures and local-compatible checks exist; managed PITR/RPO/RTO are not proven.              |
 | Browser/device validation   | Requires manual validation     | Matrix is documented; live device/browser testing was not performed here.                                  |
@@ -48,7 +48,7 @@ Phase 13 prepared Aptly for a controlled production launch without provisioning 
 
 ## Requires Credentials
 
-- Production PostgreSQL, Redis, object storage, SMTP/transactional email, observability, backup storage, DeepSeek, transcription provider, Google OIDC, Microsoft Entra, SCIM, ATS, and webhook provider credentials.
+- Production PostgreSQL, Redis, object storage, SMTP/transactional email, observability, backup storage, OpenAI, transcription provider, Google OIDC, Microsoft Entra, SCIM, ATS, and webhook provider credentials.
 - Managed secret references must be created in the selected deployment platform before launch.
 
 ## Requires Infrastructure Access

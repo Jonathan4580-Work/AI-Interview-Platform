@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import OpenAI from "openai";
 import { z } from "zod";
 
 import { env } from "@/config";
@@ -9,56 +10,154 @@ import type {
   EvaluationProviderResult,
   ProviderCompetencyResult,
 } from "./types";
+import type { Response } from "openai/resources/responses/responses";
 
 const providerConfidenceSchema = z.enum(["high", "moderate", "limited", "insufficient_evidence"]);
 
-const providerResponseSchema = z.object({
-  overallScore: z.number().min(1).max(5).nullable(),
-  overallConfidence: providerConfidenceSchema,
-  summary: z.string().min(1).max(4_000),
-  recommendation: z.string().max(1_000).nullable(),
-  competencies: z
-    .array(
-      z.object({
-        competencyKey: z.string().min(1).max(80),
-        label: z.string().min(1).max(160),
-        score: z.number().min(1).max(5).nullable(),
-        confidence: providerConfidenceSchema,
-        rationale: z.string().min(1).max(2_000),
-        incomplete: z.boolean(),
-        evidence: z.array(
-          z.object({
-            transcriptSegmentId: z.string().nullable(),
-            interviewTurnId: z.string().nullable(),
-            claim: z.string().min(1).max(1_000),
-            excerpt: z.string().min(1).max(1_000),
-          }),
-        ),
-      }),
-    )
-    .min(1),
-  strengths: z.array(z.string().min(1).max(1_000)).max(10),
-  developmentAreas: z.array(z.string().min(1).max(1_000)).max(10),
-  limitations: z
-    .array(
-      z.object({
-        code: z.string().min(1).max(80),
-        message: z.string().min(1).max(1_000),
-        confidenceImpact: providerConfidenceSchema,
-      }),
-    )
-    .max(10),
-});
+const providerEvidenceSchema = z
+  .object({
+    transcriptSegmentId: z.string().nullable(),
+    interviewTurnId: z.string().nullable(),
+    claim: z.string().min(1).max(1_000),
+    excerpt: z.string().min(1).max(1_000),
+  })
+  .strict();
 
-export class DevelopmentEvaluationProvider implements EvaluationProvider {
-  public readonly providerKey = "development" as const;
+const providerCompetencySchema = z
+  .object({
+    competencyKey: z.string().min(1).max(80),
+    label: z.string().min(1).max(160),
+    score: z.number().min(1).max(5).nullable(),
+    confidence: providerConfidenceSchema,
+    rationale: z.string().min(1).max(2_000),
+    incomplete: z.boolean(),
+    evidence: z.array(providerEvidenceSchema),
+  })
+  .strict();
+
+const providerLimitationSchema = z
+  .object({
+    code: z.string().min(1).max(80),
+    message: z.string().min(1).max(1_000),
+    confidenceImpact: providerConfidenceSchema,
+  })
+  .strict();
+
+const providerResponseSchema = z
+  .object({
+    overallScore: z.number().min(1).max(5).nullable(),
+    overallConfidence: providerConfidenceSchema,
+    summary: z.string().min(1).max(4_000),
+    recommendation: z.string().max(1_000).nullable(),
+    competencies: z.array(providerCompetencySchema).min(1),
+    strengths: z.array(z.string().min(1).max(1_000)).max(10),
+    developmentAreas: z.array(z.string().min(1).max(1_000)).max(10),
+    limitations: z.array(providerLimitationSchema).max(10),
+  })
+  .strict();
+
+const OPENAI_EVALUATION_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "overallScore",
+    "overallConfidence",
+    "summary",
+    "recommendation",
+    "competencies",
+    "strengths",
+    "developmentAreas",
+    "limitations",
+  ],
+  properties: {
+    overallScore: { type: ["number", "null"], minimum: 1, maximum: 5 },
+    overallConfidence: confidenceJsonSchema(),
+    summary: { type: "string", minLength: 1, maxLength: 4000 },
+    recommendation: { type: ["string", "null"], maxLength: 1000 },
+    competencies: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "competencyKey",
+          "label",
+          "score",
+          "confidence",
+          "rationale",
+          "incomplete",
+          "evidence",
+        ],
+        properties: {
+          competencyKey: { type: "string", minLength: 1, maxLength: 80 },
+          label: { type: "string", minLength: 1, maxLength: 160 },
+          score: { type: ["number", "null"], minimum: 1, maximum: 5 },
+          confidence: confidenceJsonSchema(),
+          rationale: { type: "string", minLength: 1, maxLength: 2000 },
+          incomplete: { type: "boolean" },
+          evidence: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["transcriptSegmentId", "interviewTurnId", "claim", "excerpt"],
+              properties: {
+                transcriptSegmentId: { type: ["string", "null"] },
+                interviewTurnId: { type: ["string", "null"] },
+                claim: { type: "string", minLength: 1, maxLength: 1000 },
+                excerpt: { type: "string", minLength: 1, maxLength: 1000 },
+              },
+            },
+          },
+        },
+      },
+    },
+    strengths: {
+      type: "array",
+      maxItems: 10,
+      items: { type: "string", minLength: 1, maxLength: 1000 },
+    },
+    developmentAreas: {
+      type: "array",
+      maxItems: 10,
+      items: { type: "string", minLength: 1, maxLength: 1000 },
+    },
+    limitations: {
+      type: "array",
+      maxItems: 10,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["code", "message", "confidenceImpact"],
+        properties: {
+          code: { type: "string", minLength: 1, maxLength: 80 },
+          message: { type: "string", minLength: 1, maxLength: 1000 },
+          confidenceImpact: confidenceJsonSchema(),
+        },
+      },
+    },
+  },
+} as const;
+
+interface OpenAIResponsesClient {
+  responses: {
+    create(
+      body: Parameters<OpenAI["responses"]["create"]>[0],
+      options?: Parameters<OpenAI["responses"]["create"]>[1],
+    ): Promise<Response>;
+  };
+}
+
+export class DeterministicEvaluationProvider implements EvaluationProvider {
+  public readonly providerKey = "deterministic" as const;
 
   public evaluate(
     input: Parameters<EvaluationProvider["evaluate"]>[0],
   ): Promise<EvaluationProviderResult> {
     const started = new Date();
     if (input.redactedInput.segments.length === 0) {
-      return Promise.resolve(createEmptyDevelopmentResult(input, started));
+      return Promise.resolve(createEmptyDeterministicResult(input, started));
     }
 
     const firstSegment = input.redactedInput.segments[0];
@@ -102,76 +201,80 @@ export class DevelopmentEvaluationProvider implements EvaluationProvider {
       | "developmentAreas"
       | "limitations"
     >;
-    return Promise.resolve(createDevelopmentResult(input, started, response));
+    return Promise.resolve(createDeterministicResult(input, started, response));
   }
 }
 
-export class DeepSeekEvaluationProvider implements EvaluationProvider {
-  public readonly providerKey = "deepseek" as const;
+export class OpenAIEvaluationProvider implements EvaluationProvider {
+  public readonly providerKey = "openai" as const;
+
+  public constructor(private readonly client: OpenAIResponsesClient = createOpenAIClient()) {}
 
   public async evaluate(
     input: Parameters<EvaluationProvider["evaluate"]>[0],
   ): Promise<EvaluationProviderResult> {
-    if (!env.DEEPSEEK_API_KEY) {
+    if (!env.OPENAI_API_KEY) {
       throw new EvaluationProviderError(
-        "DeepSeek API key is not configured.",
+        "OpenAI API key is not configured.",
         "provider_unavailable",
       );
     }
     const started = new Date();
-    const controller = new AbortController();
-    const timeout = setTimeout(() => {
-      controller.abort();
-    }, env.EVALUATION_PROVIDER_TIMEOUT_MS);
     try {
-      const response = await fetch(env.DEEPSEEK_API_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${env.DEEPSEEK_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: env.DEEPSEEK_MODEL,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: input.governance.prompt.systemPrompt },
-            {
-              role: "user",
-              content: `${input.governance.prompt.userPromptTemplate}\n${JSON.stringify(input.redactedInput)}`,
+      const response = await this.client.responses.create(
+        {
+          model: env.OPENAI_MODEL,
+          instructions: [
+            input.governance.prompt.systemPrompt,
+            "Return only the requested structured JSON. Do not include hidden reasoning, chain-of-thought, protected-characteristic inferences, appearance-based scoring, misconduct verdicts, candidate ranking, or automatic hiring decisions.",
+          ].join("\n\n"),
+          input: `${input.governance.prompt.userPromptTemplate}\n\nEvaluation input:\n${JSON.stringify(
+            input.redactedInput,
+          )}`,
+          text: {
+            format: {
+              type: "json_schema",
+              name: "aptly_evaluation_result",
+              strict: true,
+              schema: OPENAI_EVALUATION_SCHEMA,
             },
-          ],
-        }),
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        throw new EvaluationProviderError("DeepSeek request failed.", "provider_retryable");
+          },
+          store: false,
+        },
+        { timeout: env.EVALUATION_PROVIDER_TIMEOUT_MS },
+      );
+      if (response.error !== null) {
+        throw new EvaluationProviderError("OpenAI response failed.", "provider_retryable");
       }
-      const raw = (await response.json()) as {
-        choices?: readonly { readonly message?: { readonly content?: string } }[];
-        usage?: Record<string, unknown>;
-      };
-      const content = raw.choices?.[0]?.message?.content;
-      if (typeof content !== "string") {
+      if (response.incomplete_details !== null) {
+        throw new EvaluationProviderError("OpenAI response was incomplete.", "provider_retryable");
+      }
+      const output = response.output_text;
+      if (output.trim().length === 0) {
         throw new EvaluationProviderError(
-          "DeepSeek response did not include JSON content.",
+          "OpenAI response did not include JSON content.",
           "malformed_output",
         );
       }
-      const parsed = providerResponseSchema.parse(JSON.parse(content));
+      const parsed = providerResponseSchema.parse(JSON.parse(output));
       const received = new Date();
       return {
         provider: this.providerKey,
-        providerModel: env.DEEPSEEK_MODEL,
+        providerModel: env.OPENAI_MODEL,
         providerModelVersion: null,
         requestStartedAt: started,
         responseReceivedAt: received,
         latencyMs: received.getTime() - started.getTime(),
-        usage: raw.usage ?? {},
-        estimatedCostCents: null,
+        usage: sanitizeOpenAIUsage(response.usage),
+        estimatedCostCents: estimateCostCents(response.usage),
         transcriptConfidence: parsed.overallConfidence,
         providerRequestHash: hashStable(input.redactedInput),
         providerResponseHash: hashStable(parsed),
-        metadata: { schemaVersion: 1 },
+        metadata: {
+          schemaVersion: 1,
+          responseId: response.id,
+          responseCreatedAt: response.created_at,
+        },
         ...parsed,
       };
     } catch (error) {
@@ -184,12 +287,7 @@ export class DeepSeekEvaluationProvider implements EvaluationProvider {
           "malformed_output",
         );
       }
-      if (error instanceof Error && error.name === "AbortError") {
-        throw new EvaluationProviderError("Provider request timed out.", "provider_timeout");
-      }
-      throw new EvaluationProviderError("Provider request failed.", "provider_retryable");
-    } finally {
-      clearTimeout(timeout);
+      throw normalizeOpenAIError(error);
     }
   }
 }
@@ -206,12 +304,20 @@ export class EvaluationProviderError extends Error {
 }
 
 export function createEvaluationProvider(): EvaluationProvider {
-  return env.EVALUATION_PROVIDER === "deepseek"
-    ? new DeepSeekEvaluationProvider()
-    : new DevelopmentEvaluationProvider();
+  return env.EVALUATION_PROVIDER === "openai"
+    ? new OpenAIEvaluationProvider()
+    : new DeterministicEvaluationProvider();
 }
 
-function createEmptyDevelopmentResult(
+export function getOpenAIEvaluationSchema(): Readonly<Record<string, unknown>> {
+  return OPENAI_EVALUATION_SCHEMA;
+}
+
+export function parseOpenAIProviderOutput(output: string) {
+  return providerResponseSchema.parse(JSON.parse(output));
+}
+
+function createEmptyDeterministicResult(
   input: Parameters<EvaluationProvider["evaluate"]>[0],
   started: Date,
 ): EvaluationProviderResult {
@@ -226,7 +332,7 @@ function createEmptyDevelopmentResult(
       evidence: [],
     }),
   );
-  return createDevelopmentResult(input, started, {
+  return createDeterministicResult(input, started, {
     overallScore: null,
     overallConfidence: "insufficient_evidence",
     summary: "The interview could not be evaluated because transcript evidence is unavailable.",
@@ -244,7 +350,7 @@ function createEmptyDevelopmentResult(
   });
 }
 
-function createDevelopmentResult(
+function createDeterministicResult(
   input: Parameters<EvaluationProvider["evaluate"]>[0],
   started: Date,
   response: Pick<
@@ -261,9 +367,9 @@ function createDevelopmentResult(
 ): EvaluationProviderResult {
   const received = new Date();
   return {
-    provider: "development",
+    provider: "deterministic",
     providerModel: "deterministic-development-evaluator",
-    providerModelVersion: "evaluation-dev-v1",
+    providerModelVersion: "evaluation-deterministic-v1",
     requestStartedAt: started,
     responseReceivedAt: received,
     latencyMs: received.getTime() - started.getTime(),
@@ -278,6 +384,70 @@ function createDevelopmentResult(
     metadata: { schemaVersion: 1 },
     ...response,
   };
+}
+
+function createOpenAIClient(): OpenAIResponsesClient {
+  return new OpenAI({
+    apiKey: env.OPENAI_API_KEY ?? "missing-openai-api-key",
+    baseURL: env.OPENAI_API_URL,
+    timeout: env.EVALUATION_PROVIDER_TIMEOUT_MS,
+  });
+}
+
+function normalizeOpenAIError(error: unknown): EvaluationProviderError {
+  if (error instanceof OpenAI.APIError) {
+    if (error.status === 401 || error.status === 403) {
+      return new EvaluationProviderError("OpenAI authentication failed.", "provider_unavailable");
+    }
+    if (error.status === 429 || (error.status !== undefined && error.status >= 500)) {
+      return new EvaluationProviderError("OpenAI request failed.", "provider_retryable");
+    }
+    return new EvaluationProviderError("OpenAI request failed.", "provider_retryable");
+  }
+  const status = readHttpStatus(error);
+  if (status === 401 || status === 403) {
+    return new EvaluationProviderError("OpenAI authentication failed.", "provider_unavailable");
+  }
+  if (status === 429 || (status !== null && status >= 500)) {
+    return new EvaluationProviderError("OpenAI request failed.", "provider_retryable");
+  }
+  if (error instanceof Error && (error.name === "AbortError" || /timeout/iu.test(error.message))) {
+    return new EvaluationProviderError("OpenAI request timed out.", "provider_timeout");
+  }
+  return new EvaluationProviderError("OpenAI request failed.", "provider_retryable");
+}
+
+function readHttpStatus(error: unknown): number | null {
+  if (error !== null && typeof error === "object" && "status" in error) {
+    const status = (error as { readonly status?: unknown }).status;
+    return typeof status === "number" ? status : null;
+  }
+  return null;
+}
+
+function sanitizeOpenAIUsage(usage: Response["usage"] | null | undefined): Record<string, unknown> {
+  if (usage === null || usage === undefined) {
+    return {};
+  }
+  return {
+    inputTokens: usage.input_tokens,
+    outputTokens: usage.output_tokens,
+    totalTokens: usage.total_tokens,
+  };
+}
+
+function estimateCostCents(usage: Response["usage"] | null | undefined): number | null {
+  if (usage === null || usage === undefined) {
+    return null;
+  }
+  return 0;
+}
+
+function confidenceJsonSchema() {
+  return {
+    type: "string",
+    enum: ["high", "moderate", "limited", "insufficient_evidence"],
+  } as const;
 }
 
 function hashStable(value: unknown): string {

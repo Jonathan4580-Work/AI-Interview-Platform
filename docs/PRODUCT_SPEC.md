@@ -255,7 +255,7 @@ Evaluation output:
 - Confidence and uncertainty indicators.
 - Provider, model, prompt, and rubric version metadata.
 
-DeepSeek may later be integrated for evaluation only. The evaluation module must expose a provider interface and store normalized evaluation results independent of provider payloads.
+OpenAI is Aptly's production AI evaluation provider. The evaluation module must expose a provider interface and store normalized evaluation results independent of provider payloads. Local and automated tests use the deterministic provider.
 
 AI evaluation is decision support only. HR users may override scores or recommendations with a reason, and the system must preserve decision history.
 

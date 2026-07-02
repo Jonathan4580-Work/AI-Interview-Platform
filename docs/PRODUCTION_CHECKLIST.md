@@ -22,7 +22,7 @@
 | Object storage                    | Requires infrastructure access | Private bucket, SSE, lifecycle, CORS           |
 | Production domains/TLS            | Requires infrastructure access | DNS and certificates pending                   |
 | Email provider                    | Requires credentials           | Sender domain, SPF/DKIM/DMARC pending          |
-| DeepSeek                          | Requires credentials           | Production key and schema smoke pending        |
+| OpenAI                            | Requires credentials           | Production key and schema smoke pending        |
 | SSO providers                     | Requires credentials           | Google/Microsoft tenant setup pending          |
 | SCIM                              | Requires credentials           | IdP sandbox pending                            |
 | ATS integration                   | Requires credentials           | Provider selection pending                     |

@@ -25,7 +25,7 @@ Ready with accepted risk for staging deployment. External production launch requ
 
 ## Provider Data-Sharing Checks Required
 
-- DeepSeek or evaluation provider data-processing terms, region, retention, and logging policy.
+- OpenAI or evaluation provider data-processing terms, region, retention, and logging policy.
 - Transcription provider data-processing terms, region, retention, and logging policy.
 - Email provider processing, bounce/complaint data, and template content handling.
 - Object-storage region and cross-region transfer policy.

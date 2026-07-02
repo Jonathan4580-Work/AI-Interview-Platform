@@ -952,8 +952,8 @@ enum AiArtifactStatus {
 }
 
 enum EvaluationProviderKey {
-  DEVELOPMENT
-  DEEPSEEK
+  DETERMINISTIC
+  OPENAI
 
   @@map("evaluation_provider_key")
 }
