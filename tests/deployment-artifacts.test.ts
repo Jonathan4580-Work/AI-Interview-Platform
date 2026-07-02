@@ -56,15 +56,46 @@ describe("production deployment artifacts", () => {
     expect(workflow).toContain("if: false");
   });
 
-  it("selects the Dockerfile for Railway standalone deployments", () => {
+  it("keeps Railway web config on the standalone web service", () => {
     const railway = JSON.parse(read("railway.json")) as {
       readonly build?: { readonly builder?: string; readonly dockerfilePath?: string };
-      readonly deploy?: { readonly startCommand?: string };
+      readonly deploy?: {
+        readonly startCommand?: string;
+        readonly healthcheckPath?: string;
+        readonly preDeployCommand?: string;
+      };
     };
 
     expect(railway.build?.builder).toBe("DOCKERFILE");
     expect(railway.build?.dockerfilePath).toBe("Dockerfile");
     expect(railway.deploy?.startCommand).toBe("node .next/standalone/server.js");
+    expect(railway.deploy?.healthcheckPath).toBe("/health");
+    expect(railway.deploy?.preDeployCommand).not.toBe("npm run worker:prod");
+  });
+
+  it("keeps Railway worker config free of web healthchecks and migrations", () => {
+    const railway = JSON.parse(read("railway.worker.json")) as {
+      readonly build?: { readonly builder?: string; readonly dockerfilePath?: string };
+      readonly deploy?: {
+        readonly startCommand?: string;
+        readonly healthcheckPath?: string | null;
+        readonly healthcheckTimeout?: number | null;
+        readonly preDeployCommand?: string;
+        readonly restartPolicyType?: string;
+      };
+    };
+    const serialized = JSON.stringify(railway);
+
+    expect(railway.build?.builder).toBe("DOCKERFILE");
+    expect(railway.build?.dockerfilePath).toBe("Dockerfile.worker");
+    expect(railway.deploy?.startCommand).toBe("npm run worker:prod");
+    expect(railway.deploy?.healthcheckPath).toBeNull();
+    expect(railway.deploy?.healthcheckTimeout).toBeNull();
+    expect(railway.deploy?.restartPolicyType).toBe("ALWAYS");
+    expect(railway.deploy?.preDeployCommand).toBeUndefined();
+    expect(serialized).not.toContain("/health");
+    expect(serialized).not.toContain(".next/standalone/server.js");
+    expect(serialized).not.toContain("prisma migrate deploy");
   });
 });
 

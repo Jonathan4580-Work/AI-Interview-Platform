@@ -97,19 +97,38 @@ Use the existing web service command for the Next.js application:
 node .next/standalone/server.js
 ```
 
+For the Railway web service, keep config-as-code pointed at the root web config file:
+
+```powershell
+/railway.json
+```
+
 Create a separate Railway worker service from the same repository for queued email and post-interview processing. The worker service must select the dedicated worker Dockerfile:
 
 ```powershell
 Dockerfile.worker
 ```
 
-That image intentionally skips the Next.js production build and runs the worker entrypoint directly. Use this start command:
+Because Railway config-as-code overrides dashboard settings, configure the `aptly-worker` service to use its own config file:
+
+1. Open the `aptly-worker` service in Railway.
+2. Go to **Settings**.
+3. Open **Config-as-code**.
+4. Set **Config File Path** to the absolute repository path:
+
+```powershell
+/railway.worker.json
+```
+
+That file selects `Dockerfile.worker`, disables HTTP healthchecks for the background worker, and sets the worker start command:
 
 ```powershell
 npm run worker:prod
 ```
 
 If Railway uses the Dockerfile command, no custom start command is required because `Dockerfile.worker` already has `CMD ["npm", "run", "worker:prod"]`. If Railway overrides commands per service, set the worker start command to `npm run worker:prod`.
+
+After `/railway.worker.json` is active, remove `RAILWAY_DOCKERFILE_PATH` from the `aptly-worker` service if it was added as a temporary workaround. The Dockerfile path is then controlled by `railway.worker.json`.
 
 Set `STAGING_WORKER_SERVICE_ENABLED=true` only after that worker service is deployed and healthy. Do not claim the end-to-end interview flow works while the worker service is absent.
 
