@@ -12,9 +12,11 @@ import {
   updateApplicationStageAction,
 } from "@/server/hr-workspace/actions";
 import { requireHrWorkspaceContext } from "@/server/hr-workspace/context";
+import { listInvitationPreviewSummaries } from "@/server/hr-workspace/invitation-preview";
 import { getCandidateDetail, listApplicationChoices } from "@/server/hr-workspace/queries";
 
 import { EmptyPanel, Field, NativeSelect, StatusBadge, formatDate } from "../../_components/hr-ui";
+import { InvitationAccessActions } from "./invitation-access-actions";
 
 export default async function CandidateDetailPage({
   params,
@@ -28,6 +30,12 @@ export default async function CandidateDetailPage({
     listApplicationChoices(context),
   ]);
   if (candidate === null) notFound();
+  const invitationPreviewSummaries = await listInvitationPreviewSummaries(
+    context.tenant.companyId,
+    candidate.applications.flatMap((application) =>
+      application.invitations.map((invitation) => invitation.id),
+    ),
+  );
 
   return (
     <div className="grid gap-6">
@@ -111,27 +119,39 @@ export default async function CandidateDetailPage({
                     </div>
                   </div>
                   <div className="mt-4 grid gap-2 text-sm">
-                    {application.invitations.map((invitation) => (
-                      <div
-                        key={invitation.id}
-                        className="flex flex-col gap-2 rounded-md border border-border bg-background p-3 sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <p className="text-muted-foreground">
-                          <StatusBadge value={invitation.status} /> Expires{" "}
-                          {formatDate(invitation.expiresAt)}
-                        </p>
-                        {invitation.status === "CANCELLED" ||
-                        invitation.status === "ACCEPTED" ||
-                        invitation.status === "EXPIRED" ? null : (
-                          <form action={revokeInvitationAction}>
-                            <input type="hidden" name="invitationId" value={invitation.id} />
-                            <Button type="submit" variant="secondary" size="sm">
-                              Revoke
-                            </Button>
-                          </form>
-                        )}
-                      </div>
-                    ))}
+                    {application.invitations.map((invitation) => {
+                      const previewSummary = invitationPreviewSummaries[invitation.id] ?? null;
+                      return (
+                        <div
+                          key={invitation.id}
+                          className="flex flex-col gap-2 rounded-md border border-border bg-background p-3 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <p className="text-muted-foreground">
+                            <StatusBadge value={invitation.status} /> Expires{" "}
+                            {formatDate(invitation.expiresAt)}
+                            {previewSummary === null ? null : (
+                              <> - {previewSummary.deliveryLabel}</>
+                            )}
+                          </p>
+                          <div className="flex flex-col gap-2 sm:items-end">
+                            <InvitationAccessActions
+                              invitationId={invitation.id}
+                              summary={previewSummary}
+                            />
+                            {invitation.status === "CANCELLED" ||
+                            invitation.status === "ACCEPTED" ||
+                            invitation.status === "EXPIRED" ? null : (
+                              <form action={revokeInvitationAction}>
+                                <input type="hidden" name="invitationId" value={invitation.id} />
+                                <Button type="submit" variant="secondary" size="sm">
+                                  Revoke invitation
+                                </Button>
+                              </form>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))
