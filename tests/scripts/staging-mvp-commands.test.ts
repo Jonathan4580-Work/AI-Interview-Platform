@@ -29,6 +29,22 @@ describe("staging MVP commands", () => {
     expect(script).toContain("OBJECT_STORAGE_ENDPOINT");
     expect(script).toContain("STAGING_WORKER_SERVICE_ENABLED");
   });
+
+  it("provides an object-storage smoke command with upload verification and cleanup", () => {
+    const packageJson = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
+      readonly scripts: Record<string, string>;
+    };
+    const script = readFileSync(join(process.cwd(), "scripts/object-storage-smoke.ts"), "utf8");
+
+    expect(packageJson.scripts["staging:object-storage-smoke"]).toBe(
+      "tsx scripts/object-storage-smoke.ts",
+    );
+    expect(script).toContain("createSignedUploadUrl");
+    expect(script).toContain("verifyObject");
+    expect(script).toContain("createSignedDownloadUrl");
+    expect(script).toContain("deleteObject");
+    expect(script).not.toContain("candidate@example.com");
+  });
 });
 
 function read(path: string): string {

@@ -159,6 +159,15 @@ npm run staging:mvp-smoke
 
 The smoke command reports blocked checks instead of faking success when the worker, object storage, invitation, interview completion, transcript, evaluation, or report is missing.
 
+Run the object-storage smoke check before attempting browser recording:
+
+```powershell
+$env:APP_ENV="staging"
+npm run staging:object-storage-smoke
+```
+
+This uploads a tiny synthetic text object through a signed upload URL, verifies object metadata, downloads it through a signed download URL, and deletes it. It uses no real candidate data.
+
 ## Object Storage For Candidate Recording
 
 Candidate browser recording requires real S3-compatible staging storage. Configure:

@@ -5,13 +5,27 @@ import { createPhase9WorkflowHandlers } from "@/modules/evaluation/workflow-hand
 import { createWorkflowOrchestrationWorker } from "@/modules/workflows";
 
 let shutdownRequested = false;
-const workers = [
-  createEmailWorker(),
-  createWorkflowOrchestrationWorker(createPhase9WorkflowHandlers()),
-];
+const workflowStepHandlers = createPhase9WorkflowHandlers();
+const registeredWorkerClasses = [
+  "email",
+  "orchestration",
+  "media-finalization",
+  "transcription",
+  "evaluation",
+  "reporting",
+  "results-notifications",
+] as const;
+const workers = [createEmailWorker(), createWorkflowOrchestrationWorker(workflowStepHandlers)];
 
 assertEmailQueueRegistered();
-logger.info({ workerCount: workers.length }, "Worker process started.");
+logger.info(
+  {
+    workerCount: workers.length,
+    workerClasses: registeredWorkerClasses,
+    workflowStepHandlers: Object.keys(workflowStepHandlers).sort(),
+  },
+  "Worker process started.",
+);
 
 process.on("SIGINT", requestShutdown);
 process.on("SIGTERM", requestShutdown);

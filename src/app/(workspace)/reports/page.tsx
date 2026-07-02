@@ -2,7 +2,6 @@ import { BarChart3, FileText, GitCompareArrows } from "lucide-react";
 
 import { ContentContainer } from "@/components/layout/content-container";
 import { PageHeader } from "@/components/layout/page-header";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const reportSections = [
@@ -46,7 +45,6 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm text-muted-foreground">{section.description}</p>
-                <Badge variant="info">Phase 10</Badge>
               </CardContent>
             </Card>
           );

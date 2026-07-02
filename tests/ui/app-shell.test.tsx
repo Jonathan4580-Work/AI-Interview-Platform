@@ -202,6 +202,15 @@ describe("application shell", () => {
     ).toBeNull();
   });
 
+  it("does not show implementation phase language in normal report copy", async () => {
+    const source = await import("node:fs/promises").then((fs) =>
+      fs.readFile("src/app/(workspace)/reports/page.tsx", "utf8"),
+    );
+
+    expect(source).not.toMatch(/Phase\s+\d+/iu);
+    expect(source).not.toMatch(/foundation ready|development foundation/iu);
+  });
+
   it("uses operational company routes for the product navigation", () => {
     expect(workspaceNavigationRoutes).toEqual([
       "/",
