@@ -1,5 +1,6 @@
 import type { Queue } from "bullmq";
 
+import { env } from "@/config";
 import { AuditWriter } from "@/modules/audit";
 import type { TenantContext } from "@/modules/tenant";
 
@@ -202,7 +203,7 @@ export class EmailService {
     const sending = await this.repository.updateDeliveryStatus({
       companyId: input.tenant.companyId,
       deliveryId: delivery.id,
-      fromStatuses: ["queued"],
+      fromStatuses: ["queued", "deferred", "sending"],
       toStatus: "sending",
       at: new Date(),
     });
@@ -232,13 +233,12 @@ export class EmailService {
 
     try {
       const result = await provider.send({
-        from: {
-          email: smtpProfile?.fromEmail ?? "no-reply@aptly.local",
-          name: smtpProfile?.fromName ?? "Aptly",
-        },
+        from: resolveFromAddress(smtpProfile),
         replyTo:
           smtpProfile?.replyToEmail === null || smtpProfile?.replyToEmail === undefined
-            ? null
+            ? env.SMTP_REPLY_TO_EMAIL === undefined
+              ? null
+              : { email: env.SMTP_REPLY_TO_EMAIL }
             : { email: smtpProfile.replyToEmail },
         to: {
           email: sending.recipientEmail,
@@ -475,5 +475,21 @@ function safeDeliveryAuditSnapshot(delivery: EmailDeliveryRecord): Record<string
     subject: delivery.subject,
     idempotencyKey: delivery.idempotencyKey,
     providerMessageId: delivery.providerMessageId,
+  };
+}
+
+function resolveFromAddress(smtpProfile: SmtpProfileRecord | null): {
+  readonly email: string;
+  readonly name: string;
+} {
+  if (smtpProfile !== null) {
+    return {
+      email: smtpProfile.fromEmail,
+      name: smtpProfile.fromName,
+    };
+  }
+  return {
+    email: env.SMTP_FROM_EMAIL ?? "no-reply@aptly.local",
+    name: env.SMTP_FROM_NAME,
   };
 }

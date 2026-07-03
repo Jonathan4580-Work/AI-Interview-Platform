@@ -82,8 +82,13 @@ export function EmptyPanel({
 export function formatDate(value: Date | string | null | undefined): string {
   if (value === null || value === undefined) return "Not recorded";
   return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: process.env.APP_TIME_ZONE ?? "Asia/Colombo",
+    timeZoneName: "shortOffset",
   }).format(new Date(value));
 }
 

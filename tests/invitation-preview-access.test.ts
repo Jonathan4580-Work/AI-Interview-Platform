@@ -17,7 +17,7 @@ describe("invitation preview access", () => {
     expect(getInvitationDeliveryLabel("SMTP", "DELIVERED")).toBe("Email delivered");
   });
 
-  it("denies expired, revoked, consumed, and terminal invitations", () => {
+  it("allows opened invitations while denying expired, revoked, and terminal invitations", () => {
     const future = new Date("2026-07-05T00:00:00.000Z");
     const now = new Date("2026-07-02T00:00:00.000Z");
     expect(
@@ -45,14 +45,14 @@ describe("invitation preview access", () => {
     expect(
       isInvitationLinkUsable(
         {
-          status: "SENT",
+          status: "OPENED",
           expiresAt: future,
           tokenConsumedAt: now,
           tokenRevokedAt: null,
         },
         now,
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       isInvitationLinkUsable(
         {

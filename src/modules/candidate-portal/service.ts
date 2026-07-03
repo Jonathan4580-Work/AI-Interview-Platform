@@ -69,7 +69,6 @@ export class CandidatePortalService {
     readonly expiresInHours?: number | null;
     readonly idempotencyKey?: string | null;
   }): Promise<{ readonly invitationId: string; readonly expiresAt: Date }> {
-    const expiresAt = computeExpiry(input.expiresInHours ?? null);
     const rawToken = createInvitationToken();
     const tokenHash = hashCandidateToken(rawToken);
 
@@ -84,6 +83,7 @@ export class CandidatePortalService {
       if (existing.status === "ACCEPTED" || existing.status === "EXPIRED") {
         throw new CandidatePortalError("Invitation cannot be activated.", "invalid_state");
       }
+      const expiresAt = computeExpiryFrom(existing.createdAt, input.expiresInHours ?? null);
 
       return tx.candidateInvitation.update({
         where: { companyId_id: { companyId: input.tenant.companyId, id: input.invitationId } },
@@ -108,7 +108,7 @@ export class CandidatePortalService {
     };
     const actionUrl = new URL(
       `/candidate/entry?token=${encodeURIComponent(rawToken)}`,
-      env.APP_URL,
+      env.CANDIDATE_APP_URL ?? env.APP_URL,
     );
     const emailService = new EmailService(
       new PrismaEmailRepository(),
@@ -124,7 +124,7 @@ export class CandidatePortalService {
         recipientName: displayCandidateName(invitation.candidate),
         supportEmail: "support@aptly.local",
         actionUrl: actionUrl.toString(),
-        expirationDate: expiresAt.toISOString(),
+        expirationDate: invitation.expiresAt.toISOString(),
         jobTitle: invitation.job.title,
         estimatedDuration: "30 minutes",
         interviewWindow: "Complete before the expiration date shown above.",
@@ -149,10 +149,15 @@ export class CandidatePortalService {
       {
         resourceType: "candidate_invitation",
         resourceId: invitation.id,
-        after: { id: invitation.id, expiresAt, status: "SENT", tokenHash: "[redacted]" },
+        after: {
+          id: invitation.id,
+          expiresAt: invitation.expiresAt,
+          status: "SENT",
+          tokenHash: "[redacted]",
+        },
       },
     );
-    return { invitationId: invitation.id, expiresAt };
+    return { invitationId: invitation.id, expiresAt: invitation.expiresAt };
   }
 
   public async exchangeToken(input: {
@@ -869,9 +874,9 @@ export class CandidatePortalService {
   }
 }
 
-function computeExpiry(hours: number | null): Date {
+function computeExpiryFrom(createdAt: Date, hours: number | null): Date {
   if (hours === null) {
-    return new Date(Date.now() + DEFAULT_INVITATION_EXPIRY_MS);
+    return new Date(createdAt.getTime() + DEFAULT_INVITATION_EXPIRY_MS);
   }
   const ms = hours * 60 * 60 * 1000;
   if (!Number.isFinite(ms) || ms < MIN_INVITATION_EXPIRY_MS || ms > MAX_INVITATION_EXPIRY_MS) {
@@ -880,7 +885,7 @@ function computeExpiry(hours: number | null): Date {
       "validation_failed",
     );
   }
-  return new Date(Date.now() + ms);
+  return new Date(createdAt.getTime() + ms);
 }
 
 function classifyInvitationForExchange(

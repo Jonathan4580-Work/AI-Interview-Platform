@@ -7,7 +7,7 @@ export const candidateCookieNames = {
   csrf: `${cookiePrefix()}aptly_candidate_csrf`,
 } as const;
 
-const candidateCookiePath = "/candidate";
+const candidateCookiePath = "/";
 
 export function setCandidateCookies(
   response: NextResponse,

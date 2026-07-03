@@ -66,6 +66,10 @@ export class SmtpEmailProvider implements EmailProvider {
       host: this.config.host,
       port: this.config.port,
       secure: this.config.secure,
+      requireTLS: !this.config.secure,
+      connectionTimeout: 15_000,
+      greetingTimeout: 15_000,
+      socketTimeout: 30_000,
       auth:
         secret.username === null && secret.password === null
           ? undefined

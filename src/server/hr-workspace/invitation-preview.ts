@@ -10,7 +10,7 @@ import type {
   CandidateInvitation,
 } from "@prisma/client";
 
-const ACTIVE_INVITATION_STATUSES = new Set(["SENT", "OPENED"]);
+const CANDIDATE_ACCESS_INVITATION_STATUSES = new Set(["QUEUED", "SENT", "OPENED"]);
 
 export interface InvitationPreviewSummary {
   readonly invitationId: string;
@@ -99,13 +99,13 @@ export async function listInvitationPreviewSummaries(
           invitationId: invitation.id,
           provider: delivery?.provider ?? null,
           deliveryStatus: delivery?.status ?? null,
-          deliveryLabel: getInvitationDeliveryLabel(
-            delivery?.provider ?? null,
-            delivery?.status ?? null,
-          ),
+          deliveryLabel:
+            invitation.status === "CANCELLED"
+              ? "Email cancelled"
+              : getInvitationDeliveryLabel(delivery?.provider ?? null, delivery?.status ?? null),
           previewAvailable:
-            delivery?.provider === "PREVIEW" && isInvitationLinkUsable(invitation, now),
-          linkAvailable: delivery !== null && isInvitationLinkUsable(invitation, now),
+            delivery?.provider === "PREVIEW" && isInvitationCandidateAccessAllowed(invitation, now),
+          linkAvailable: delivery !== null && isInvitationCandidateAccessAllowed(invitation, now),
         },
       ];
     }),
@@ -131,7 +131,7 @@ export async function getInvitationPreviewAccess(
   if (invitation === null) {
     throw notFound("Invitation was not found.");
   }
-  if (!isInvitationLinkUsable(invitation, new Date())) {
+  if (!isInvitationCandidateAccessAllowed(invitation, new Date())) {
     throw forbidden("Invitation is not active.");
   }
 
@@ -175,10 +175,19 @@ export function isInvitationLinkUsable(
   >,
   now: Date,
 ): boolean {
+  return isInvitationCandidateAccessAllowed(invitation, now);
+}
+
+export function isInvitationCandidateAccessAllowed(
+  invitation: Pick<
+    CandidateInvitation,
+    "status" | "expiresAt" | "tokenConsumedAt" | "tokenRevokedAt"
+  >,
+  now: Date,
+): boolean {
   return (
-    ACTIVE_INVITATION_STATUSES.has(invitation.status) &&
+    CANDIDATE_ACCESS_INVITATION_STATUSES.has(invitation.status) &&
     invitation.expiresAt.getTime() > now.getTime() &&
-    invitation.tokenConsumedAt === null &&
     invitation.tokenRevokedAt === null
   );
 }

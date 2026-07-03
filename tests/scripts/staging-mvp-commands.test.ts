@@ -14,6 +14,10 @@ describe("staging MVP commands", () => {
     expect(packageJson.scripts?.["staging:reset-company-user-password"]).toBe(
       "tsx scripts/staging-reset-company-user-password.ts",
     );
+    expect(packageJson.scripts?.["staging:smtp-smoke"]).toBe("tsx scripts/staging-smtp-smoke.ts");
+    expect(packageJson.scripts?.["staging:full-flow-status"]).toBe(
+      "tsx scripts/staging-full-flow-status.ts",
+    );
   });
 
   it("keeps demo credentials environment-driven and staging-only", () => {
@@ -59,6 +63,18 @@ describe("staging MVP commands", () => {
     expect(script).toContain("createSignedDownloadUrl");
     expect(script).toContain("deleteObject");
     expect(script).not.toContain("candidate@example.com");
+  });
+
+  it("keeps staging SMTP and full-flow status commands redacted and staging-only", () => {
+    const smtpSmoke = read("scripts/staging-smtp-smoke.ts");
+    const fullFlowStatus = read("scripts/staging-full-flow-status.ts");
+
+    expect(smtpSmoke).toContain('process.env.APP_ENV !== "staging"');
+    expect(smtpSmoke).toContain("STAGING_SMTP_TEST_RECIPIENT");
+    expect(smtpSmoke).not.toContain("SMTP_PASSWORD)");
+    expect(fullFlowStatus).toContain('process.env.APP_ENV !== "staging"');
+    expect(fullFlowStatus).not.toContain("candidateUrl");
+    expect(fullFlowStatus).not.toContain("OPENAI_API_KEY)");
   });
 });
 

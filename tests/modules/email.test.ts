@@ -165,6 +165,22 @@ describe("email delivery lifecycle", () => {
     expect(repo.attempts[0]?.errorCode).toBe("SMTP_421");
   });
 
+  it("retries deferred deliveries instead of leaving them stuck", async () => {
+    const repo = new InMemoryEmailRepository();
+    const delivery = repo.seedDelivery({ status: "deferred" });
+    const provider = new CountingProvider();
+    const service = createTestEmailService(repo, { provider });
+
+    const sent = await service.processQueuedDelivery({
+      tenant,
+      deliveryId: delivery.id,
+    });
+
+    expect(sent.status).toBe("sent");
+    expect(provider.sendCount).toBe(1);
+    expect(repo.attempts[0]?.status).toBe("sent");
+  });
+
   it("records terminal provider failures without retrying permanently rejected messages", async () => {
     const repo = new InMemoryEmailRepository();
     const delivery = repo.seedDelivery({ status: "queued" });
@@ -270,6 +286,26 @@ class ThrowingProvider implements EmailProvider {
         temporary: this.temporary,
       }),
     );
+  }
+
+  public testConnection(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
+class CountingProvider implements EmailProvider {
+  public readonly kind = "smtp";
+  public sendCount = 0;
+
+  public send(): Promise<EmailProviderSendResult> {
+    this.sendCount += 1;
+    return Promise.resolve({
+      provider: "smtp",
+      providerMessageId: "smtp-message-1",
+      accepted: ["candidate@example.com"],
+      rejected: [],
+      responseCode: "250 2.0.0 OK",
+    });
   }
 
   public testConnection(): Promise<void> {

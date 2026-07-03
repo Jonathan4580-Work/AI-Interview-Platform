@@ -282,9 +282,22 @@ export async function sendInvitationAction(formData: FormData): Promise<void> {
 export async function revokeInvitationAction(formData: FormData): Promise<void> {
   const context = await requireHrWorkspaceContext("invitations:manage");
   const invitationId = requiredText(formData, "invitationId", 1, 200);
-  const invitation = await prisma.candidateInvitation.update({
-    where: { companyId_id: { companyId: context.tenant.companyId, id: invitationId } },
-    data: { status: "CANCELLED", tokenRevokedAt: new Date(), cancelledAt: new Date() },
+  const now = new Date();
+  const invitation = await prisma.$transaction(async (tx) => {
+    const updated = await tx.candidateInvitation.update({
+      where: { companyId_id: { companyId: context.tenant.companyId, id: invitationId } },
+      data: { status: "CANCELLED", tokenRevokedAt: now, cancelledAt: now },
+    });
+    await tx.emailDelivery.updateMany({
+      where: {
+        companyId: context.tenant.companyId,
+        templateKey: "INTERVIEW_INVITATION",
+        idempotencyKey: { contains: invitationId },
+        status: { in: ["PENDING", "QUEUED", "DEFERRED", "FAILED"] },
+      },
+      data: { status: "CANCELLED", cancelledAt: now },
+    });
+    return updated;
   });
   await audit(context, "hr_mvp.invitation_revoked", "candidate_invitation", invitation.id, {
     after: { id: invitation.id, status: invitation.status },

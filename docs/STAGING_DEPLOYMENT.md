@@ -183,6 +183,75 @@ npm run staging:object-storage-smoke
 
 This uploads a tiny synthetic text object through a signed upload URL, verifies object metadata, downloads it through a signed download URL, and deletes it. It uses no real candidate data.
 
+Run the SMTP smoke check before relying on Gmail invitation delivery:
+
+```powershell
+$env:APP_ENV="staging"
+$env:STAGING_SMTP_TEST_RECIPIENT="<controlled staging inbox>"
+npm run staging:smtp-smoke
+```
+
+Run the OpenAI smoke check before relying on screening evaluation:
+
+```powershell
+$env:APP_ENV="staging"
+npm run staging:openai-smoke
+```
+
+Run the full-flow status check during the demo:
+
+```powershell
+$env:APP_ENV="staging"
+$env:STAGING_DEMO_COMPANY_SLUG="aptly-synthetic-staging"
+npm run staging:full-flow-status
+```
+
+The status command reports `PASSED`, `BLOCKED`, or `FAILED` for the web, worker, database, Redis, object storage, SMTP, OpenAI, invitation, candidate session, interview, transcript, evaluation, and report milestones. It never prints passwords, API keys, candidate links, candidate tokens, SMTP credentials, email bodies, recordings, transcripts, or candidate answers.
+
+## Required Railway Variables
+
+Set these on the web service and worker service unless noted otherwise:
+
+- `APP_ENV=staging`
+- `NODE_ENV=production`
+- `APP_URL`
+- `CANDIDATE_APP_URL`
+- `INTERNAL_APP_URL`
+- `DATABASE_URL`
+- `REDIS_URL`
+- `SESSION_SECRET_REF`
+- `CSRF_SECRET_REF`
+- `TOKEN_PEPPER_SECRET_REF`
+- `ENCRYPTION_KEY_SECRET_REF`
+- `EMAIL_DELIVERY_MODE=smtp`
+- `SMTP_HOST=smtp.gmail.com`
+- `SMTP_PORT=587`
+- `SMTP_SECURE=false`
+- `SMTP_USERNAME`
+- `SMTP_PASSWORD`
+- `SMTP_FROM_EMAIL`
+- `SMTP_FROM_NAME=Aptly`
+- `SMTP_REPLY_TO_EMAIL`
+- `SMTP_SECRET_REF=secret://staging/aptly/smtp`
+- `OBJECT_STORAGE_PROVIDER`
+- `OBJECT_STORAGE_ENDPOINT`
+- `OBJECT_STORAGE_PUBLIC_ENDPOINT`
+- `OBJECT_STORAGE_REGION`
+- `OBJECT_STORAGE_BUCKET`
+- `OBJECT_STORAGE_FORCE_PATH_STYLE`
+- `OBJECT_STORAGE_ACCESS_KEY_ID`
+- `OBJECT_STORAGE_SECRET_ACCESS_KEY`
+- `OBJECT_STORAGE_SECRET_REF`
+- `OBJECT_STORAGE_CORS_ALLOWED_ORIGINS`
+- `EVALUATION_PROVIDER=openai`
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL=gpt-5-mini`
+- `OPENAI_API_URL=https://api.openai.com/v1`
+- `EVALUATION_PROVIDER_TIMEOUT_MS=30000`
+- `STAGING_WORKER_SERVICE_ENABLED=true`
+
+The web service uses `/railway.json`. The worker service uses `/railway.worker.json`, points to the same PostgreSQL and Redis services, runs `npm run worker:prod`, has no public domain requirement, and does not run migrations. Migrations run once through the web service predeploy flow.
+
 ## Object Storage For Candidate Recording
 
 Candidate browser recording requires real S3-compatible staging storage. Configure:

@@ -3,6 +3,8 @@
  */
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { CandidateShell, CandidateStepLink } from "@/components/candidate/candidate-shell";
@@ -80,5 +82,15 @@ describe("candidate portal UI", () => {
 
     fetchMock.mockRestore();
     replaceState.mockRestore();
+  });
+
+  it("uses root-scoped candidate cookies so API mutations keep the session", () => {
+    const cookieSource = readFileSync(
+      join(process.cwd(), "src/modules/candidate-portal/cookies.ts"),
+      "utf8",
+    );
+
+    expect(cookieSource).toContain('const candidateCookiePath = "/"');
+    expect(cookieSource).not.toContain('const candidateCookiePath = "/candidate"');
   });
 });
