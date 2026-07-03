@@ -8,3 +8,12 @@ dist/
 *.log
 *.tsbuildinfo
 Dockerfile.local
+storage/*
+!storage/recordings/
+!storage/uploads/
+!storage/reports/
+!storage/temp/
+!storage/recordings/.gitkeep
+!storage/uploads/.gitkeep
+!storage/reports/.gitkeep
+!storage/temp/.gitkeep

@@ -120,8 +120,8 @@ export async function listCandidates(context: HrWorkspaceContext, query: string 
         ? {}
         : {
             OR: [
-              { fullName: { contains: search, mode: "insensitive" as const } },
-              { primaryEmail: { contains: search.toLowerCase(), mode: "insensitive" as const } },
+              { fullName: { contains: search } },
+              { primaryEmail: { contains: search.toLowerCase() } },
             ],
           }),
     },

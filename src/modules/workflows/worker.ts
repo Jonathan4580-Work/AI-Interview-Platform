@@ -50,7 +50,7 @@ export function createWorkflowOrchestrationWorker(handlers: WorkflowStepHandlerR
   );
 }
 
-async function processWorkflowJob(
+export async function processWorkflowJob(
   service: WorkflowService,
   handlers: WorkflowStepHandlerRegistry,
   job: Job<WorkflowQueuePayload>,

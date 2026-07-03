@@ -2,9 +2,13 @@ import { Queue } from "bullmq";
 
 import { env } from "@/config";
 
+import { LocalQueueAdapter } from "./local-queue";
 import type { QueueName } from "./queue-names";
 
-export function createQueue(name: QueueName): Queue {
+export function createQueue(name: QueueName): Queue | LocalQueueAdapter {
+  if (env.APP_ENV === "development") {
+    return new LocalQueueAdapter(name);
+  }
   return new Queue(name, {
     connection: {
       url: env.REDIS_URL,

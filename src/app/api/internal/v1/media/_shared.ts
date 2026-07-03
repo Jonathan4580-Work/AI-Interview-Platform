@@ -4,7 +4,7 @@ import { AuditWriter, PrismaAuditEventStore } from "@/modules/audit";
 import {
   MediaService,
   PrismaMediaRepository,
-  S3CompatibleObjectStorageProvider,
+  createObjectStorageProvider,
   type MediaMutationContext,
 } from "@/modules/media";
 import { assertCsrf } from "@/server/api";
@@ -75,7 +75,7 @@ export async function requireMediaContext(
 export function createMediaApiService(): MediaService {
   return new MediaService(
     new PrismaMediaRepository(),
-    new S3CompatibleObjectStorageProvider(),
+    createObjectStorageProvider(),
     new AuditWriter(new PrismaAuditEventStore()),
   );
 }

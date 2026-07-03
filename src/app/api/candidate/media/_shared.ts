@@ -5,7 +5,7 @@ import {
   MediaDomainError,
   MediaService,
   PrismaMediaRepository,
-  S3CompatibleObjectStorageProvider,
+  createObjectStorageProvider,
   type MediaMutationContext,
   type MediaObjectId,
 } from "@/modules/media";
@@ -54,7 +54,7 @@ export async function requireCandidateMediaContext(
 export function createCandidateMediaService(): MediaService {
   return new MediaService(
     new PrismaMediaRepository(),
-    new S3CompatibleObjectStorageProvider(),
+    createObjectStorageProvider(),
     new AuditWriter(new PrismaAuditEventStore()),
   );
 }

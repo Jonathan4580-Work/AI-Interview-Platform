@@ -104,7 +104,7 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
           queueName: step.queueName,
           sequence: step.sequence,
           idempotencyKey: `${input.idempotencyKey}:${step.stepKey}`,
-          dependencyStepKeys: [...(step.dependencyStepKeys ?? [])],
+          dependencyStepKeys: toStringArrayJson(step.dependencyStepKeys ?? []),
           maxAttempts: step.maxAttempts ?? 3,
           checkpointJson: {},
           metadataJson: toInputJson(step.metadata ?? {}),
@@ -333,7 +333,7 @@ function mapStep(record: ProcessingWorkflowStep): ProcessingWorkflowStepRecord {
     status: fromPrismaStepStatus(record.status),
     sequence: record.sequence,
     idempotencyKey: record.idempotencyKey,
-    dependencyStepKeys: record.dependencyStepKeys,
+    dependencyStepKeys: readStringArray(record.dependencyStepKeys),
     attemptCount: record.attemptCount,
     maxAttempts: record.maxAttempts,
     nextRunAt: record.nextRunAt,
@@ -445,4 +445,14 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function toInputJson(value: Record<string, unknown>): Prisma.InputJsonObject {
   return value as Prisma.InputJsonObject;
+}
+
+function toStringArrayJson(value: readonly string[]): Prisma.InputJsonArray {
+  return [...value] as Prisma.InputJsonArray;
+}
+
+function readStringArray(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
 }

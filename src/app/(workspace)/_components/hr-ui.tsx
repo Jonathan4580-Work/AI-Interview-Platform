@@ -87,7 +87,7 @@ export function formatDate(value: Date | string | null | undefined): string {
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
-    timeZone: process.env.APP_TIME_ZONE ?? "Asia/Colombo",
+    timeZone: process.env.APP_TIMEZONE ?? "Asia/Colombo",
     timeZoneName: "shortOffset",
   }).format(new Date(value));
 }

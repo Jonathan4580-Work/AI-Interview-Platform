@@ -90,7 +90,7 @@ export class PrismaAggregateReportStore implements AggregateReportStore {
           ? {}
           : {
               propertiesJson: {
-                path: ["jobId"],
+                path: "$.jobId",
                 equals: input.filters.jobId,
               },
             }),

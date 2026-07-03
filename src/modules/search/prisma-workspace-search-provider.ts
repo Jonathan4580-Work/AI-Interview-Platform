@@ -56,7 +56,7 @@ export class PrismaWorkspaceSearchProvider implements WorkspaceSearchProvider {
 }
 
 function contains(query: string): Prisma.StringFilter {
-  return { contains: query, mode: "insensitive" };
+  return { contains: query };
 }
 
 function score(query: string, values: readonly (string | null | undefined)[]): number {

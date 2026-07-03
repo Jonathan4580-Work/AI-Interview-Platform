@@ -16,12 +16,13 @@ const environmentSchema = z
     APP_URL: z.string().url().default("http://localhost:3000"),
     CANDIDATE_APP_URL: z.string().url().optional(),
     INTERNAL_APP_URL: z.string().url().optional(),
+    APP_TIMEZONE: z.string().min(1).default("Asia/Colombo"),
     LOG_LEVEL: z
       .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
       .default("info"),
     DATABASE_URL: z.string().min(1),
     DIRECT_DATABASE_URL: z.string().min(1).optional(),
-    REDIS_URL: z.string().min(1),
+    REDIS_URL: z.string().min(1).default("redis://localhost:6379"),
     SESSION_SECRET_REF: secretReferenceSchema.optional(),
     CSRF_SECRET_REF: secretReferenceSchema.optional(),
     TOKEN_PEPPER_SECRET_REF: secretReferenceSchema.optional(),
@@ -39,6 +40,8 @@ const environmentSchema = z
     SMTP_PASSWORD: z.string().optional(),
     SMTP_SECRET_REF: secretReferenceSchema,
     OBJECT_STORAGE_SECRET_REF: secretReferenceSchema,
+    STORAGE_PROVIDER: z.enum(["local", "s3", "minio"]).default("local"),
+    LOCAL_STORAGE_ROOT: z.string().min(1).default("./storage"),
     OBJECT_STORAGE_PROVIDER: z.enum(["s3", "minio"]).default("minio"),
     OBJECT_STORAGE_ENDPOINT: z.string().url().default("http://localhost:9000"),
     OBJECT_STORAGE_PUBLIC_ENDPOINT: z.string().url().default("http://localhost:9000"),
