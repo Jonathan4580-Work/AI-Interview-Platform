@@ -36,6 +36,12 @@ export default async function CandidateDetailPage({
       application.invitations.map((invitation) => invitation.id),
     ),
   );
+  const latestResultInterview =
+    candidate.interviewSessions.find((interview) => hasCompletedInterview(interview)) ?? null;
+  const latestTranscript = latestResultInterview?.transcripts.at(0) ?? null;
+  const latestEvaluation = latestResultInterview?.evaluationVersions.at(0) ?? null;
+  const latestReport = latestResultInterview?.hrReports.at(0) ?? null;
+  const latestReportVersion = latestReport?.activeVersion ?? null;
 
   return (
     <div className="grid gap-6">
@@ -226,6 +232,138 @@ export default async function CandidateDetailPage({
 
       <Card>
         <CardHeader>
+          <CardTitle>Latest interview result</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          {latestResultInterview === null ? (
+            <EmptyPanel
+              title="No completed interview result"
+              description="Transcript, evaluation, and report details will appear here after a candidate completes an interview."
+            />
+          ) : (
+            <>
+              <div className="grid gap-3 md:grid-cols-4">
+                <StatusItem label="Interview status" value={latestResultInterview.status} />
+                <StatusItem label="Transcript" value={latestTranscript?.status ?? "Pending"} />
+                <StatusItem label="Evaluation" value={latestEvaluation?.status ?? "Pending"} />
+                <StatusItem label="Report status" value={latestReport?.status ?? "Pending"} />
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
+                <div className="rounded-md border border-border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-foreground">Transcript</p>
+                    <StatusBadge value={latestTranscript?.status ?? "Pending"} />
+                  </div>
+                  {latestTranscript?.activeVersion?.segments.length ? (
+                    <div className="mt-3 grid gap-2">
+                      {latestTranscript.activeVersion.segments.map((segment) => (
+                        <blockquote
+                          key={segment.id}
+                          className="border-l-2 border-border pl-3 text-sm text-muted-foreground"
+                        >
+                          {segment.text}
+                        </blockquote>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Transcript segments are still processing.
+                    </p>
+                  )}
+                </div>
+
+                <div className="rounded-md border border-border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-foreground">Evaluation summary</p>
+                    <StatusBadge value={latestEvaluation?.status ?? "Pending"} />
+                  </div>
+                  {latestEvaluation === null ? (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Evaluation is still processing.
+                    </p>
+                  ) : (
+                    <div className="mt-3 grid gap-3 text-sm">
+                      <p className="text-muted-foreground">{latestEvaluation.summary}</p>
+                      <div className="flex flex-wrap gap-2">
+                        <StatusBadge value={latestEvaluation.overallConfidence} />
+                        <StatusBadge value={`Overall ${String(latestEvaluation.overallScore)}`} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {latestEvaluation === null ? null : (
+                <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
+                  <div className="rounded-md border border-border p-3">
+                    <p className="text-sm font-semibold text-foreground">Scores / competencies</p>
+                    <div className="mt-3 grid gap-2">
+                      {latestEvaluation.scores.map((score) => (
+                        <div
+                          key={score.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/40 p-2 text-sm"
+                        >
+                          <span className="font-medium text-foreground">{score.label}</span>
+                          <span className="text-muted-foreground">
+                            {score.score ?? "Incomplete"} / {score.maxScore}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border border-border p-3">
+                    <p className="text-sm font-semibold text-foreground">Recommendation</p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {latestEvaluation.recommendation}
+                    </p>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      {latestEvaluation.decisionSupportDisclaimer}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {latestEvaluation === null ? null : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <ResultList
+                    title="Strengths"
+                    items={latestEvaluation.observations
+                      .filter((observation) => observation.kind === "STRENGTH")
+                      .map((observation) => observation.text)}
+                    empty="No strengths have been recorded yet."
+                  />
+                  <ResultList
+                    title="Development areas"
+                    items={latestEvaluation.observations
+                      .filter((observation) => observation.kind === "DEVELOPMENT_AREA")
+                      .map((observation) => observation.text)}
+                    empty="No development areas have been recorded yet."
+                  />
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/30 p-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Full HR report</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {latestReportVersion === null
+                      ? "The report is not ready yet."
+                      : "Open the full transcript, evidence, evaluation, and report."}
+                  </p>
+                </div>
+                <Button asChild disabled={latestReportVersion === null}>
+                  <Link href={`/interviews/${latestResultInterview.id}`}>View full report</Link>
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Interview history</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3">
@@ -252,6 +390,42 @@ export default async function CandidateDetailPage({
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function StatusItem({ label, value }: { readonly label: string; readonly value: string }) {
+  return (
+    <div className="rounded-md border border-border p-3">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <div className="mt-2">
+        <StatusBadge value={value} />
+      </div>
+    </div>
+  );
+}
+
+function ResultList({
+  title,
+  items,
+  empty,
+}: {
+  readonly title: string;
+  readonly items: readonly string[];
+  readonly empty: string;
+}) {
+  return (
+    <div className="rounded-md border border-border p-3">
+      <p className="text-sm font-semibold text-foreground">{title}</p>
+      {items.length === 0 ? (
+        <p className="mt-2 text-sm text-muted-foreground">{empty}</p>
+      ) : (
+        <ul className="mt-2 grid gap-1 text-sm text-muted-foreground">
+          {items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
