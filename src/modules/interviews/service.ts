@@ -584,6 +584,14 @@ export class InterviewService {
         },
       ],
     });
+    await this.workflowService.queueReadySteps({
+      context: {
+        tenant: { companyId: context.session.companyId },
+        actor: { type: "candidate_session", id: context.session.sessionId },
+        request: context.request,
+      },
+      workflowId: workflow.id,
+    });
     return workflow.id;
   }
 

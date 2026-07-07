@@ -176,6 +176,7 @@ describe("browser interview session service", () => {
       "generate_report",
       "notify_results_ready",
     ]);
+    expect(workflow.queuedWorkflowIds).toEqual(["workflow_1"]);
 
     const secondCompletion = await service.completeInterview(candidateContext);
     expect(secondCompletion.id).toBe(completed.id);
@@ -252,6 +253,7 @@ class InMemoryAuditStore implements AuditEventStore {
 
 class FakeWorkflowService {
   public createCount = 0;
+  public readonly queuedWorkflowIds: string[] = [];
   public createdWorkflow: {
     readonly workflowType: string;
     readonly steps: readonly { readonly stepKey: string }[];
@@ -264,6 +266,11 @@ class FakeWorkflowService {
     this.createCount += 1;
     this.createdWorkflow = { workflowType: input.workflowType, steps: input.steps };
     return Promise.resolve({ id: "workflow_1" as ProcessingWorkflowId });
+  }
+
+  public queueReadySteps(input: { readonly workflowId: ProcessingWorkflowId }): Promise<[]> {
+    this.queuedWorkflowIds.push(input.workflowId);
+    return Promise.resolve([]);
   }
 }
 

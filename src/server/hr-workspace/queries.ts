@@ -158,12 +158,34 @@ export async function getCandidateDetail(context: HrWorkspaceContext, candidateI
               readinessChecks: { select: { id: true }, take: 1 },
             },
           },
-          interviewSessions: { orderBy: { updatedAt: "desc" }, include: { hrReports: true } },
+          interviewSessions: {
+            orderBy: { updatedAt: "desc" },
+            include: {
+              hrReports: true,
+              transcripts: { select: { id: true, status: true, activeVersionId: true }, take: 1 },
+              evaluationVersions: {
+                select: { id: true, status: true },
+                orderBy: { versionNumber: "desc" },
+                take: 1,
+              },
+            },
+          },
         },
         orderBy: { updatedAt: "desc" },
       },
       invitations: { orderBy: { createdAt: "desc" } },
-      interviewSessions: { orderBy: { updatedAt: "desc" }, include: { hrReports: true } },
+      interviewSessions: {
+        orderBy: { updatedAt: "desc" },
+        include: {
+          hrReports: true,
+          transcripts: { select: { id: true, status: true, activeVersionId: true }, take: 1 },
+          evaluationVersions: {
+            select: { id: true, status: true },
+            orderBy: { versionNumber: "desc" },
+            take: 1,
+          },
+        },
+      },
     },
   });
 }

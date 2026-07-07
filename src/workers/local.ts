@@ -15,6 +15,7 @@ import type { EmailDeliveryId } from "@/modules/email/types";
 import { createTenantContext } from "@/modules/tenant";
 import { PrismaWorkflowRepository } from "@/modules/workflows/prisma-workflow-repository";
 import { WorkflowService } from "@/modules/workflows";
+import type { ProcessingWorkflowId } from "@/modules/workflows";
 import { processWorkflowJob } from "@/modules/workflows/worker";
 import { LocalQueueAdapter } from "@/infra/queue/local-queue";
 
@@ -40,7 +41,15 @@ logger.info(
     appEnv: env.APP_ENV,
     pollMs,
     staleAfterMs,
-    workerClasses: ["email", "orchestration"],
+    workerClasses: [
+      "email",
+      "orchestration",
+      "media",
+      "transcription",
+      "evaluation",
+      "reporting",
+      "notifications",
+    ],
   },
   "Local MySQL worker started.",
 );
@@ -50,6 +59,7 @@ await runLoop();
 async function runLoop(): Promise<void> {
   while (!shutdownRequested) {
     await recoverStaleJobs();
+    await queuePendingWorkflowSteps();
     const localJobProcessed = await processNextLocalJob();
     const workflowStepProcessed = await processNextWorkflowStep();
     if (!localJobProcessed && !workflowStepProcessed) {
@@ -59,6 +69,40 @@ async function runLoop(): Promise<void> {
 
   logger.info("Local MySQL worker stopped.");
   await prisma.$disconnect();
+}
+
+async function queuePendingWorkflowSteps(): Promise<void> {
+  const workflows = await prisma.processingWorkflow.findMany({
+    where: { status: { in: ["PENDING", "RUNNING", "PARTIALLY_COMPLETED"] } },
+    select: { id: true, companyId: true, requestId: true, correlationId: true },
+    orderBy: { createdAt: "asc" },
+    take: 25,
+  });
+  for (const workflow of workflows) {
+    const queued = await workflowService.queueReadySteps({
+      context: {
+        tenant: createTenantContext(workflow.companyId),
+        actor: { type: "system", id: null },
+        request: {
+          requestId: workflow.requestId ?? `local-workflow-${workflow.id}`,
+          correlationId: workflow.correlationId ?? `local-workflow-${workflow.id}`,
+          sessionId: null,
+          ipAddress: null,
+          userAgent: "aptly-local-worker",
+        },
+      },
+      workflowId: workflow.id as ProcessingWorkflowId,
+    });
+    if (queued.length > 0) {
+      logger.info(
+        {
+          workflowId: workflow.id,
+          stepKeys: queued.map((step) => step.stepKey),
+        },
+        "Local workflow steps queued.",
+      );
+    }
+  }
 }
 
 function requestShutdown(): void {
@@ -119,16 +163,40 @@ async function processNextWorkflowStep(): Promise<boolean> {
   };
 
   logger.info(
-    { stepId: step.id, workflowId: step.workflowId, stepKey: step.stepKey },
+    {
+      stepId: step.id,
+      workflowId: step.workflowId,
+      stepKey: step.stepKey,
+      queueName: step.queueName,
+      attempt: step.attemptCount + 1,
+    },
     "Local workflow step claimed.",
   );
 
-  await processWorkflowJob(workflowService, workflowHandlers, {
-    id: `local:${step.id}`,
-    name: step.stepKey,
-    data: payload,
-  } as never);
-  return true;
+  try {
+    await processWorkflowJob(workflowService, workflowHandlers, {
+      id: `local:${step.id}`,
+      name: step.stepKey,
+      data: payload,
+    } as never);
+    logger.info(
+      { stepId: step.id, workflowId: step.workflowId, stepKey: step.stepKey },
+      "Local workflow step completed.",
+    );
+    return true;
+  } catch (error) {
+    logger.error(
+      {
+        stepId: step.id,
+        workflowId: step.workflowId,
+        stepKey: step.stepKey,
+        errorCode: "LOCAL_WORKFLOW_STEP_FAILED",
+        message: redactError(error instanceof Error ? error.message : "Unknown workflow failure."),
+      },
+      "Local workflow step failed.",
+    );
+    return true;
+  }
 }
 
 async function dispatchLocalJob(job: LocalJob): Promise<void> {

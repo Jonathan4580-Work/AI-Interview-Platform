@@ -238,7 +238,15 @@ export default async function CandidateDetailPage({
                 href={`/interviews/${interview.id}`}
                 className="rounded-md border border-border p-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <StatusBadge value={interview.status} /> Updated {formatDate(interview.updatedAt)}
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge value={interview.status} />
+                  {interviewProcessingBadges(interview).map((badge) => (
+                    <StatusBadge key={badge} value={badge} />
+                  ))}
+                </div>
+                <p className="mt-2 text-muted-foreground">
+                  Updated {formatDate(interview.updatedAt)}
+                </p>
               </Link>
             ))
           )}
@@ -258,6 +266,11 @@ function candidateProgressSummary(
   application: {
     readonly interviewSessions: readonly {
       readonly status: string;
+      readonly transcripts: readonly {
+        readonly status: string;
+        readonly activeVersionId: string | null;
+      }[];
+      readonly evaluationVersions: readonly { readonly status: string }[];
       readonly hrReports: readonly { readonly status: string }[];
     }[];
   },
@@ -283,6 +296,11 @@ function candidateProgressBadges(
   application: {
     readonly interviewSessions: readonly {
       readonly status: string;
+      readonly transcripts: readonly {
+        readonly status: string;
+        readonly activeVersionId: string | null;
+      }[];
+      readonly evaluationVersions: readonly { readonly status: string }[];
       readonly hrReports: readonly { readonly status: string }[];
     }[];
   },
@@ -316,10 +334,30 @@ function candidateProgressBadges(
   }
   if (
     application.interviewSessions.some((interview) =>
+      interviewProcessingBadges(interview).includes("Transcript ready"),
+    )
+  ) {
+    badges.push("Transcript ready");
+  } else if (application.interviewSessions.some((interview) => hasCompletedInterview(interview))) {
+    badges.push("Transcript pending");
+  }
+  if (
+    application.interviewSessions.some((interview) =>
+      interviewProcessingBadges(interview).includes("Evaluation ready"),
+    )
+  ) {
+    badges.push("Evaluation ready");
+  } else if (application.interviewSessions.some((interview) => hasCompletedInterview(interview))) {
+    badges.push("Evaluation pending");
+  }
+  if (
+    application.interviewSessions.some((interview) =>
       interview.hrReports.some((report) => report.status === "READY"),
     )
   ) {
     badges.push("Report ready");
+  } else if (application.interviewSessions.some((interview) => hasCompletedInterview(interview))) {
+    badges.push("Report pending");
   }
   if (invitation.status === "EXPIRED") {
     badges.push("Expired");
@@ -328,4 +366,35 @@ function candidateProgressBadges(
     badges.push("Revoked");
   }
   return badges;
+}
+
+function hasCompletedInterview(interview: { readonly status: string }): boolean {
+  return ["COMPLETED", "PROCESSING"].includes(interview.status);
+}
+
+function interviewProcessingBadges(interview: {
+  readonly status: string;
+  readonly transcripts: readonly {
+    readonly status: string;
+    readonly activeVersionId: string | null;
+  }[];
+  readonly evaluationVersions: readonly { readonly status: string }[];
+  readonly hrReports: readonly { readonly status: string }[];
+}): string[] {
+  if (!hasCompletedInterview(interview)) {
+    return [];
+  }
+  return [
+    interview.transcripts.some(
+      (transcript) => transcript.status === "READY" && transcript.activeVersionId !== null,
+    )
+      ? "Transcript ready"
+      : "Transcript pending",
+    interview.evaluationVersions.some((evaluation) => evaluation.status === "READY")
+      ? "Evaluation ready"
+      : "Evaluation pending",
+    interview.hrReports.some((report) => report.status === "READY")
+      ? "Report ready"
+      : "Report pending",
+  ];
 }
