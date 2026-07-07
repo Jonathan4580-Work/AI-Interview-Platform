@@ -18,8 +18,9 @@ export function ReadyClient() {
 
   return (
     <CandidateShell
+      currentStep="interview"
       title="Ready to start"
-      description="This confirms preparation is complete. The live interview room is intentionally not part of this phase."
+      description="Confirm when your camera, microphone, and environment are ready. The interview room opens next."
       actions={<Button onClick={() => void confirm()}>Confirm readiness</Button>}
     >
       {confirmed ? (

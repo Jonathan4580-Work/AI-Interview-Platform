@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Mail, Pencil, Plus } from "lucide-react";
+import { Mail, Pencil, Plus, RotateCw } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -67,6 +67,25 @@ export default async function CandidateDetailPage({
             ) : (
               candidate.applications.map((application) => (
                 <div key={application.id} className="rounded-lg border border-border p-4">
+                  {application.invitations[0] ? (
+                    <div className="mb-4 rounded-md border border-primary/20 bg-primary/5 p-3">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">Latest invitation</p>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {candidateProgressSummary(application.invitations[0], application)}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {candidateProgressBadges(application.invitations[0], application).map(
+                            (badge) => (
+                              <StatusBadge key={badge} value={badge} />
+                            ),
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0">
                       <Link
@@ -113,13 +132,21 @@ export default async function CandidateDetailPage({
                         </Field>
                         <Button type="submit" disabled={candidate.primaryEmail === null}>
                           <Mail aria-hidden="true" />
-                          Send invitation
+                          {application.invitations[0]?.status === "EXPIRED" ||
+                          application.invitations[0]?.status === "CANCELLED" ? (
+                            <>
+                              <RotateCw aria-hidden="true" />
+                              Create new invitation
+                            </>
+                          ) : (
+                            "Send invitation"
+                          )}
                         </Button>
                       </form>
                     </div>
                   </div>
                   <div className="mt-4 grid gap-2 text-sm">
-                    {application.invitations.map((invitation) => {
+                    {application.invitations.map((invitation, index) => {
                       const previewSummary = invitationPreviewSummaries[invitation.id] ?? null;
                       return (
                         <div
@@ -127,6 +154,7 @@ export default async function CandidateDetailPage({
                           className="flex flex-col gap-2 rounded-md border border-border bg-background p-3 sm:flex-row sm:items-center sm:justify-between"
                         >
                           <p className="text-muted-foreground">
+                            {index === 0 ? <StatusBadge value="Latest" /> : null}{" "}
                             <StatusBadge value={invitation.status} /> Expires{" "}
                             {formatDate(invitation.expiresAt)}
                             {previewSummary === null ? null : (
@@ -218,4 +246,86 @@ export default async function CandidateDetailPage({
       </Card>
     </div>
   );
+}
+
+function candidateProgressSummary(
+  invitation: {
+    readonly status: string;
+    readonly consentRecords: readonly { readonly id: string }[];
+    readonly identityVerifications: readonly { readonly id: string }[];
+    readonly readinessChecks: readonly { readonly id: string }[];
+  },
+  application: {
+    readonly interviewSessions: readonly {
+      readonly status: string;
+      readonly hrReports: readonly { readonly status: string }[];
+    }[];
+  },
+): string {
+  const badges = candidateProgressBadges(invitation, application);
+  const latest = badges.at(-1) ?? "Invited";
+  if (invitation.status === "EXPIRED") {
+    return "The latest invitation expired. Create a new invitation when the candidate is ready.";
+  }
+  if (invitation.status === "CANCELLED") {
+    return "The latest invitation was revoked. Create a new invitation to continue.";
+  }
+  return `Current candidate progress: ${latest}.`;
+}
+
+function candidateProgressBadges(
+  invitation: {
+    readonly status: string;
+    readonly consentRecords: readonly { readonly id: string }[];
+    readonly identityVerifications: readonly { readonly id: string }[];
+    readonly readinessChecks: readonly { readonly id: string }[];
+  },
+  application: {
+    readonly interviewSessions: readonly {
+      readonly status: string;
+      readonly hrReports: readonly { readonly status: string }[];
+    }[];
+  },
+): string[] {
+  const badges = ["Invited"];
+  if (invitation.status === "OPENED" || invitation.status === "ACCEPTED") {
+    badges.push("Opened");
+  }
+  if (invitation.consentRecords.length > 0) {
+    badges.push("Consent completed");
+  }
+  if (invitation.identityVerifications.length > 0) {
+    badges.push("Identity completed");
+  }
+  if (invitation.readinessChecks.length > 0) {
+    badges.push("Readiness completed");
+  }
+  if (
+    application.interviewSessions.some((interview) =>
+      ["IN_PROGRESS", "INTERRUPTED", "UPLOAD_RECOVERY"].includes(interview.status),
+    )
+  ) {
+    badges.push("Interview in progress");
+  }
+  if (
+    application.interviewSessions.some((interview) =>
+      ["COMPLETED", "PROCESSING"].includes(interview.status),
+    )
+  ) {
+    badges.push("Interview completed");
+  }
+  if (
+    application.interviewSessions.some((interview) =>
+      interview.hrReports.some((report) => report.status === "READY"),
+    )
+  ) {
+    badges.push("Report ready");
+  }
+  if (invitation.status === "EXPIRED") {
+    badges.push("Expired");
+  }
+  if (invitation.status === "CANCELLED") {
+    badges.push("Revoked");
+  }
+  return badges;
 }

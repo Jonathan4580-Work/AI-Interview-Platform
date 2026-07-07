@@ -3,9 +3,10 @@ import { CandidateShell, CandidateStepLink } from "@/components/candidate/candid
 export default function InstructionsPage() {
   return (
     <CandidateShell
-      title="Interview instructions"
-      description="These steps help create a consistent interview environment."
-      actions={<CandidateStepLink href="/candidate/ready">I am ready</CandidateStepLink>}
+      currentStep="readiness"
+      title="Final instructions"
+      description="You are almost ready. Keep this tab open and answer each question in order."
+      actions={<CandidateStepLink href="/candidate/ready">Continue</CandidateStepLink>}
     >
       <ul className="grid gap-2 text-sm text-muted-foreground">
         <li>Keep this browser tab open.</li>

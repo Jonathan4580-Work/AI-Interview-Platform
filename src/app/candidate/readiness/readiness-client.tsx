@@ -79,12 +79,13 @@ export function DeviceReadiness() {
 
   return (
     <CandidateShell
+      currentStep="readiness"
       title="Device readiness"
-      description="Check browser support, permissions, connection basics, and device guidance before you continue."
+      description="Run one quick check for browser support, camera, microphone, screen size, and connection basics."
       actions={
         <>
           <Button variant="secondary" onClick={() => void runChecks()}>
-            Run checks
+            Run readiness check
           </Button>
           <Button
             disabled={checks.length === 0 || hasFailure}
@@ -92,7 +93,7 @@ export function DeviceReadiness() {
               router.push("/candidate/instructions");
             }}
           >
-            Continue
+            Continue to instructions
           </Button>
         </>
       }

@@ -111,7 +111,14 @@ async function completeWithRetry(
     lastFailure = completed;
     await delay(150 * attempt);
   }
-  return lastFailure ?? { ok: false, error: "Recording upload verification failed." };
+  return (
+    lastFailure ?? {
+      ok: false,
+      error: "Recording upload verification failed.",
+      status: 0,
+      code: "upload_verification_failed",
+    }
+  );
 }
 
 function parsePreparedUpload(value: unknown): {

@@ -5,13 +5,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
-  CircleStop,
   HelpCircle,
+  Loader2,
   Mic,
-  Pause,
   Play,
-  Radio,
+  RefreshCw,
   ShieldCheck,
+  Square,
+  UploadCloud,
   Video,
   Wifi,
 } from "lucide-react";
@@ -43,6 +44,18 @@ interface CandidateQuestion {
   readonly required: boolean;
 }
 
+interface QuestionState {
+  readonly sequence: number;
+  readonly status: "pending" | "active" | "answered" | "skipped";
+  readonly required: boolean;
+}
+
+interface InterviewTurn {
+  readonly id: string;
+  readonly sequence: number;
+  readonly status: "started" | "completed" | "retry_requested" | "superseded" | "cancelled";
+}
+
 interface InterviewStatePayload {
   readonly session: {
     readonly id: string;
@@ -53,36 +66,66 @@ interface InterviewStatePayload {
     readonly durationMinutes: number;
     readonly questions: readonly CandidateQuestion[];
   };
+  readonly questions?: readonly QuestionState[];
+  readonly turns?: readonly InterviewTurn[];
 }
 
-type RecordingState = "idle" | "requesting" | "recording" | "uploading" | "ready" | "failed";
+type RecordingPhase =
+  | "loading"
+  | "not_recording"
+  | "requesting_access"
+  | "recording"
+  | "saving"
+  | "answer_saved"
+  | "upload_failed"
+  | "completed";
 type MonitoringStatus = "loading" | "active" | "disabled" | "unavailable";
+type ConnectionState = "ok" | "degraded" | "lost";
 
 export function InterviewRoomClient() {
   const [state, setState] = useState<InterviewStatePayload | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [recordingState, setRecordingState] = useState<RecordingState>("idle");
-  const [connectionState, setConnectionState] = useState<"ok" | "degraded" | "lost">("ok");
-  const [activeTurnId, setActiveTurnId] = useState<string | null>(null);
+  const [phase, setPhase] = useState<RecordingPhase>("loading");
+  const [connectionState, setConnectionState] = useState<ConnectionState>("ok");
   const [uploadedMedia, setUploadedMedia] = useState<RecordingUploadResult[]>([]);
+  const [answerStartedAt, setAnswerStartedAt] = useState<number | null>(null);
+  const [answerSeconds, setAnswerSeconds] = useState(0);
+  const [confirmEndOpen, setConfirmEndOpen] = useState(false);
   const [monitoringStatus, setMonitoringStatus] = useState<MonitoringStatus>("loading");
   const [monitoringDetail, setMonitoringDetail] = useState<string | null>(null);
-  const [confirmEndOpen, setConfirmEndOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const monitoringRef = useRef<InterviewMonitoringController | null>(null);
   const chunkNumberRef = useRef(0);
+  const uploadPromisesRef = useRef<Promise<RecordingUploadResult>[]>([]);
 
   const questions = state?.plan.questions ?? [];
-  const currentQuestion = useMemo(() => {
-    const sequence = state?.session.currentQuestionSequence ?? 1;
-    return questions.find((question) => question.sequence === sequence) ?? questions.at(0);
-  }, [questions, state?.session.currentQuestionSequence]);
+  const questionStates = state?.questions ?? [];
+  const answeredSequences = new Set(
+    questionStates
+      .filter((question) => question.status === "answered" || question.status === "skipped")
+      .map((question) => question.sequence),
+  );
+  const firstUnanswered = questions.find((question) => !answeredSequences.has(question.sequence));
+  const currentQuestion = firstUnanswered ?? questions.at(-1);
+  const requiredQuestions = questions.filter((question) => question.required);
+  const allRequiredAnswered =
+    requiredQuestions.length > 0 &&
+    requiredQuestions.every((question) => answeredSequences.has(question.sequence));
+  const currentIndex = currentQuestion === undefined ? 0 : questions.indexOf(currentQuestion) + 1;
   const progress =
-    currentQuestion === undefined || questions.length === 0
-      ? 0
-      : Math.round((currentQuestion.sequence / questions.length) * 100);
+    questions.length === 0 ? 0 : Math.round((answeredSequences.size / questions.length) * 100);
+  const hasTerminalStatus =
+    state?.session.status === "completed" || state?.session.status === "processing";
+  const isBusy =
+    phase === "loading" ||
+    phase === "requesting_access" ||
+    phase === "recording" ||
+    phase === "saving" ||
+    isRefreshing;
 
   useEffect(() => {
     void bootstrap();
@@ -112,37 +155,87 @@ export function InterviewRoomClient() {
     };
   }, [state?.session.id]);
 
+  useEffect(() => {
+    if (answerStartedAt === null || phase !== "recording") {
+      setAnswerSeconds(0);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setAnswerSeconds(Math.max(0, Math.floor((Date.now() - answerStartedAt) / 1000)));
+    }, 1_000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [answerStartedAt, phase]);
+
   async function bootstrap() {
+    setIsRefreshing(true);
     const started = await candidatePost("/api/candidate/interview/start");
     if (started.ok) {
-      setState(started.data as InterviewStatePayload);
-      setMessage(null);
+      applyState(started.data as InterviewStatePayload);
+      setIsRefreshing(false);
       return;
     }
+
     const existing = await candidateGet("/api/candidate/interview");
     if (existing.ok) {
-      setState(existing.data as InterviewStatePayload);
+      applyState(existing.data as InterviewStatePayload);
+      if (started.status === 409) {
+        setMessage("The interview was already open. We refreshed your session.");
+      }
+      setIsRefreshing(false);
+      return;
+    }
+
+    setPhase("upload_failed");
+    setMessage(friendlyCandidateError(started.status, started.error ?? existing.error));
+    setIsRefreshing(false);
+  }
+
+  function applyState(nextState: InterviewStatePayload) {
+    setState(nextState);
+    if (nextState.session.status === "completed" || nextState.session.status === "processing") {
+      setPhase("completed");
       setMessage(null);
       return;
     }
-    setMessage(started.error ?? existing.error ?? "The interview room could not be opened.");
+    setPhase("not_recording");
+  }
+
+  async function refreshInterviewState() {
+    setIsRefreshing(true);
+    const result = await candidateGet("/api/candidate/interview");
+    if (result.ok) {
+      applyState(result.data as InterviewStatePayload);
+      setMessage("Your interview state has been refreshed.");
+    } else {
+      setMessage(friendlyCandidateError(result.status, result.error));
+    }
+    setIsRefreshing(false);
   }
 
   async function beginAnswer() {
-    if (currentQuestion === undefined) return;
-    setRecordingState("requesting");
+    if (currentQuestion === undefined || isBusy || allRequiredAnswered) return;
+    setPhase("requesting_access");
     setMessage(null);
+    setUploadedMedia([]);
+    uploadPromisesRef.current = [];
+
     const turnResponse = await candidatePost("/api/candidate/interview/answers/start", {
       sequence: currentQuestion.sequence,
-      idempotencyKey: `answer-${String(currentQuestion.sequence)}-${String(Date.now())}`,
+      idempotencyKey: `answer-${state?.session.id ?? "session"}-${String(currentQuestion.sequence)}`,
     });
     if (!turnResponse.ok) {
-      setRecordingState("failed");
-      setMessage(turnResponse.error ?? "The answer could not be started.");
+      setPhase("not_recording");
+      setMessage(friendlyCandidateError(turnResponse.status, turnResponse.error));
+      if (turnResponse.status === 409) {
+        await refreshInterviewState();
+      }
       return;
     }
+
     const turn = turnResponse.data as { readonly id: string };
-    setActiveTurnId(turn.id);
+
     try {
       const stream = await createInterviewMediaStream();
       streamRef.current = stream;
@@ -150,16 +243,17 @@ export function InterviewRoomClient() {
       if (videoRef.current !== null) {
         videoRef.current.srcObject = stream;
       }
+
       const mimeType = chooseRecordingMimeType();
       const recorder = new MediaRecorder(stream, mimeType.length === 0 ? undefined : { mimeType });
       recorderRef.current = recorder;
       chunkNumberRef.current = 0;
-      const uploads: Promise<RecordingUploadResult>[] = [];
+
       recorder.addEventListener("dataavailable", (event) => {
         if (event.data.size === 0) return;
         chunkNumberRef.current += 1;
         const chunkSequence = chunkNumberRef.current;
-        uploads.push(
+        uploadPromisesRef.current.push(
           uploadRecordingChunk({
             blob: event.data,
             idempotencyKey: `${turn.id}:chunk:${String(chunkSequence)}`,
@@ -167,31 +261,30 @@ export function InterviewRoomClient() {
         );
       });
       recorder.addEventListener("stop", () => {
-        void finalizeAnswer(turn.id, uploads);
+        void finalizeAnswer(turn.id);
       });
       recorder.start(10_000);
-      setRecordingState("recording");
+      setAnswerStartedAt(Date.now());
+      setPhase("recording");
     } catch (error) {
-      setRecordingState("failed");
+      setPhase("upload_failed");
       monitoringRef.current?.recordRecordingInterrupted("recording_start_failed");
-      setMessage(error instanceof Error ? error.message : "Recording could not start.");
+      setMessage(friendlyCandidateError(0, error instanceof Error ? error.message : null));
       stopTracks();
     }
   }
 
-  function stopAnswer() {
-    if (recorderRef.current?.state === "recording") {
-      setRecordingState("uploading");
-      recorderRef.current.stop();
-    }
+  function finishAnswer() {
+    if (phase !== "recording" || recorderRef.current?.state !== "recording") return;
+    setPhase("saving");
+    setMessage("Saving your answer. Please keep this tab open.");
+    recorderRef.current.requestData();
+    recorderRef.current.stop();
   }
 
-  async function finalizeAnswer(
-    turnId: string,
-    uploads: readonly Promise<RecordingUploadResult>[],
-  ) {
+  async function finalizeAnswer(turnId: string) {
     try {
-      const completedUploads = await Promise.all(uploads);
+      const completedUploads = await Promise.all(uploadPromisesRef.current);
       setUploadedMedia(completedUploads);
       const response = await candidatePost("/api/candidate/interview/answers/complete", {
         turnId,
@@ -199,41 +292,67 @@ export function InterviewRoomClient() {
         idempotencyKey: `complete-${turnId}`,
       });
       if (!response.ok) {
+        if (response.status === 409) {
+          setMessage("This answer was already submitted. We are moving you forward.");
+          await refreshInterviewState();
+          setPhase("answer_saved");
+          stopTracks();
+          return;
+        }
         throw new Error(response.error);
       }
-      setRecordingState("ready");
-      setActiveTurnId(null);
+      setPhase("answer_saved");
+      setMessage("Answer saved. You can continue to the next question.");
       stopTracks();
-      await bootstrap();
+      await refreshInterviewState();
     } catch (error) {
-      setRecordingState("failed");
+      setPhase("upload_failed");
       monitoringRef.current?.recordRecordingInterrupted("upload_or_completion_failed");
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Recording upload needs recovery before the interview can continue.",
-      );
+      setMessage(friendlyCandidateError(0, error instanceof Error ? error.message : null));
       await candidateGet("/api/candidate/interview/upload-recovery");
     }
   }
 
+  function nextQuestion() {
+    if (!allRequiredAnswered) {
+      setPhase("not_recording");
+      setMessage(null);
+      setUploadedMedia([]);
+      return;
+    }
+    setConfirmEndOpen(true);
+  }
+
   async function completeInterview() {
+    if (!allRequiredAnswered || phase === "recording" || phase === "saving") {
+      setMessage("Please finish and save all required answers before submitting.");
+      setConfirmEndOpen(false);
+      return;
+    }
+
     try {
       await monitoringRef.current?.flush();
     } catch {
       setMonitoringStatus("unavailable");
       setMonitoringDetail("Monitoring warnings will retry separately. The interview can continue.");
     }
+
     const response = await candidatePost("/api/candidate/interview/complete");
     if (response.ok) {
       window.location.assign("/candidate/completed");
       return;
     }
+
     setConfirmEndOpen(false);
-    setMessage(response.error ?? "The interview could not be completed yet.");
+    if (response.status === 409) {
+      setMessage("The interview state changed. We are refreshing your session.");
+      await refreshInterviewState();
+      return;
+    }
+    setMessage(friendlyCandidateError(response.status, response.error));
   }
 
-  async function sendHeartbeat(nextState: "ok" | "degraded" | "lost") {
+  async function sendHeartbeat(nextState: ConnectionState) {
     setConnectionState(nextState);
     monitoringRef.current?.recordConnectionState(nextState);
     await candidatePost("/api/candidate/interview/heartbeat", { connectionState: nextState });
@@ -245,6 +364,7 @@ export function InterviewRoomClient() {
     });
     streamRef.current = null;
     recorderRef.current = null;
+    setAnswerStartedAt(null);
   }
 
   function observeDeviceTrackAvailability(stream: MediaStream) {
@@ -266,8 +386,42 @@ export function InterviewRoomClient() {
     }
   }
 
+  const primaryAction = useMemo(() => {
+    if (hasTerminalStatus) {
+      return {
+        label: "View completion",
+        action: () => {
+          window.location.assign("/candidate/completed");
+        },
+      };
+    }
+    if (phase === "recording") {
+      return { label: "Finish answer", action: finishAnswer };
+    }
+    if (phase === "answer_saved") {
+      return {
+        label: allRequiredAnswered ? "Finish interview" : "Next question",
+        action: nextQuestion,
+      };
+    }
+    if (allRequiredAnswered) {
+      return {
+        label: "Finish interview",
+        action: () => {
+          setConfirmEndOpen(true);
+        },
+      };
+    }
+    return {
+      label: "Start answer",
+      action: () => {
+        void beginAnswer();
+      },
+    };
+  }, [allRequiredAnswered, hasTerminalStatus, phase, currentQuestion?.sequence]);
+
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="min-h-screen bg-[linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)))] text-foreground">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
           <AptlyLogo />
@@ -284,36 +438,58 @@ export function InterviewRoomClient() {
           </nav>
         </header>
 
-        <section className="grid flex-1 gap-6 py-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <CandidateProgress
+          steps={[
+            ["Welcome", true],
+            ["Consent", true],
+            ["Identity", true],
+            ["Readiness", true],
+            ["Interview", !hasTerminalStatus],
+            ["Complete", hasTerminalStatus],
+          ]}
+        />
+
+        <section className="grid flex-1 gap-5 py-5 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-5">
-            <div className="rounded-lg border border-border bg-card p-5">
+            <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-medium text-muted-foreground">Browser interview</p>
                   <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">
-                    {currentQuestion?.kind === "closing" ? "Final question" : "Current question"}
+                    {allRequiredAnswered ? "Ready to submit" : "Answer the current question"}
                   </h1>
                 </div>
                 <Badge
-                  variant={statusVariant(recordingState)}
+                  variant={statusVariant(phase)}
                   role="status"
-                  aria-label={recordingLabel(recordingState)}
-                  aria-live={recordingState === "recording" ? "assertive" : "polite"}
+                  aria-label={recordingLabel(phase)}
+                  aria-live={phase === "recording" ? "assertive" : "polite"}
                 >
-                  <Radio className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                  {recordingLabel(recordingState)}
+                  {phase === "saving" ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <span className="mr-1 h-2 w-2 rounded-full bg-current" aria-hidden="true" />
+                  )}
+                  {recordingLabel(phase)}
                 </Badge>
               </div>
 
-              <div className="mt-8 rounded-md border border-border bg-background p-6">
-                <p className="text-sm font-medium text-muted-foreground" aria-live="polite">
-                  Question {currentQuestion === undefined ? 0 : currentQuestion.sequence} of{" "}
-                  {String(questions.length)}
-                </p>
+              <div className="mt-6 rounded-md border border-border bg-background p-5 sm:p-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="text-sm font-semibold text-foreground">Current question</h2>
+                  <p className="text-sm font-medium text-muted-foreground" aria-live="polite">
+                    Question {String(Math.max(currentIndex, 1))} of {String(questions.length)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {phase === "recording"
+                      ? `Answer time ${formatDuration(answerSeconds)}`
+                      : `${String(answeredSequences.size)} answered`}
+                  </p>
+                </div>
                 <p className="mt-4 text-xl leading-8 text-foreground">
-                  {currentQuestion === undefined
-                    ? "Preparing your interview plan."
-                    : currentQuestion.prompt}
+                  {allRequiredAnswered
+                    ? "All required questions have been answered. Submit when you are ready."
+                    : (currentQuestion?.prompt ?? "Preparing your interview plan.")}
                 </p>
               </div>
 
@@ -330,54 +506,60 @@ export function InterviewRoomClient() {
             </div>
 
             {message !== null ? (
-              <Alert variant={recordingState === "failed" ? "danger" : "warning"}>
+              <Alert variant={phase === "upload_failed" ? "danger" : "warning"}>
                 <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-                <AlertTitle>Attention needed</AlertTitle>
+                <AlertTitle>
+                  {phase === "upload_failed" ? "Recovery needed" : "Quick update"}
+                </AlertTitle>
                 <AlertDescription>{message}</AlertDescription>
               </Alert>
             ) : null}
 
-            <div className="flex flex-wrap gap-3" aria-label="Interview controls">
-              <Button
-                onClick={() => {
-                  void beginAnswer();
-                }}
-                disabled={currentQuestion === undefined || recordingState === "recording"}
-              >
-                <Play className="mr-2 h-4 w-4" aria-hidden="true" />
-                Start answer
-              </Button>
-              <Button
-                variant="outline"
-                onClick={stopAnswer}
-                disabled={recordingState !== "recording"}
-              >
-                <CircleStop className="mr-2 h-4 w-4" aria-hidden="true" />
-                Stop answer
-              </Button>
-              <Button
-                variant="quiet"
-                onClick={() => {
-                  void sendHeartbeat("degraded");
-                }}
-              >
-                <Pause className="mr-2 h-4 w-4" aria-hidden="true" />
-                Check connection
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setConfirmEndOpen(true);
-                }}
-                disabled={recordingState === "recording" || activeTurnId !== null}
-              >
-                End interview
-              </Button>
+            <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold">What to do now</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {guidanceText(phase, allRequiredAnswered)}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2" aria-label="Interview controls">
+                  <Button
+                    onClick={primaryAction.action}
+                    disabled={
+                      isRefreshing ||
+                      phase === "requesting_access" ||
+                      phase === "saving" ||
+                      (phase === "recording" && primaryAction.label !== "Finish answer")
+                    }
+                  >
+                    {primaryAction.label === "Start answer" ? (
+                      <Play className="mr-2 h-4 w-4" aria-hidden="true" />
+                    ) : primaryAction.label === "Finish answer" ? (
+                      <Square className="mr-2 h-4 w-4" aria-hidden="true" />
+                    ) : (
+                      <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                    )}
+                    {primaryAction.label}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => void refreshInterviewState()}
+                    disabled={isRefreshing || phase === "recording" || phase === "saving"}
+                  >
+                    <RefreshCw
+                      className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+                      aria-hidden="true"
+                    />
+                    Refresh state
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
 
           <aside className="space-y-4" aria-label="Interview status">
-            <div className="overflow-hidden rounded-lg border border-border bg-card">
+            <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
               <video
                 ref={videoRef}
                 className="aspect-video w-full bg-foreground"
@@ -390,12 +572,12 @@ export function InterviewRoomClient() {
                 <StatusRow
                   icon={<Video className="h-4 w-4" aria-hidden="true" />}
                   label="Camera"
-                  value={recordingState === "recording" ? "Active" : "Ready when recording starts"}
+                  value={phase === "recording" ? "Recording" : "Ready when answer starts"}
                 />
                 <StatusRow
                   icon={<Mic className="h-4 w-4" aria-hidden="true" />}
                   label="Microphone"
-                  value={recordingState === "recording" ? "Capturing audio" : "Required"}
+                  value={phase === "recording" ? "Capturing audio" : "Required"}
                 />
                 <StatusRow
                   icon={<Wifi className="h-4 w-4" aria-hidden="true" />}
@@ -408,14 +590,14 @@ export function InterviewRoomClient() {
                   value="Recording is shown explicitly"
                 />
                 <StatusRow
-                  icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />}
-                  label="Monitoring"
-                  value={monitoringLabel(monitoringStatus)}
+                  icon={<UploadCloud className="h-4 w-4" aria-hidden="true" />}
+                  label="Upload"
+                  value={uploadLabel(phase, uploadedMedia.length)}
                 />
               </div>
             </div>
 
-            <div className="rounded-lg border border-border bg-card p-4">
+            <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
               <h2 className="text-sm font-semibold">Monitoring notices</h2>
               <p className="mt-2 text-sm text-muted-foreground" aria-live="polite">
                 {monitoringDescription(monitoringStatus, monitoringDetail)}
@@ -424,27 +606,18 @@ export function InterviewRoomClient() {
                 <Link href="/candidate/privacy-consent">Review privacy details</Link>
               </Button>
             </div>
-
-            <div className="rounded-lg border border-border bg-card p-4">
-              <h2 className="text-sm font-semibold">Upload status</h2>
-              <p className="mt-2 text-sm text-muted-foreground" aria-live="polite">
-                {uploadedMedia.length === 0
-                  ? "No answer media has been finalized in this browser session."
-                  : `${String(uploadedMedia.length)} recording segment${uploadedMedia.length === 1 ? "" : "s"} verified.`}
-              </p>
-            </div>
           </aside>
         </section>
       </div>
 
       <Dialog open={confirmEndOpen} onOpenChange={setConfirmEndOpen}>
         <DialogContent>
-          <DialogTitle>End interview?</DialogTitle>
+          <DialogTitle>Submit interview?</DialogTitle>
           <DialogDescription>
-            Your completed answers and verified recording uploads will be submitted for processing.
-            The interview cannot move forward while required uploads are still recovering.
+            Aptly will process your saved answers for transcription and review. You can submit once
+            every required answer is saved.
           </DialogDescription>
-          <div className="mt-5 flex justify-end gap-3">
+          <div className="mt-5 flex flex-wrap justify-end gap-3">
             <Button
               variant="quiet"
               onClick={() => {
@@ -453,11 +626,7 @@ export function InterviewRoomClient() {
             >
               Continue interview
             </Button>
-            <Button
-              onClick={() => {
-                void completeInterview();
-              }}
-            >
+            <Button onClick={() => void completeInterview()} disabled={!allRequiredAnswered}>
               <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
               Submit interview
             </Button>
@@ -465,6 +634,31 @@ export function InterviewRoomClient() {
         </DialogContent>
       </Dialog>
     </main>
+  );
+}
+
+function CandidateProgress({
+  steps,
+}: {
+  readonly steps: readonly (readonly [label: string, active: boolean])[];
+}) {
+  return (
+    <nav aria-label="Candidate interview progress" className="pt-5">
+      <ol className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        {steps.map(([label, active]) => (
+          <li
+            key={label}
+            className={`rounded-md border px-3 py-2 text-sm ${
+              active
+                ? "border-primary/50 bg-primary/10 text-foreground"
+                : "border-border bg-card text-muted-foreground"
+            }`}
+          >
+            {label}
+          </li>
+        ))}
+      </ol>
+    </nav>
   );
 }
 
@@ -488,40 +682,69 @@ function StatusRow({
   );
 }
 
-function recordingLabel(state: RecordingState): string {
+function recordingLabel(state: RecordingPhase): string {
   switch (state) {
-    case "requesting":
+    case "loading":
+      return "Loading";
+    case "requesting_access":
       return "Requesting access";
     case "recording":
       return "Recording";
-    case "uploading":
-      return "Uploading";
-    case "ready":
+    case "saving":
+      return "Saving answer";
+    case "answer_saved":
       return "Answer saved";
-    case "failed":
-      return "Recovery needed";
-    case "idle":
+    case "upload_failed":
+      return "Retry needed";
+    case "completed":
+      return "Completed";
+    case "not_recording":
       return "Not recording";
   }
 }
 
-function statusVariant(state: RecordingState): "neutral" | "success" | "warning" | "danger" {
+function guidanceText(state: RecordingPhase, allRequiredAnswered: boolean): string {
+  if (allRequiredAnswered)
+    return "All required answers are saved. Finish the interview when ready.";
+  switch (state) {
+    case "recording":
+      return "Speak naturally. When you are done, choose Finish answer.";
+    case "saving":
+      return "Your answer is uploading and being verified. Please wait.";
+    case "answer_saved":
+      return "Your answer is saved. Continue to the next question.";
+    case "upload_failed":
+      return "The answer did not finish saving. Refresh state or retry from this question.";
+    case "requesting_access":
+      return "Your browser may ask for camera and microphone permission.";
+    case "loading":
+      return "We are preparing your interview.";
+    case "completed":
+      return "Your interview has been submitted.";
+    case "not_recording":
+      return "Read the question, then choose Start answer when you are ready.";
+  }
+}
+
+function statusVariant(state: RecordingPhase): "neutral" | "success" | "warning" | "danger" {
   switch (state) {
     case "recording":
       return "danger";
-    case "uploading":
-    case "requesting":
+    case "saving":
+    case "requesting_access":
+    case "loading":
       return "warning";
-    case "ready":
+    case "answer_saved":
+    case "completed":
       return "success";
-    case "failed":
+    case "upload_failed":
       return "danger";
-    case "idle":
+    case "not_recording":
       return "neutral";
   }
 }
 
-function connectionLabel(state: "ok" | "degraded" | "lost"): string {
+function connectionLabel(state: ConnectionState): string {
   switch (state) {
     case "ok":
       return "Stable";
@@ -532,30 +755,49 @@ function connectionLabel(state: "ok" | "degraded" | "lost"): string {
   }
 }
 
-function monitoringLabel(state: MonitoringStatus): string {
-  switch (state) {
-    case "loading":
-      return "Checking";
-    case "active":
-      return "Active";
-    case "disabled":
-      return "Not active";
-    case "unavailable":
-      return "Needs attention";
-  }
+function uploadLabel(state: RecordingPhase, uploadedCount: number): string {
+  if (state === "saving") return "Uploading";
+  if (state === "answer_saved") return `${String(uploadedCount)} segment verified`;
+  if (state === "upload_failed") return "Needs retry";
+  return "Ready";
 }
 
 function monitoringDescription(state: MonitoringStatus, detail: string | null): string {
   switch (state) {
     case "loading":
-      return "Monitoring warnings are being prepared with your interview settings.";
+      return "Monitoring notices are being prepared with your interview settings.";
     case "active":
       return "Aptly may collect limited warning signals such as camera availability, focus changes, and connection stability for reviewer context.";
     case "disabled":
-      return "Monitoring warnings are not active for this session. The interview can continue.";
+      return "Monitoring notices are not active for this session. The interview can continue.";
     case "unavailable":
       return (
-        detail ?? "Monitoring warnings are temporarily unavailable. The interview can continue."
+        detail ?? "Monitoring notices are temporarily unavailable. The interview can continue."
       );
   }
+}
+
+function friendlyCandidateError(status: number, message: string | null | undefined): string {
+  if (status === 409) {
+    if (message?.toLowerCase().includes("already") === true) {
+      return "This answer was already submitted. We are refreshing your interview.";
+    }
+    if (message?.toLowerCase().includes("upload") === true) {
+      return "Your previous answer is still being saved. Please wait a moment.";
+    }
+    return "The interview state changed. We are refreshing your session.";
+  }
+  if (status === 403) {
+    return "Your session needs a quick refresh before continuing.";
+  }
+  if (message?.toLowerCase().includes("permission") === true) {
+    return "Camera and microphone access are required. Allow access in your browser, then try again.";
+  }
+  return message ?? "Something interrupted this step. Refresh the interview state and try again.";
+}
+
+function formatDuration(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const remaining = seconds % 60;
+  return `${String(minutes)}:${String(remaining).padStart(2, "0")}`;
 }

@@ -3,11 +3,12 @@ import { CandidateShell } from "@/components/candidate/candidate-shell";
 export default function CompletedPage() {
   return (
     <CandidateShell
-      title="Interview already completed"
-      description="This invitation has already been completed and cannot be opened again."
+      currentStep="complete"
+      title="Interview submitted"
+      description="Thank you. Your responses have been saved and will be reviewed by the hiring team."
     >
       <p className="text-sm text-muted-foreground">
-        Contact the hiring team if you believe this is incorrect.
+        You can close this tab. Contact the hiring team if you need to share anything else.
       </p>
     </CandidateShell>
   );

@@ -49,7 +49,7 @@ describe("candidate portal UI", () => {
     const user = userEvent.setup();
     render(<CandidateConsentForm />);
 
-    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Accept and continue" }));
 
     expect(screen.getByRole("status")).toHaveTextContent("Please review each item");
     expect(push).not.toHaveBeenCalled();

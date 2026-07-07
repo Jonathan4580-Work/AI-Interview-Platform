@@ -59,8 +59,9 @@ export function IdentityForm() {
 
   return (
     <CandidateShell
+      currentStep="identity"
       title="Confirm your identity"
-      description="Confirm your name and allow a webcam snapshot metadata record. The media upload system is not active in this phase."
+      description="Confirm your name and enable the camera preview so the hiring team can connect this interview to the right candidate."
       actions={
         <>
           <Button variant="secondary" onClick={() => void startCamera()}>

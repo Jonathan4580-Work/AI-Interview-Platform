@@ -56,6 +56,7 @@ export function CandidateEntryClient() {
 
   return (
     <CandidateShell
+      currentStep="welcome"
       title="Preparing your interview"
       description="We are validating your secure link and setting up a private browser session."
     >

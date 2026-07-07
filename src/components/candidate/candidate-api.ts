@@ -14,7 +14,13 @@ export function readCandidateCsrfToken(): string | null {
 export async function candidatePost(
   path: string,
   body?: unknown,
-): Promise<{ readonly ok: boolean; readonly data?: unknown; readonly error?: string }> {
+): Promise<{
+  readonly ok: boolean;
+  readonly data?: unknown;
+  readonly error?: string;
+  readonly status: number;
+  readonly code?: string;
+}> {
   const csrfToken = readCandidateCsrfToken();
   const response = await fetch(path, {
     method: "POST",
@@ -27,18 +33,24 @@ export async function candidatePost(
   const payload = (await response.json()) as {
     readonly ok: boolean;
     readonly data?: unknown;
-    readonly error?: { readonly message?: string };
+    readonly error?: { readonly code?: string; readonly message?: string };
   };
   return {
     ok: response.ok && payload.ok,
     data: payload.data,
     error: payload.error?.message ?? "The request could not be completed.",
+    status: response.status,
+    code: payload.error?.code,
   };
 }
 
-export async function candidateGet(
-  path: string,
-): Promise<{ readonly ok: boolean; readonly data?: unknown; readonly error?: string }> {
+export async function candidateGet(path: string): Promise<{
+  readonly ok: boolean;
+  readonly data?: unknown;
+  readonly error?: string;
+  readonly status: number;
+  readonly code?: string;
+}> {
   const response = await fetch(path, {
     method: "GET",
     headers: { accept: "application/json" },
@@ -46,11 +58,13 @@ export async function candidateGet(
   const payload = (await response.json()) as {
     readonly ok: boolean;
     readonly data?: unknown;
-    readonly error?: { readonly message?: string };
+    readonly error?: { readonly code?: string; readonly message?: string };
   };
   return {
     ok: response.ok && payload.ok,
     data: payload.data,
     error: payload.error?.message ?? "The request could not be completed.",
+    status: response.status,
+    code: payload.error?.code,
   };
 }

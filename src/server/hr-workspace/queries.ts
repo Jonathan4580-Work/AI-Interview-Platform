@@ -150,7 +150,14 @@ export async function getCandidateDetail(context: HrWorkspaceContext, candidateI
             include: { plans: { where: { status: "ACTIVE", activeVersionId: { not: null } } } },
           },
           currentStage: true,
-          invitations: { orderBy: { createdAt: "desc" } },
+          invitations: {
+            orderBy: { createdAt: "desc" },
+            include: {
+              consentRecords: { select: { id: true }, take: 1 },
+              identityVerifications: { select: { id: true }, take: 1 },
+              readinessChecks: { select: { id: true }, take: 1 },
+            },
+          },
           interviewSessions: { orderBy: { updatedAt: "desc" }, include: { hrReports: true } },
         },
         orderBy: { updatedAt: "desc" },

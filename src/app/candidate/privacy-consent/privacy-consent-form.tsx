@@ -50,9 +50,10 @@ export function CandidateConsentForm() {
 
   return (
     <CandidateShell
+      currentStep="consent"
       title="Privacy and consent"
-      description="Review these notices before continuing. Denying consent will not trap you in this flow."
-      actions={<Button onClick={() => void submit()}>Continue</Button>}
+      description="Review each item once. These notices explain what will happen before and during the interview."
+      actions={<Button onClick={() => void submit()}>Accept and continue</Button>}
     >
       {error ? (
         <Alert variant="warning">

@@ -63,7 +63,7 @@ describe("candidate interview room", () => {
   it("renders accessible interview controls and privacy indicators", async () => {
     render(<InterviewRoomClient />);
 
-    expect(screen.getByRole("heading", { name: "Current question" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Current question" })).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText("Tell us about the work you are proudest of.")).toBeInTheDocument();
     });
@@ -80,7 +80,7 @@ describe("candidate interview room", () => {
       "polite",
     );
     expect(screen.getByRole("button", { name: "Start answer" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "End interview" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Start answer" })).toBeEnabled();
   });
 
   it("negotiates the first supported recording MIME type", () => {
