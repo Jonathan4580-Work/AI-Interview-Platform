@@ -29,16 +29,23 @@ const environmentSchema = z
     ENCRYPTION_KEY_SECRET_REF: secretReferenceSchema.optional(),
     REQUEST_ID_HEADER: z.string().min(1).default("x-request-id"),
     CORRELATION_ID_HEADER: z.string().min(1).default("x-correlation-id"),
+
     EMAIL_DELIVERY_MODE: z.enum(["preview", "smtp"]).default("preview"),
     SMTP_HOST: z.string().min(1).optional(),
     SMTP_PORT: z.coerce.number().int().min(1).max(65535).optional(),
-    SMTP_SECURE: z.coerce.boolean().default(true),
+
+    SMTP_SECURE: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
+
     SMTP_FROM_EMAIL: z.string().email().optional(),
     SMTP_FROM_NAME: z.string().min(1).default("Aptly"),
     SMTP_REPLY_TO_EMAIL: z.string().email().optional(),
     SMTP_USERNAME: z.string().optional(),
     SMTP_PASSWORD: z.string().optional(),
     SMTP_SECRET_REF: secretReferenceSchema,
+
     OBJECT_STORAGE_SECRET_REF: secretReferenceSchema,
     STORAGE_PROVIDER: z.enum(["local", "s3", "minio"]).default("local"),
     LOCAL_STORAGE_ROOT: z.string().min(1).default("./storage"),
@@ -47,10 +54,16 @@ const environmentSchema = z
     OBJECT_STORAGE_PUBLIC_ENDPOINT: z.string().url().default("http://localhost:9000"),
     OBJECT_STORAGE_REGION: z.string().min(1).default("us-east-1"),
     OBJECT_STORAGE_BUCKET: z.string().min(3).max(63).default("aptly-media-dev"),
-    OBJECT_STORAGE_FORCE_PATH_STYLE: z.coerce.boolean().default(true),
+
+    OBJECT_STORAGE_FORCE_PATH_STYLE: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((value) => value === "true"),
+
     OBJECT_STORAGE_ACCESS_KEY_ID: z.string().min(1).optional(),
     OBJECT_STORAGE_SECRET_ACCESS_KEY: z.string().min(1).optional(),
     OBJECT_STORAGE_CORS_ALLOWED_ORIGINS: z.string().min(1).optional(),
+
     WORKER_ORCHESTRATION_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(5),
     WORKER_MEDIA_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(3),
     WORKER_PROVIDER_BOUND_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(2),
@@ -63,12 +76,19 @@ const environmentSchema = z
     WORKER_INTEGRATIONS_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(2),
     WORKER_WEBHOOKS_CONCURRENCY: z.coerce.number().int().min(1).max(50).default(5),
     WORKER_TENANT_FAIRNESS_LIMIT: z.coerce.number().int().min(1).max(100).default(10),
+
     TRANSCRIPTION_PROVIDER: z.enum(["development"]).default("development"),
     EVALUATION_PROVIDER: z.enum(["deterministic", "openai"]).default("deterministic"),
     OPENAI_API_URL: z.string().url().default("https://api.openai.com/v1"),
     OPENAI_API_KEY: z.string().min(1).optional(),
     OPENAI_MODEL: z.string().min(1).default("gpt-5-mini"),
-    EVALUATION_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
+    EVALUATION_PROVIDER_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(1_000)
+      .max(120_000)
+      .default(30_000),
+
     APTLY_MONITORING_ENABLED: z.enum(["true", "false"]).default("true"),
     WEBHOOK_SIGNING_SECRET_REF: secretReferenceSchema.optional(),
     SCIM_TOKEN_SECRET_REF: secretReferenceSchema.optional(),
@@ -82,7 +102,9 @@ const environmentSchema = z
     RELEASE_IMAGE_VERSION: z.string().min(1).max(128).optional(),
   })
   .superRefine((value, context) => {
-    const isDeployedEnvironment = value.APP_ENV === "staging" || value.APP_ENV === "production";
+    const isDeployedEnvironment =
+      value.APP_ENV === "staging" || value.APP_ENV === "production";
+
     if (!isDeployedEnvironment) {
       return;
     }
@@ -106,6 +128,7 @@ const environmentSchema = z
     if (value.EMAIL_DELIVERY_MODE === "smtp") {
       requireProductionEmail(context, value);
     }
+
     if (
       (value.APP_ENV === "staging" || value.APP_ENV === "production") &&
       value.EVALUATION_PROVIDER === "openai" &&
@@ -183,6 +206,7 @@ function requireProductionEmail(context: z.RefinementCtx, value: Environment): v
       message: "SMTP host and port are required when production email delivery is enabled.",
     });
   }
+
   if (value.SMTP_FROM_EMAIL === undefined || value.SMTP_REPLY_TO_EMAIL === undefined) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
