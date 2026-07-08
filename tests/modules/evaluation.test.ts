@@ -13,6 +13,7 @@ import {
   OpenAIEvaluationProvider,
   DeterministicEvaluationProvider,
   EvaluationDomainError,
+  EvaluationProviderError,
   EvaluationService,
   createEvaluationProvider,
   parseOpenAIProviderOutput,
@@ -228,6 +229,68 @@ describe("evaluation foundation", () => {
         governance,
       }),
     ).rejects.toMatchObject({ code: "provider_unavailable" });
+  });
+
+  it("preserves safe OpenAI diagnostics without leaking secrets", async () => {
+    env.OPENAI_API_KEY = "test-key";
+    const provider = new OpenAIEvaluationProvider(
+      createOpenAIClientFixture({
+        rejectWith: Object.assign(new Error("schema rejected sk-test-secret"), {
+          status: 400,
+          code: "invalid_json_schema",
+          type: "invalid_request_error",
+          request_id: "req_openai_123",
+        }),
+      }),
+    );
+
+    await expect(
+      provider.evaluate({
+        redactedInput: redactEvaluationInput({
+          interviewSessionId,
+          transcriptVersionId,
+          rubric: governance.rubric,
+          segments: [createSegment()],
+        }),
+        governance,
+      }),
+    ).rejects.toSatisfy((error: unknown) => {
+      expect(error).toBeInstanceOf(EvaluationProviderError);
+      const providerError = error as EvaluationProviderError;
+      expect(providerError.message).toContain("status=400");
+      expect(providerError.message).toContain("code=invalid_json_schema");
+      expect(providerError.message).toContain("type=invalid_request_error");
+      expect(providerError.message).toContain("requestId=req_openai_123");
+      expect(providerError.message).not.toContain("sk-test-secret");
+      expect(providerError.details).toMatchObject({
+        status: 400,
+        code: "invalid_json_schema",
+        type: "invalid_request_error",
+        requestId: "req_openai_123",
+      });
+      return true;
+    });
+  });
+
+  it("returns a valid insufficient-evidence result for empty OpenAI transcript input", async () => {
+    env.OPENAI_API_KEY = "test-key";
+    const result = await new OpenAIEvaluationProvider(
+      createOpenAIClientFixture({ outputText: JSON.stringify(createOpenAIProviderOutput()) }),
+    ).evaluate({
+      redactedInput: redactEvaluationInput({
+        interviewSessionId,
+        transcriptVersionId,
+        rubric: governance.rubric,
+        segments: [createSegment({ text: "" })],
+      }),
+      governance,
+    });
+
+    expect(result.provider).toBe("openai");
+    expect(result.overallScore).toBeNull();
+    expect(result.overallConfidence).toBe("insufficient_evidence");
+    expect(result.competencies[0]?.incomplete).toBe(true);
+    expect(result.competencies[0]?.evidence).toEqual([]);
   });
 
   it("rejects incomplete OpenAI schema output before persistence", () => {
