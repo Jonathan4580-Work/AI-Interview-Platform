@@ -60,6 +60,9 @@ describe("workflow orchestration", () => {
     if (firstStep === undefined) throw new Error("Expected first step.");
     await service.startStep({ context, stepId: firstStep.id });
     await service.completeStep({ context, stepId: firstStep.id });
+    expect(repo.attempts).toHaveLength(1);
+    expect(repo.attempts[0]?.status).toBe("succeeded");
+    expect(repo.attempts[0]?.completedAt).not.toBeNull();
 
     queued = await service.queueReadySteps({ context, workflowId: workflow.id });
     expect(queued.map((step) => step.stepKey)).toEqual(["notify_ready"]);
@@ -89,6 +92,8 @@ describe("workflow orchestration", () => {
       retryAfterMs: 1_000,
     });
     expect(retry.status).toBe("retry_scheduled");
+    expect(repo.attempts[0]?.status).toBe("failed");
+    expect(repo.attempts[0]?.completedAt).not.toBeNull();
     expect(repo.workflows[0]?.status).toBe("running");
 
     const rerun = await service.startStep({ context, stepId: retry.id });
@@ -100,7 +105,121 @@ describe("workflow orchestration", () => {
       errorMessage: "Object checksum did not match the expected checksum.",
     });
     expect(terminal.status).toBe("failed");
+    expect(repo.attempts[1]?.status).toBe("failed");
+    expect(repo.attempts[1]?.completedAt).not.toBeNull();
     expect(repo.workflows[0]?.status).toBe("failed");
+  });
+
+  it("ignores stale failure after a step has already succeeded", async () => {
+    const repo = new InMemoryWorkflowRepository();
+    const service = createService(repo);
+    const workflow = await createDefaultWorkflow(service, [
+      {
+        stepKey: "finalize_media",
+        queueName: "media",
+        sequence: 1,
+      },
+    ]);
+    const queued = (await service.queueReadySteps({ context, workflowId: workflow.id })).at(0);
+    if (queued === undefined) throw new Error("Expected queued step.");
+    const running = await service.startStep({ context, stepId: queued.id });
+    const succeeded = await service.completeStep({ context, stepId: running.id });
+
+    const stale = await service.failStep({
+      context,
+      stepId: running.id,
+      failureKind: "retryable",
+      errorCode: "STALE_ERROR",
+      errorMessage: "A stale worker failure arrived after success.",
+    });
+
+    expect(stale.status).toBe("succeeded");
+    expect(repo.steps.find((step) => step.id === succeeded.id)?.status).toBe("succeeded");
+    expect(repo.attempts).toHaveLength(1);
+    expect(repo.attempts[0]?.status).toBe("succeeded");
+  });
+
+  it("does not crash when a running attempt for the same attempt number already exists", async () => {
+    const repo = new InMemoryWorkflowRepository();
+    const service = createService(repo);
+    const workflow = await createDefaultWorkflow(service, [
+      {
+        stepKey: "finalize_media",
+        queueName: "media",
+        sequence: 1,
+      },
+    ]);
+    const queued = (await service.queueReadySteps({ context, workflowId: workflow.id })).at(0);
+    if (queued === undefined) throw new Error("Expected queued step.");
+
+    const running = await service.startStep({ context, stepId: queued.id });
+    await repo.upsertAttemptStarted({
+      companyId: context.tenant.companyId,
+      workflowId: running.workflowId,
+      stepId: running.id,
+      attemptNumber: running.attemptCount,
+      startedAt: new Date("2026-06-30T00:00:00.000Z"),
+      checkpoint: {},
+      metadata: {},
+    });
+    await service.completeStep({ context, stepId: running.id });
+
+    expect(repo.attempts).toHaveLength(1);
+    expect(repo.attempts[0]?.attemptNumber).toBe(1);
+    expect(repo.attempts[0]?.status).toBe("succeeded");
+    expect(repo.attempts[0]?.completedAt).not.toBeNull();
+  });
+
+  it("progresses a full interview workflow through all processing steps", async () => {
+    const repo = new InMemoryWorkflowRepository();
+    const service = createService(repo);
+    const workflow = await createDefaultWorkflow(service, [
+      { stepKey: "finalize_media", queueName: "media", sequence: 1 },
+      {
+        stepKey: "transcribe_recording",
+        queueName: "transcription",
+        sequence: 2,
+        dependencyStepKeys: ["finalize_media"],
+      },
+      {
+        stepKey: "evaluate_interview",
+        queueName: "evaluation",
+        sequence: 3,
+        dependencyStepKeys: ["transcribe_recording"],
+      },
+      {
+        stepKey: "generate_report",
+        queueName: "reporting",
+        sequence: 4,
+        dependencyStepKeys: ["evaluate_interview"],
+      },
+      {
+        stepKey: "notify_results_ready",
+        queueName: "notifications",
+        sequence: 5,
+        dependencyStepKeys: ["generate_report"],
+      },
+    ]);
+
+    for (const expectedKey of [
+      "finalize_media",
+      "transcribe_recording",
+      "evaluate_interview",
+      "generate_report",
+      "notify_results_ready",
+    ]) {
+      const queued = (await service.queueReadySteps({ context, workflowId: workflow.id })).at(0);
+      expect(queued?.stepKey).toBe(expectedKey);
+      if (queued === undefined) throw new Error(`Expected ${expectedKey}.`);
+      const running = await service.startStep({ context, stepId: queued.id });
+      await service.completeStep({ context, stepId: running.id });
+    }
+
+    expect(repo.steps.every((step) => step.status === "succeeded")).toBe(true);
+    expect(repo.attempts).toHaveLength(5);
+    expect(repo.attempts.every((attempt) => attempt.status === "succeeded")).toBe(true);
+    expect(repo.attempts.every((attempt) => attempt.completedAt !== null)).toBe(true);
+    expect(repo.workflows[0]?.status).toBe("completed");
   });
 
   it("rejects invalid dependency ordering", async () => {
@@ -423,12 +542,73 @@ class InMemoryWorkflowRepository implements WorkflowRepository {
     return Promise.resolve(updated);
   }
 
-  public createAttempt(
-    input: Parameters<WorkflowRepository["createAttempt"]>[0],
+  public upsertAttemptStarted(
+    input: Parameters<WorkflowRepository["upsertAttemptStarted"]>[0],
   ): Promise<WorkflowStepAttemptRecord> {
+    const existingIndex = this.attempts.findIndex(
+      (attempt) =>
+        attempt.companyId === input.companyId &&
+        attempt.stepId === input.stepId &&
+        attempt.attemptNumber === input.attemptNumber,
+    );
+    if (existingIndex >= 0) {
+      const current = this.attempts[existingIndex];
+      const updated: WorkflowStepAttemptRecord = {
+        ...current,
+        status: "running",
+        failureKind: null,
+        errorCode: null,
+        errorMessage: null,
+        startedAt: input.startedAt,
+        completedAt: null,
+        checkpoint: input.checkpoint,
+        metadata: input.metadata,
+      };
+      this.attempts[existingIndex] = updated;
+      return Promise.resolve(updated);
+    }
     const attempt: WorkflowStepAttemptRecord = {
       id: `attempt_${String(this.attempts.length + 1)}`,
       ...input,
+      status: "running",
+      failureKind: null,
+      errorCode: null,
+      errorMessage: null,
+      completedAt: null,
+      createdAt: new Date("2026-06-30T00:00:00.000Z"),
+    };
+    this.attempts.push(attempt);
+    return Promise.resolve(attempt);
+  }
+
+  public completeAttempt(
+    input: Parameters<WorkflowRepository["completeAttempt"]>[0],
+  ): Promise<WorkflowStepAttemptRecord> {
+    const existingIndex = this.attempts.findIndex(
+      (attempt) =>
+        attempt.companyId === input.companyId &&
+        attempt.stepId === input.stepId &&
+        attempt.attemptNumber === input.attemptNumber,
+    );
+    if (existingIndex >= 0) {
+      const current = this.attempts[existingIndex];
+      const updated: WorkflowStepAttemptRecord = {
+        ...current,
+        status: input.status,
+        failureKind: input.failureKind,
+        errorCode: input.errorCode,
+        errorMessage: input.errorMessage,
+        completedAt: input.completedAt,
+        checkpoint: input.checkpoint,
+        metadata: input.metadata,
+      };
+      this.attempts[existingIndex] = updated;
+      return Promise.resolve(updated);
+    }
+    const attempt: WorkflowStepAttemptRecord = {
+      id: `attempt_${String(this.attempts.length + 1)}`,
+      ...input,
+      startedAt: input.completedAt,
       createdAt: new Date("2026-06-30T00:00:00.000Z"),
     };
     this.attempts.push(attempt);

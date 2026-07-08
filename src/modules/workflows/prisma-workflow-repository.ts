@@ -223,11 +223,57 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
     return mapStep(updated);
   }
 
-  public async createAttempt(
-    input: Parameters<WorkflowRepository["createAttempt"]>[0],
+  public async upsertAttemptStarted(
+    input: Parameters<WorkflowRepository["upsertAttemptStarted"]>[0],
   ): Promise<WorkflowStepAttemptRecord> {
-    const record = await prisma.workflowStepAttempt.create({
-      data: {
+    const record = await prisma.workflowStepAttempt.upsert({
+      where: {
+        companyId_stepId_attemptNumber: {
+          companyId: input.companyId,
+          stepId: input.stepId,
+          attemptNumber: input.attemptNumber,
+        },
+      },
+      create: {
+        companyId: input.companyId,
+        workflowId: input.workflowId,
+        stepId: input.stepId,
+        attemptNumber: input.attemptNumber,
+        status: "RUNNING",
+        failureKind: null,
+        errorCode: null,
+        errorMessage: null,
+        startedAt: input.startedAt,
+        completedAt: null,
+        checkpointJson: toInputJson(input.checkpoint),
+        metadataJson: toInputJson(input.metadata),
+      },
+      update: {
+        status: "RUNNING",
+        failureKind: null,
+        errorCode: null,
+        errorMessage: null,
+        startedAt: input.startedAt,
+        completedAt: null,
+        checkpointJson: toInputJson(input.checkpoint),
+        metadataJson: toInputJson(input.metadata),
+      },
+    });
+    return mapAttempt(record);
+  }
+
+  public async completeAttempt(
+    input: Parameters<WorkflowRepository["completeAttempt"]>[0],
+  ): Promise<WorkflowStepAttemptRecord> {
+    const record = await prisma.workflowStepAttempt.upsert({
+      where: {
+        companyId_stepId_attemptNumber: {
+          companyId: input.companyId,
+          stepId: input.stepId,
+          attemptNumber: input.attemptNumber,
+        },
+      },
+      create: {
         companyId: input.companyId,
         workflowId: input.workflowId,
         stepId: input.stepId,
@@ -236,7 +282,16 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
         failureKind: input.failureKind === null ? null : toPrismaFailureKind(input.failureKind),
         errorCode: input.errorCode,
         errorMessage: input.errorMessage,
-        startedAt: input.startedAt,
+        startedAt: input.completedAt,
+        completedAt: input.completedAt,
+        checkpointJson: toInputJson(input.checkpoint),
+        metadataJson: toInputJson(input.metadata),
+      },
+      update: {
+        status: toPrismaStepStatus(input.status),
+        failureKind: input.failureKind === null ? null : toPrismaFailureKind(input.failureKind),
+        errorCode: input.errorCode,
+        errorMessage: input.errorMessage,
         completedAt: input.completedAt,
         checkpointJson: toInputJson(input.checkpoint),
         metadataJson: toInputJson(input.metadata),

@@ -207,17 +207,26 @@ export interface WorkflowRepository {
     readonly at: Date;
   }): Promise<ProcessingWorkflowStepRecord | null>;
 
-  createAttempt(input: {
+  upsertAttemptStarted(input: {
     readonly companyId: TenantId;
     readonly workflowId: ProcessingWorkflowId;
     readonly stepId: ProcessingWorkflowStepId;
     readonly attemptNumber: number;
-    readonly status: WorkflowStepStatus;
+    readonly startedAt: Date;
+    readonly checkpoint: Record<string, unknown>;
+    readonly metadata: Record<string, unknown>;
+  }): Promise<WorkflowStepAttemptRecord>;
+
+  completeAttempt(input: {
+    readonly companyId: TenantId;
+    readonly workflowId: ProcessingWorkflowId;
+    readonly stepId: ProcessingWorkflowStepId;
+    readonly attemptNumber: number;
+    readonly status: Extract<WorkflowStepStatus, "succeeded" | "failed">;
     readonly failureKind: WorkflowFailureKind | null;
     readonly errorCode: string | null;
     readonly errorMessage: string | null;
-    readonly startedAt: Date;
-    readonly completedAt: Date | null;
+    readonly completedAt: Date;
     readonly checkpoint: Record<string, unknown>;
     readonly metadata: Record<string, unknown>;
   }): Promise<WorkflowStepAttemptRecord>;

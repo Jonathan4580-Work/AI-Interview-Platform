@@ -131,17 +131,12 @@ export class WorkflowService {
     if (updated === null) {
       throw new WorkflowDomainError("Workflow step cannot start from its current status.");
     }
-    await this.repository.createAttempt({
+    await this.repository.upsertAttemptStarted({
       companyId: input.context.tenant.companyId,
       workflowId: updated.workflowId,
       stepId: updated.id,
       attemptNumber: updated.attemptCount,
-      status: "running",
-      failureKind: null,
-      errorCode: null,
-      errorMessage: null,
       startedAt: updated.startedAt ?? this.now(),
-      completedAt: null,
       checkpoint: updated.checkpoint,
       metadata: {},
     });
@@ -154,6 +149,11 @@ export class WorkflowService {
     readonly checkpoint?: Record<string, unknown>;
   }): Promise<ProcessingWorkflowStepRecord> {
     const step = await this.requireStep(input.context, input.stepId);
+    if (step.status === "succeeded") {
+      await this.closeSucceededAttempt(input.context, step);
+      await this.finalizeWorkflowIfComplete(input.context, step.workflowId);
+      return step;
+    }
     const completed = await this.repository.updateStepStatus({
       tenant: input.context.tenant,
       stepId: step.id,
@@ -166,7 +166,7 @@ export class WorkflowService {
       throw new WorkflowDomainError("Workflow step cannot complete from its current status.");
     }
 
-    await this.repository.createAttempt({
+    await this.repository.completeAttempt({
       companyId: input.context.tenant.companyId,
       workflowId: completed.workflowId,
       stepId: completed.id,
@@ -175,7 +175,6 @@ export class WorkflowService {
       failureKind: null,
       errorCode: null,
       errorMessage: null,
-      startedAt: completed.startedAt ?? this.now(),
       completedAt: completed.completedAt ?? this.now(),
       checkpoint: completed.checkpoint,
       metadata: {},
@@ -194,6 +193,11 @@ export class WorkflowService {
     readonly checkpoint?: Record<string, unknown>;
   }): Promise<ProcessingWorkflowStepRecord> {
     const step = await this.requireStep(input.context, input.stepId);
+    if (step.status === "succeeded") {
+      await this.closeSucceededAttempt(input.context, step);
+      await this.finalizeWorkflowIfComplete(input.context, step.workflowId);
+      return step;
+    }
     const retryable = input.failureKind === "retryable" && step.attemptCount < step.maxAttempts;
     const status: WorkflowStepStatus = retryable ? "retry_scheduled" : "failed";
     const failed = await this.repository.updateStepStatus({
@@ -212,16 +216,15 @@ export class WorkflowService {
       throw new WorkflowDomainError("Workflow step cannot fail from its current status.");
     }
 
-    await this.repository.createAttempt({
+    await this.repository.completeAttempt({
       companyId: input.context.tenant.companyId,
       workflowId: failed.workflowId,
       stepId: failed.id,
       attemptNumber: Math.max(failed.attemptCount, 1),
-      status,
+      status: "failed",
       failureKind: input.failureKind,
       errorCode: normalizeProviderText(input.errorCode),
       errorMessage: normalizeProviderText(input.errorMessage),
-      startedAt: failed.startedAt ?? this.now(),
       completedAt: this.now(),
       checkpoint: failed.checkpoint,
       metadata: {},
@@ -417,6 +420,25 @@ export class WorkflowService {
       toStatus: "completed",
       currentStepKey: null,
       at: this.now(),
+    });
+  }
+
+  private async closeSucceededAttempt(
+    context: WorkflowMutationContext,
+    step: ProcessingWorkflowStepRecord,
+  ): Promise<void> {
+    await this.repository.completeAttempt({
+      companyId: context.tenant.companyId,
+      workflowId: step.workflowId,
+      stepId: step.id,
+      attemptNumber: Math.max(step.attemptCount, 1),
+      status: "succeeded",
+      failureKind: null,
+      errorCode: null,
+      errorMessage: null,
+      completedAt: step.completedAt ?? this.now(),
+      checkpoint: step.checkpoint,
+      metadata: {},
     });
   }
 
