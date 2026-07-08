@@ -69,7 +69,7 @@ export function createPhase9WorkflowHandlers(): WorkflowStepHandlerRegistry {
       } catch (error) {
         if (error instanceof EvaluationProviderError) {
           throw new WorkflowWorkerError(
-            error.message,
+            formatProviderWorkflowMessage(error),
             error.code === "malformed_output" || error.code === "provider_unavailable"
               ? "terminal"
               : "retryable",
@@ -94,6 +94,16 @@ export function createPhase9WorkflowHandlers(): WorkflowStepHandlerRegistry {
       return { notificationIntentCount: count };
     }),
   };
+}
+
+function formatProviderWorkflowMessage(error: EvaluationProviderError): string {
+  const detailText = Object.entries(error.details)
+    .filter((entry): entry is [string, string | number | boolean] =>
+      ["string", "number", "boolean"].includes(typeof entry[1]),
+    )
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .join(" ");
+  return detailText.length === 0 ? error.message : `${error.message} ${detailText}`;
 }
 
 async function createResultsReadyNotificationIntents(

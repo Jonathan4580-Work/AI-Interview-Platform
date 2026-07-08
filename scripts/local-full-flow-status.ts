@@ -135,48 +135,78 @@ async function checkDomainData(prisma: PrismaClient): Promise<CheckResult[]> {
 }
 
 async function checkFlowArtifacts(prisma: PrismaClient): Promise<CheckResult[]> {
-  const [
-    validInvitation,
-    sentEmail,
-    openedInvitation,
-    activeSession,
-    consent,
-    readiness,
-    started,
-    recording,
-    completed,
-    transcript,
-    evaluation,
-    report,
-  ] = await Promise.all([
-    prisma.candidateInvitation.count({
-      where: {
-        status: { in: ["SENT", "OPENED", "ACCEPTED"] },
-        expiresAt: { gt: new Date() },
-        tokenRevokedAt: null,
-        cancelledAt: null,
-      },
-    }),
-    prisma.emailDelivery.count({ where: { status: "SENT" } }),
-    prisma.candidateInvitation.count({ where: { status: { in: ["OPENED", "ACCEPTED"] } } }),
-    prisma.candidateSession.count({ where: { revokedAt: null, expiresAt: { gt: new Date() } } }),
-    prisma.candidateConsentRecord.count(),
-    prisma.readinessCheck.count(),
-    prisma.interviewSession.count({
-      where: {
-        status: {
-          in: ["IN_PROGRESS", "INTERRUPTED", "UPLOAD_RECOVERY", "COMPLETED", "PROCESSING"],
+  const [validInvitation, sentEmail, openedInvitation, activeSession, consent, readiness, started] =
+    await Promise.all([
+      prisma.candidateInvitation.count({
+        where: {
+          status: { in: ["SENT", "OPENED", "ACCEPTED"] },
+          expiresAt: { gt: new Date() },
+          tokenRevokedAt: null,
+          cancelledAt: null,
         },
-      },
-    }),
-    prisma.mediaObject.count({
-      where: { purpose: "INTERVIEW_RECORDING", uploadStatus: "COMPLETED" },
-    }),
-    prisma.interviewSession.count({ where: { status: { in: ["COMPLETED", "PROCESSING"] } } }),
-    prisma.transcript.count({ where: { status: "READY" } }),
-    prisma.evaluationRun.count({ where: { status: "READY" } }),
-    prisma.hrReport.count({ where: { status: "READY" } }),
-  ]);
+      }),
+      prisma.emailDelivery.count({ where: { status: "SENT" } }),
+      prisma.candidateInvitation.count({ where: { status: { in: ["OPENED", "ACCEPTED"] } } }),
+      prisma.candidateSession.count({ where: { revokedAt: null, expiresAt: { gt: new Date() } } }),
+      prisma.candidateConsentRecord.count(),
+      prisma.readinessCheck.count(),
+      prisma.interviewSession.count({
+        where: {
+          status: {
+            in: ["IN_PROGRESS", "INTERRUPTED", "UPLOAD_RECOVERY", "COMPLETED", "PROCESSING"],
+          },
+        },
+      }),
+    ]);
+
+  const latestInterview = await prisma.interviewSession.findFirst({
+    where: { status: { in: ["COMPLETED", "PROCESSING"] } },
+    select: { id: true, companyId: true, completedAt: true, updatedAt: true },
+    orderBy: [{ completedAt: "desc" }, { updatedAt: "desc" }],
+  });
+
+  const [recording, transcript, evaluation, report] =
+    latestInterview === null
+      ? [0, 0, 0, 0]
+      : await Promise.all([
+          prisma.interviewTurnMedia.count({
+            where: {
+              companyId: latestInterview.companyId,
+              interviewSessionId: latestInterview.id,
+              status: "VERIFIED",
+              mediaObject: {
+                purpose: "INTERVIEW_RECORDING",
+                uploadStatus: "COMPLETED",
+              },
+            },
+          }),
+          prisma.transcript.count({
+            where: {
+              companyId: latestInterview.companyId,
+              interviewSessionId: latestInterview.id,
+              status: "READY",
+            },
+          }),
+          prisma.evaluationRun.count({
+            where: {
+              companyId: latestInterview.companyId,
+              interviewSessionId: latestInterview.id,
+              status: "READY",
+            },
+          }),
+          prisma.hrReport.count({
+            where: {
+              companyId: latestInterview.companyId,
+              interviewSessionId: latestInterview.id,
+              status: "READY",
+            },
+          }),
+        ]);
+
+  const latestDetail =
+    latestInterview === null
+      ? "no latest completed interview"
+      : `latest interview ${latestInterview.id}`;
 
   return [
     validInvitation > 0
@@ -201,20 +231,20 @@ async function checkFlowArtifacts(prisma: PrismaClient): Promise<CheckResult[]> 
       ? pass("interview started", "interview session started")
       : block("interview started", "no started interview"),
     recording > 0
-      ? pass("recording uploaded", "verified recording media exists")
-      : block("recording uploaded", "no verified recording"),
-    completed > 0
-      ? pass("interview completed", "completed interview exists")
+      ? pass("recording uploaded", `verified recording media exists for ${latestDetail}`)
+      : block("recording uploaded", `no verified recording for ${latestDetail}`),
+    latestInterview !== null
+      ? pass("interview completed", latestDetail)
       : block("interview completed", "no completed interview"),
     transcript > 0
-      ? pass("transcript ready", "ready transcript exists")
-      : block("transcript ready", "no ready transcript"),
+      ? pass("transcript ready", `ready transcript exists for ${latestDetail}`)
+      : block("transcript ready", `no ready transcript for ${latestDetail}`),
     evaluation > 0
-      ? pass("OpenAI evaluation ready", "completed evaluation exists")
-      : block("OpenAI evaluation ready", "no completed evaluation"),
+      ? pass("OpenAI evaluation ready", `completed evaluation exists for ${latestDetail}`)
+      : block("OpenAI evaluation ready", `no completed evaluation for ${latestDetail}`),
     report > 0
-      ? pass("report ready", "ready report exists")
-      : block("report ready", "no ready report"),
+      ? pass("report ready", `ready report exists for ${latestDetail}`)
+      : block("report ready", `no ready report for ${latestDetail}`),
   ];
 }
 

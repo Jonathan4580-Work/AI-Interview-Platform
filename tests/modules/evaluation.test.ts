@@ -13,8 +13,10 @@ import {
   OpenAIEvaluationProvider,
   DeterministicEvaluationProvider,
   EvaluationDomainError,
+  EvaluationProviderError,
   EvaluationService,
   createEvaluationProvider,
+  getOpenAIEvaluationSchema,
   parseOpenAIProviderOutput,
   validateProviderResult,
   type EvaluationOverrideRecord,
@@ -158,6 +160,14 @@ describe("evaluation foundation", () => {
     expect(result.competencies[0]?.evidence[0]?.excerpt).toBe("reliable payment workflow");
   });
 
+  it("uses an OpenAI schema without unsupported strict-output keywords", () => {
+    const schema = getOpenAIEvaluationSchema();
+    expect(JSON.stringify(schema)).not.toMatch(
+      /"minLength"|"maxLength"|"minimum"|"maximum"|"minItems"|"maxItems"/u,
+    );
+    expect(JSON.stringify(schema)).toContain('"anyOf"');
+  });
+
   it("normalizes malformed OpenAI output", async () => {
     env.OPENAI_API_KEY = "test-key";
 
@@ -228,6 +238,77 @@ describe("evaluation foundation", () => {
         governance,
       }),
     ).rejects.toMatchObject({ code: "provider_unavailable" });
+  });
+
+  it("preserves safe OpenAI diagnostics without leaking secrets", async () => {
+    env.OPENAI_API_KEY = "test-key";
+    const provider = new OpenAIEvaluationProvider(
+      createOpenAIClientFixture({
+        rejectWith: Object.assign(new Error("schema rejected sk-test-secret"), {
+          status: 400,
+          code: "invalid_json_schema",
+          type: "invalid_request_error",
+          param: "text.format.schema.properties.overallScore.minimum",
+          request_id: "req_openai_123",
+          error: {
+            message: "schema rejected sk-test-secret",
+            code: "invalid_json_schema",
+            type: "invalid_request_error",
+            param: "text.format.schema",
+          },
+        }),
+      }),
+    );
+
+    await expect(
+      provider.evaluate({
+        redactedInput: redactEvaluationInput({
+          interviewSessionId,
+          transcriptVersionId,
+          rubric: governance.rubric,
+          segments: [createSegment()],
+        }),
+        governance,
+      }),
+    ).rejects.toSatisfy((error: unknown) => {
+      expect(error).toBeInstanceOf(EvaluationProviderError);
+      const providerError = error as EvaluationProviderError;
+      expect(providerError.message).toContain("status=400");
+      expect(providerError.message).toContain("code=invalid_json_schema");
+      expect(providerError.message).toContain("type=invalid_request_error");
+      expect(providerError.message).toContain("param=text.format.schema");
+      expect(providerError.message).toContain("requestId=req_openai_123");
+      expect(providerError.message).not.toContain("sk-test-secret");
+      expect(providerError.details).toMatchObject({
+        status: 400,
+        code: "invalid_json_schema",
+        type: "invalid_request_error",
+        param: "text.format.schema",
+        requestId: "req_openai_123",
+      });
+      return true;
+    });
+  });
+
+  it("returns a valid insufficient-evidence result for empty OpenAI transcript input", async () => {
+    env.OPENAI_API_KEY = "test-key";
+    const result = await new OpenAIEvaluationProvider(
+      createOpenAIClientFixture({ outputText: JSON.stringify(createOpenAIProviderOutput()) }),
+    ).evaluate({
+      redactedInput: redactEvaluationInput({
+        interviewSessionId,
+        transcriptVersionId,
+        rubric: governance.rubric,
+        segments: [createSegment({ text: "" })],
+      }),
+      governance,
+    });
+
+    expect(result.provider).toBe("openai");
+    expect(result.overallScore).toBeNull();
+    expect(result.overallConfidence).toBe("insufficient_evidence");
+    expect(result.competencies[0]?.incomplete).toBe(true);
+    expect(result.competencies[0]?.evidence).toEqual([]);
   });
 
   it("rejects incomplete OpenAI schema output before persistence", () => {

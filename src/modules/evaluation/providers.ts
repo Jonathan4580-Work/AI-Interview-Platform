@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import { z } from "zod";
 
 import { env } from "@/config";
+import { logger } from "@/infra/logging";
 
 import type {
   EvaluationProvider,
@@ -56,6 +57,8 @@ const providerResponseSchema = z
   })
   .strict();
 
+const OPENAI_SCHEMA_NAME = "aptly_evaluation_result";
+
 const OPENAI_EVALUATION_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -70,13 +73,12 @@ const OPENAI_EVALUATION_SCHEMA = {
     "limitations",
   ],
   properties: {
-    overallScore: { type: ["number", "null"], minimum: 1, maximum: 5 },
+    overallScore: nullableJsonSchema({ type: "number" }),
     overallConfidence: confidenceJsonSchema(),
-    summary: { type: "string", minLength: 1, maxLength: 4000 },
-    recommendation: { type: ["string", "null"], maxLength: 1000 },
+    summary: { type: "string" },
+    recommendation: nullableJsonSchema({ type: "string" }),
     competencies: {
       type: "array",
-      minItems: 1,
       items: {
         type: "object",
         additionalProperties: false,
@@ -90,11 +92,11 @@ const OPENAI_EVALUATION_SCHEMA = {
           "evidence",
         ],
         properties: {
-          competencyKey: { type: "string", minLength: 1, maxLength: 80 },
-          label: { type: "string", minLength: 1, maxLength: 160 },
-          score: { type: ["number", "null"], minimum: 1, maximum: 5 },
+          competencyKey: { type: "string" },
+          label: { type: "string" },
+          score: nullableJsonSchema({ type: "number" }),
           confidence: confidenceJsonSchema(),
-          rationale: { type: "string", minLength: 1, maxLength: 2000 },
+          rationale: { type: "string" },
           incomplete: { type: "boolean" },
           evidence: {
             type: "array",
@@ -103,10 +105,10 @@ const OPENAI_EVALUATION_SCHEMA = {
               additionalProperties: false,
               required: ["transcriptSegmentId", "interviewTurnId", "claim", "excerpt"],
               properties: {
-                transcriptSegmentId: { type: ["string", "null"] },
-                interviewTurnId: { type: ["string", "null"] },
-                claim: { type: "string", minLength: 1, maxLength: 1000 },
-                excerpt: { type: "string", minLength: 1, maxLength: 1000 },
+                transcriptSegmentId: nullableJsonSchema({ type: "string" }),
+                interviewTurnId: nullableJsonSchema({ type: "string" }),
+                claim: { type: "string" },
+                excerpt: { type: "string" },
               },
             },
           },
@@ -115,24 +117,21 @@ const OPENAI_EVALUATION_SCHEMA = {
     },
     strengths: {
       type: "array",
-      maxItems: 10,
-      items: { type: "string", minLength: 1, maxLength: 1000 },
+      items: { type: "string" },
     },
     developmentAreas: {
       type: "array",
-      maxItems: 10,
-      items: { type: "string", minLength: 1, maxLength: 1000 },
+      items: { type: "string" },
     },
     limitations: {
       type: "array",
-      maxItems: 10,
       items: {
         type: "object",
         additionalProperties: false,
         required: ["code", "message", "confidenceImpact"],
         properties: {
-          code: { type: "string", minLength: 1, maxLength: 80 },
-          message: { type: "string", minLength: 1, maxLength: 1000 },
+          code: { type: "string" },
+          message: { type: "string" },
           confidenceImpact: confidenceJsonSchema(),
         },
       },
@@ -220,6 +219,11 @@ export class OpenAIEvaluationProvider implements EvaluationProvider {
       );
     }
     const started = new Date();
+    if (!hasEnoughTranscriptEvidence(input.redactedInput.segments)) {
+      return createOpenAIInsufficientEvidenceResult(input, started);
+    }
+    const providerInput = buildOpenAIEvaluationProviderInput(input);
+    logger.info(buildOpenAIEvaluationDiagnostics(input), "OpenAI evaluation request prepared.");
     try {
       const response = await this.client.responses.create(
         {
@@ -228,13 +232,11 @@ export class OpenAIEvaluationProvider implements EvaluationProvider {
             input.governance.prompt.systemPrompt,
             "Return only the requested structured JSON. Do not include hidden reasoning, chain-of-thought, protected-characteristic inferences, appearance-based scoring, misconduct verdicts, candidate ranking, or automatic hiring decisions.",
           ].join("\n\n"),
-          input: `${input.governance.prompt.userPromptTemplate}\n\nEvaluation input:\n${JSON.stringify(
-            input.redactedInput,
-          )}`,
+          input: providerInput,
           text: {
             format: {
               type: "json_schema",
-              name: "aptly_evaluation_result",
+              name: OPENAI_SCHEMA_NAME,
               strict: true,
               schema: OPENAI_EVALUATION_SCHEMA,
             },
@@ -244,10 +246,18 @@ export class OpenAIEvaluationProvider implements EvaluationProvider {
         { timeout: env.EVALUATION_PROVIDER_TIMEOUT_MS },
       );
       if (response.error !== null) {
-        throw new EvaluationProviderError("OpenAI response failed.", "provider_retryable");
+        throw new EvaluationProviderError(
+          `OpenAI response failed: ${sanitizeProviderMessage(JSON.stringify(response.error))}`,
+          "provider_retryable",
+        );
       }
       if (response.incomplete_details !== null) {
-        throw new EvaluationProviderError("OpenAI response was incomplete.", "provider_retryable");
+        throw new EvaluationProviderError(
+          `OpenAI response was incomplete: ${sanitizeProviderMessage(
+            JSON.stringify(response.incomplete_details),
+          )}`,
+          "provider_retryable",
+        );
       }
       const output = response.output_text;
       if (output.trim().length === 0) {
@@ -282,6 +292,18 @@ export class OpenAIEvaluationProvider implements EvaluationProvider {
         throw error;
       }
       if (error instanceof z.ZodError || error instanceof SyntaxError) {
+        logger.warn(
+          {
+            provider: this.providerKey,
+            model: env.OPENAI_MODEL,
+            schemaName: OPENAI_SCHEMA_NAME,
+            parseIssue:
+              error instanceof z.ZodError
+                ? sanitizeProviderMessage(error.issues.map((issue) => issue.message).join("; "))
+                : "JSON syntax error",
+          },
+          "OpenAI evaluation output failed validation.",
+        );
         throw new EvaluationProviderError(
           "Provider output failed schema validation.",
           "malformed_output",
@@ -297,6 +319,7 @@ export class EvaluationProviderError extends Error {
     message: string,
     public readonly code:
       "provider_unavailable" | "provider_timeout" | "provider_retryable" | "malformed_output",
+    public readonly details: Readonly<Record<string, unknown>> = {},
   ) {
     super(message);
     this.name = "EvaluationProviderError";
@@ -315,6 +338,29 @@ export function getOpenAIEvaluationSchema(): Readonly<Record<string, unknown>> {
 
 export function parseOpenAIProviderOutput(output: string) {
   return providerResponseSchema.parse(JSON.parse(output));
+}
+
+export function buildOpenAIEvaluationProviderInput(
+  input: Parameters<EvaluationProvider["evaluate"]>[0],
+): string {
+  return `${input.governance.prompt.userPromptTemplate}\n\nEvaluation input:\n${JSON.stringify(
+    input.redactedInput,
+  )}`;
+}
+
+export function buildOpenAIEvaluationDiagnostics(
+  input: Parameters<EvaluationProvider["evaluate"]>[0],
+): Readonly<Record<string, unknown>> {
+  const providerInput = buildOpenAIEvaluationProviderInput(input);
+  return {
+    provider: "openai",
+    model: env.OPENAI_MODEL,
+    transcriptSegmentCount: input.redactedInput.segments.length,
+    competencyCount: input.redactedInput.rubric.competencies.length,
+    providerInputLength: providerInput.length,
+    schemaName: OPENAI_SCHEMA_NAME,
+    timeoutMs: env.EVALUATION_PROVIDER_TIMEOUT_MS,
+  };
 }
 
 function createEmptyDeterministicResult(
@@ -395,26 +441,56 @@ function createOpenAIClient(): OpenAIResponsesClient {
 }
 
 function normalizeOpenAIError(error: unknown): EvaluationProviderError {
+  const details = readOpenAIErrorDetails(error);
+  const detailMessage = formatProviderErrorDetails(details);
   if (error instanceof OpenAI.APIError) {
     if (error.status === 401 || error.status === 403) {
-      return new EvaluationProviderError("OpenAI authentication failed.", "provider_unavailable");
+      return new EvaluationProviderError(
+        `OpenAI authentication failed.${detailMessage}`,
+        "provider_unavailable",
+        details,
+      );
     }
     if (error.status === 429 || (error.status !== undefined && error.status >= 500)) {
-      return new EvaluationProviderError("OpenAI request failed.", "provider_retryable");
+      return new EvaluationProviderError(
+        `OpenAI request failed.${detailMessage}`,
+        "provider_retryable",
+        details,
+      );
     }
-    return new EvaluationProviderError("OpenAI request failed.", "provider_retryable");
+    return new EvaluationProviderError(
+      `OpenAI request failed.${detailMessage}`,
+      "provider_retryable",
+      details,
+    );
   }
   const status = readHttpStatus(error);
   if (status === 401 || status === 403) {
-    return new EvaluationProviderError("OpenAI authentication failed.", "provider_unavailable");
+    return new EvaluationProviderError(
+      `OpenAI authentication failed.${detailMessage}`,
+      "provider_unavailable",
+      details,
+    );
   }
   if (status === 429 || (status !== null && status >= 500)) {
-    return new EvaluationProviderError("OpenAI request failed.", "provider_retryable");
+    return new EvaluationProviderError(
+      `OpenAI request failed.${detailMessage}`,
+      "provider_retryable",
+      details,
+    );
   }
   if (error instanceof Error && (error.name === "AbortError" || /timeout/iu.test(error.message))) {
-    return new EvaluationProviderError("OpenAI request timed out.", "provider_timeout");
+    return new EvaluationProviderError(
+      `OpenAI request timed out.${detailMessage}`,
+      "provider_timeout",
+      details,
+    );
   }
-  return new EvaluationProviderError("OpenAI request failed.", "provider_retryable");
+  return new EvaluationProviderError(
+    `OpenAI request failed.${detailMessage}`,
+    "provider_retryable",
+    details,
+  );
 }
 
 function readHttpStatus(error: unknown): number | null {
@@ -448,6 +524,196 @@ function confidenceJsonSchema() {
     type: "string",
     enum: ["high", "moderate", "limited", "insufficient_evidence"],
   } as const;
+}
+
+function nullableJsonSchema<T extends Readonly<Record<string, unknown>>>(schema: T) {
+  return { anyOf: [schema, { type: "null" }] } as const;
+}
+
+function hasEnoughTranscriptEvidence(segments: readonly { readonly text: string }[]): boolean {
+  const text = segments.map((segment) => segment.text.trim()).join(" ");
+  return text.split(/\s+/u).filter(Boolean).length >= 5;
+}
+
+function createOpenAIInsufficientEvidenceResult(
+  input: Parameters<EvaluationProvider["evaluate"]>[0],
+  started: Date,
+): EvaluationProviderResult {
+  const received = new Date();
+  const competencies: ProviderCompetencyResult[] = input.redactedInput.rubric.competencies.map(
+    (competency) => ({
+      competencyKey: competency.key,
+      label: competency.label,
+      score: null,
+      confidence: "insufficient_evidence",
+      rationale: "Transcript evidence was too limited for a supported assessment.",
+      incomplete: true,
+      evidence: [],
+    }),
+  );
+  const response = {
+    overallScore: null,
+    overallConfidence: "insufficient_evidence",
+    summary:
+      "The interview transcript did not contain enough substantive answer content for a supported evaluation.",
+    recommendation: "Human review is required because transcript evidence is insufficient.",
+    competencies,
+    strengths: [],
+    developmentAreas: ["Transcript evidence is insufficient for evaluation."],
+    limitations: [
+      {
+        code: "insufficient_transcript_evidence",
+        message: "Transcript segments were empty or too short for reliable evaluation.",
+        confidenceImpact: "insufficient_evidence",
+      },
+    ],
+  } satisfies Pick<
+    EvaluationProviderResult,
+    | "overallScore"
+    | "overallConfidence"
+    | "summary"
+    | "recommendation"
+    | "competencies"
+    | "strengths"
+    | "developmentAreas"
+    | "limitations"
+  >;
+  return {
+    provider: "openai",
+    providerModel: env.OPENAI_MODEL,
+    providerModelVersion: null,
+    requestStartedAt: started,
+    responseReceivedAt: received,
+    latencyMs: received.getTime() - started.getTime(),
+    usage: { skippedProviderRequest: true },
+    estimatedCostCents: 0,
+    transcriptConfidence: response.overallConfidence,
+    providerRequestHash: hashStable(input.redactedInput),
+    providerResponseHash: hashStable(response),
+    metadata: {
+      schemaVersion: 1,
+      skippedProviderRequest: true,
+      reason: "insufficient_transcript_evidence",
+    },
+    ...response,
+  };
+}
+
+export function formatSafeProviderError(error: unknown): Readonly<Record<string, unknown>> {
+  if (error instanceof EvaluationProviderError) {
+    return {
+      code: error.code,
+      message: sanitizeProviderMessage(error.message),
+      ...error.details,
+    };
+  }
+  return {
+    code: "unknown_error",
+    message: sanitizeProviderMessage(
+      error instanceof Error ? error.message : "Unknown provider failure.",
+    ),
+  };
+}
+
+function readOpenAIErrorDetails(error: unknown): Readonly<Record<string, unknown>> {
+  const details: Record<string, unknown> = {};
+  if (error !== null && typeof error === "object") {
+    const candidate = error as {
+      readonly status?: unknown;
+      readonly code?: unknown;
+      readonly type?: unknown;
+      readonly param?: unknown;
+      readonly request_id?: unknown;
+      readonly requestID?: unknown;
+      readonly message?: unknown;
+      readonly error?: unknown;
+      readonly headers?: unknown;
+    };
+    if (typeof candidate.status === "number") details.status = candidate.status;
+    if (typeof candidate.code === "string") details.code = sanitizeProviderMessage(candidate.code);
+    if (typeof candidate.type === "string") details.type = sanitizeProviderMessage(candidate.type);
+    if (typeof candidate.param === "string") {
+      details.param = sanitizeProviderMessage(candidate.param);
+    }
+    const requestId = candidate.request_id ?? candidate.requestID;
+    if (typeof requestId === "string") details.requestId = sanitizeProviderMessage(requestId);
+    if (typeof candidate.message === "string") {
+      details.message = sanitizeProviderMessage(candidate.message);
+    }
+    const nested = readNestedOpenAIError(candidate.error);
+    Object.assign(details, nested);
+    const headerRequestId = readHeaderValue(candidate.headers, "x-request-id");
+    if (typeof headerRequestId === "string" && details.requestId === undefined) {
+      details.requestId = sanitizeProviderMessage(headerRequestId);
+    }
+    const responseSummary = summarizeProviderResponse(candidate.error);
+    if (responseSummary !== null) {
+      details.responseSummary = responseSummary;
+    }
+  }
+  return details;
+}
+
+function readNestedOpenAIError(value: unknown): Readonly<Record<string, unknown>> {
+  if (value === null || typeof value !== "object") {
+    return {};
+  }
+  const error = value as {
+    readonly status?: unknown;
+    readonly code?: unknown;
+    readonly type?: unknown;
+    readonly param?: unknown;
+    readonly message?: unknown;
+  };
+  const details: Record<string, unknown> = {};
+  if (typeof error.status === "number") details.status = error.status;
+  if (typeof error.code === "string") details.code = sanitizeProviderMessage(error.code);
+  if (typeof error.type === "string") details.type = sanitizeProviderMessage(error.type);
+  if (typeof error.param === "string") details.param = sanitizeProviderMessage(error.param);
+  if (typeof error.message === "string") details.message = sanitizeProviderMessage(error.message);
+  return details;
+}
+
+function formatProviderErrorDetails(details: Readonly<Record<string, unknown>>): string {
+  const parts = [
+    ["status", details.status],
+    ["code", details.code],
+    ["type", details.type],
+    ["param", details.param],
+    ["requestId", details.requestId],
+    ["message", details.message],
+    ["responseSummary", details.responseSummary],
+  ]
+    .filter((entry): entry is [string, string | number] => entry[1] !== undefined)
+    .map(([key, value]) => `${key}=${String(value)}`);
+  return parts.length === 0 ? "" : ` ${parts.join(" ")}`;
+}
+
+function readHeaderValue(headers: unknown, name: string): string | null {
+  if (headers !== null && typeof headers === "object" && "get" in headers) {
+    const value = (headers as { readonly get: (key: string) => unknown }).get(name);
+    return typeof value === "string" ? value : null;
+  }
+  return null;
+}
+
+function summarizeProviderResponse(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  try {
+    return sanitizeProviderMessage(JSON.stringify(value));
+  } catch {
+    return null;
+  }
+}
+
+function sanitizeProviderMessage(value: string): string {
+  return value
+    .replace(/sk-[a-zA-Z0-9_-]+/gu, "[redacted]")
+    .replace(/api[_ -]?key["':=\s]+[a-zA-Z0-9._-]+/giu, "api_key=[redacted]")
+    .replace(/\s+/gu, " ")
+    .slice(0, 500);
 }
 
 function hashStable(value: unknown): string {
