@@ -4,7 +4,10 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { InterviewRoomClient } from "@/app/candidate/interview/interview-room-client";
+import {
+  buildAnswerText,
+  InterviewRoomClient,
+} from "@/app/candidate/interview/interview-room-client";
 import { chooseRecordingMimeType } from "@/components/candidate/interview/recording-client";
 
 const interviewState = {
@@ -80,7 +83,20 @@ describe("candidate interview room", () => {
       "polite",
     );
     expect(screen.getByRole("button", { name: "Start answer" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Start answer" })).toBeEnabled();
+    expect(screen.getByText("Typed fallback")).toBeInTheDocument();
+    expect(screen.getByLabelText("Answer notes / typed answer")).toBeInTheDocument();
+  });
+
+  it("combines captured speech and typed fallback text for answer completion", () => {
+    expect(
+      buildAnswerText(
+        " I designed a fraud review workflow. ",
+        " It reduced manual triage and improved audit quality. ",
+      ),
+    ).toBe(
+      "I designed a fraud review workflow. It reduced manual triage and improved audit quality.",
+    );
+    expect(buildAnswerText("", "   ")).toBeNull();
   });
 
   it("negotiates the first supported recording MIME type", () => {

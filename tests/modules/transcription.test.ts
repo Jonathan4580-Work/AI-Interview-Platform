@@ -39,6 +39,8 @@ describe("transcription foundation", () => {
 
   it("creates a deterministic provider transcript and keeps transcript text out of audit", async () => {
     const repo = new InMemoryTranscriptRepository();
+    repo.turnContent =
+      "I led the payments reliability project, reduced failed jobs, and documented the rollout plan.";
     const audit = new InMemoryAuditStore();
     const service = createService(repo, audit);
 
@@ -48,8 +50,8 @@ describe("transcription foundation", () => {
     });
 
     expect(created.version.provider).toBe("development");
-    expect(repo.segments[0]?.text).toContain("Recorded answer for interview question 1.");
-    expect(JSON.stringify(audit.events)).not.toContain("Recorded answer");
+    expect(repo.segments[0]?.text).toContain("payments reliability project");
+    expect(JSON.stringify(audit.events)).not.toContain("payments reliability project");
   });
 
   it("returns the active transcript without creating duplicate versions", async () => {
@@ -182,6 +184,7 @@ class InMemoryTranscriptRepository implements TranscriptRepository {
   public readonly versions: TranscriptVersionRecord[] = [];
   public readonly segments: TranscriptSegmentRecord[] = [];
   public providerResult: TranscriptionProviderResult | null = null;
+  public turnContent: string | null = null;
 
   public buildMediaManifest(): Promise<MediaManifest> {
     return Promise.resolve({
@@ -217,7 +220,7 @@ class InMemoryTranscriptRepository implements TranscriptRepository {
       {
         id: "turn_1",
         sequence: 1,
-        content: null,
+        content: this.turnContent,
         startedAt: new Date("2026-07-01T00:00:00.000Z"),
         endedAt: new Date("2026-07-01T00:00:30.000Z"),
       },

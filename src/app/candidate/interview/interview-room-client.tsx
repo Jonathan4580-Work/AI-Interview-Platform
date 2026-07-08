@@ -33,6 +33,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 import type { ReactNode } from "react";
 
@@ -70,12 +71,45 @@ interface InterviewStatePayload {
   readonly turns?: readonly InterviewTurn[];
 }
 
+interface SpeechRecognitionAlternativeLike {
+  readonly transcript: string;
+}
+
+interface SpeechRecognitionResultLike {
+  readonly isFinal: boolean;
+  readonly 0: SpeechRecognitionAlternativeLike;
+}
+
+interface SpeechRecognitionResultListLike {
+  readonly length: number;
+  readonly [index: number]: SpeechRecognitionResultLike;
+}
+
+interface SpeechRecognitionEventLike extends Event {
+  readonly resultIndex: number;
+  readonly results: SpeechRecognitionResultListLike;
+}
+
+interface SpeechRecognitionLike extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
 type RecordingPhase =
   | "loading"
   | "not_recording"
   | "requesting_access"
   | "recording"
   | "saving"
+  | "needs_text"
   | "answer_saved"
   | "upload_failed"
   | "completed";
@@ -94,10 +128,20 @@ export function InterviewRoomClient() {
   const [monitoringStatus, setMonitoringStatus] = useState<MonitoringStatus>("loading");
   const [monitoringDetail, setMonitoringDetail] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [speechActive, setSpeechActive] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [typedAnswer, setTypedAnswer] = useState("");
+  const [pendingCompletion, setPendingCompletion] = useState<{
+    readonly turnId: string;
+    readonly mediaObjectIds: readonly string[];
+  } | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const finalTranscriptRef = useRef("");
   const monitoringRef = useRef<InterviewMonitoringController | null>(null);
   const chunkNumberRef = useRef(0);
   const uploadPromisesRef = useRef<Promise<RecordingUploadResult>[]>([]);
@@ -129,11 +173,13 @@ export function InterviewRoomClient() {
 
   useEffect(() => {
     void bootstrap();
+    setSpeechSupported(getSpeechRecognitionConstructor() !== null);
     const heartbeat = window.setInterval(() => {
       void sendHeartbeat(connectionState);
     }, 30_000);
     return () => {
       window.clearInterval(heartbeat);
+      stopSpeechRecognition();
       stopTracks();
     };
   }, []);
@@ -219,6 +265,10 @@ export function InterviewRoomClient() {
     setPhase("requesting_access");
     setMessage(null);
     setUploadedMedia([]);
+    setLiveTranscript("");
+    setTypedAnswer("");
+    setPendingCompletion(null);
+    finalTranscriptRef.current = "";
     uploadPromisesRef.current = [];
 
     const turnResponse = await candidatePost("/api/candidate/interview/answers/start", {
@@ -243,6 +293,7 @@ export function InterviewRoomClient() {
       if (videoRef.current !== null) {
         videoRef.current.srcObject = stream;
       }
+      startSpeechRecognition();
 
       const mimeType = chooseRecordingMimeType();
       const recorder = new MediaRecorder(stream, mimeType.length === 0 ? undefined : { mimeType });
@@ -278,6 +329,7 @@ export function InterviewRoomClient() {
     if (phase !== "recording" || recorderRef.current?.state !== "recording") return;
     setPhase("saving");
     setMessage("Saving your answer. Please keep this tab open.");
+    stopSpeechRecognition();
     recorderRef.current.requestData();
     recorderRef.current.stop();
   }
@@ -286,10 +338,52 @@ export function InterviewRoomClient() {
     try {
       const completedUploads = await Promise.all(uploadPromisesRef.current);
       setUploadedMedia(completedUploads);
+      const mediaObjectIds = completedUploads.map((upload) => upload.mediaObjectId);
+      const answerContent = buildAnswerContent();
+      if (answerContent === null) {
+        setPendingCompletion({ turnId, mediaObjectIds });
+        setPhase("needs_text");
+        setMessage(
+          "We could not capture speech text. Please type a short answer summary to continue.",
+        );
+        stopTracks();
+        return;
+      }
+      await completeAnswerWithContent({ turnId, mediaObjectIds, content: answerContent });
+    } catch (error) {
+      setPhase("upload_failed");
+      monitoringRef.current?.recordRecordingInterrupted("upload_or_completion_failed");
+      setMessage(friendlyCandidateError(0, error instanceof Error ? error.message : null));
+      await candidateGet("/api/candidate/interview/upload-recovery");
+    }
+  }
+
+  async function completePendingTypedAnswer() {
+    if (pendingCompletion === null) return;
+    const answerContent = buildAnswerContent();
+    if (answerContent === null) {
+      setMessage("Please type a short answer summary before continuing.");
+      return;
+    }
+    setPhase("saving");
+    await completeAnswerWithContent({
+      turnId: pendingCompletion.turnId,
+      mediaObjectIds: pendingCompletion.mediaObjectIds,
+      content: answerContent,
+    });
+  }
+
+  async function completeAnswerWithContent(input: {
+    readonly turnId: string;
+    readonly mediaObjectIds: readonly string[];
+    readonly content: string;
+  }) {
+    try {
       const response = await candidatePost("/api/candidate/interview/answers/complete", {
-        turnId,
-        mediaObjectIds: completedUploads.map((upload) => upload.mediaObjectId),
-        idempotencyKey: `complete-${turnId}`,
+        turnId: input.turnId,
+        content: input.content,
+        mediaObjectIds: input.mediaObjectIds,
+        idempotencyKey: `complete-${input.turnId}`,
       });
       if (!response.ok) {
         if (response.status === 409) {
@@ -301,6 +395,7 @@ export function InterviewRoomClient() {
         }
         throw new Error(response.error);
       }
+      setPendingCompletion(null);
       setPhase("answer_saved");
       setMessage("Answer saved. You can continue to the next question.");
       stopTracks();
@@ -318,6 +413,10 @@ export function InterviewRoomClient() {
       setPhase("not_recording");
       setMessage(null);
       setUploadedMedia([]);
+      setLiveTranscript("");
+      setTypedAnswer("");
+      setPendingCompletion(null);
+      finalTranscriptRef.current = "";
       return;
     }
     setConfirmEndOpen(true);
@@ -367,6 +466,68 @@ export function InterviewRoomClient() {
     setAnswerStartedAt(null);
   }
 
+  function startSpeechRecognition() {
+    const Recognition = getSpeechRecognitionConstructor();
+    if (Recognition === null) {
+      setSpeechSupported(false);
+      setSpeechActive(false);
+      return;
+    }
+    const recognition = new Recognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+    recognition.onresult = (event) => {
+      let interim = "";
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        const transcript = result[0].transcript.trim();
+        if (transcript.length === 0) continue;
+        if (result.isFinal) {
+          finalTranscriptRef.current = normalizeAnswerText(
+            `${finalTranscriptRef.current} ${transcript}`,
+          );
+        } else {
+          interim = normalizeAnswerText(`${interim} ${transcript}`);
+        }
+      }
+      setLiveTranscript(normalizeAnswerText(`${finalTranscriptRef.current} ${interim}`));
+    };
+    recognition.onerror = () => {
+      setSpeechActive(false);
+    };
+    recognition.onend = () => {
+      setSpeechActive(false);
+    };
+    speechRecognitionRef.current = recognition;
+    try {
+      recognition.start();
+      setSpeechSupported(true);
+      setSpeechActive(true);
+    } catch {
+      setSpeechActive(false);
+    }
+  }
+
+  function stopSpeechRecognition() {
+    const recognition = speechRecognitionRef.current;
+    speechRecognitionRef.current = null;
+    if (recognition === null) {
+      setSpeechActive(false);
+      return;
+    }
+    try {
+      recognition.stop();
+    } catch {
+      // Browsers may stop speech recognition automatically after silence.
+    }
+    setSpeechActive(false);
+  }
+
+  function buildAnswerContent(): string | null {
+    return buildAnswerText(liveTranscript, typedAnswer);
+  }
+
   function observeDeviceTrackAvailability(stream: MediaStream) {
     for (const track of stream.getVideoTracks()) {
       track.addEventListener("ended", () => {
@@ -402,6 +563,14 @@ export function InterviewRoomClient() {
       return {
         label: allRequiredAnswered ? "Finish interview" : "Next question",
         action: nextQuestion,
+      };
+    }
+    if (phase === "needs_text") {
+      return {
+        label: "Save typed answer",
+        action: () => {
+          void completePendingTypedAnswer();
+        },
       };
     }
     if (allRequiredAnswered) {
@@ -503,6 +672,39 @@ export function InterviewRoomClient() {
                 <span className="sr-only">Interview progress:</span>
                 {progress}% complete
               </p>
+
+              <div className="mt-5 rounded-md border border-border bg-muted/30 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-sm font-semibold text-foreground">Answer transcript</h2>
+                  <Badge
+                    variant={speechActive ? "success" : speechSupported ? "neutral" : "warning"}
+                  >
+                    {speechActive
+                      ? "Capturing speech"
+                      : speechSupported
+                        ? "Speech capture ready"
+                        : "Typed fallback"}
+                  </Badge>
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground" aria-live="polite">
+                  {liveTranscript.trim().length > 0
+                    ? liveTranscript
+                    : speechSupported
+                      ? "Capturing speech while you record. You can also add notes below."
+                      : "Speech recognition is unavailable in this browser. Type a short answer summary before continuing."}
+                </p>
+                <label className="mt-3 grid gap-1.5 text-sm font-medium text-foreground">
+                  Answer notes / typed answer
+                  <Textarea
+                    value={typedAnswer}
+                    onChange={(event) => {
+                      setTypedAnswer(event.target.value);
+                    }}
+                    placeholder="Optional while speech is captured. Required if speech text is empty."
+                    disabled={phase === "saving" || phase === "completed"}
+                  />
+                </label>
+              </div>
             </div>
 
             {message !== null ? (
@@ -530,6 +732,7 @@ export function InterviewRoomClient() {
                       isRefreshing ||
                       phase === "requesting_access" ||
                       phase === "saving" ||
+                      (phase === "needs_text" && buildAnswerContent() === null) ||
                       (phase === "recording" && primaryAction.label !== "Finish answer")
                     }
                   >
@@ -692,6 +895,8 @@ function recordingLabel(state: RecordingPhase): string {
       return "Recording";
     case "saving":
       return "Saving answer";
+    case "needs_text":
+      return "Answer text needed";
     case "answer_saved":
       return "Answer saved";
     case "upload_failed":
@@ -711,6 +916,8 @@ function guidanceText(state: RecordingPhase, allRequiredAnswered: boolean): stri
       return "Speak naturally. When you are done, choose Finish answer.";
     case "saving":
       return "Your answer is uploading and being verified. Please wait.";
+    case "needs_text":
+      return "Type a short answer summary, then save the typed answer.";
     case "answer_saved":
       return "Your answer is saved. Continue to the next question.";
     case "upload_failed":
@@ -733,6 +940,7 @@ function statusVariant(state: RecordingPhase): "neutral" | "success" | "warning"
     case "saving":
     case "requesting_access":
     case "loading":
+    case "needs_text":
       return "warning";
     case "answer_saved":
     case "completed":
@@ -757,9 +965,30 @@ function connectionLabel(state: ConnectionState): string {
 
 function uploadLabel(state: RecordingPhase, uploadedCount: number): string {
   if (state === "saving") return "Uploading";
+  if (state === "needs_text") return "Uploaded, waiting for text";
   if (state === "answer_saved") return `${String(uploadedCount)} segment verified`;
   if (state === "upload_failed") return "Needs retry";
   return "Ready";
+}
+
+export function buildAnswerText(liveTranscript: string, typedAnswer: string): string | null {
+  const captured = normalizeAnswerText(liveTranscript);
+  const typed = normalizeAnswerText(typedAnswer);
+  const combined = normalizeAnswerText([captured, typed].filter(Boolean).join(" "));
+  return combined.length === 0 ? null : combined;
+}
+
+function normalizeAnswerText(value: string): string {
+  return value.trim().replace(/\s+/gu, " ").slice(0, 10_000);
+}
+
+function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null {
+  const candidate = window as Window &
+    typeof globalThis & {
+      readonly SpeechRecognition?: SpeechRecognitionConstructor;
+      readonly webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    };
+  return candidate.SpeechRecognition ?? candidate.webkitSpeechRecognition ?? null;
 }
 
 function monitoringDescription(state: MonitoringStatus, detail: string | null): string {

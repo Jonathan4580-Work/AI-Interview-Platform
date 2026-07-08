@@ -58,6 +58,23 @@ describe("evaluation foundation", () => {
     expect(JSON.stringify(redacted)).not.toContain("candidate@example.com");
   });
 
+  it("keeps substantive answer content in provider input after redaction", () => {
+    const redacted = redactEvaluationInput({
+      interviewSessionId,
+      transcriptVersionId,
+      rubric: governance.rubric,
+      segments: [
+        createSegment({
+          text: "I led the payments reliability project and reduced queue failures with retry monitoring.",
+        }),
+      ],
+    });
+
+    expect(redacted.segments[0]?.text).toContain("payments reliability project");
+    expect(redacted.segments[0]?.text).toContain("retry monitoring");
+    expect(redacted.segments[0]?.text).not.toContain("Recorded answer for interview question");
+  });
+
   it("deterministic provider returns deterministic evidence-linked results", async () => {
     const provider = new DeterministicEvaluationProvider();
     const redactedInput = redactEvaluationInput({
