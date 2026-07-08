@@ -34,6 +34,9 @@ export default async function JobDetailPage({
         actions={
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="secondary">
+              <Link href={`/jobs/${job.id}/review`}>Review JD draft</Link>
+            </Button>
+            <Button asChild variant="secondary">
               <Link href={`/jobs/${job.id}/edit`}>
                 <Pencil aria-hidden="true" />
                 Edit
@@ -69,6 +72,26 @@ export default async function JobDetailPage({
             <p className="text-muted-foreground">{readSummary(job.descriptionJson)}</p>
           </CardContent>
         </Card>
+
+        {job.intelligenceProfile === null ? null : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Job intelligence</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 text-sm">
+              <div className="flex flex-wrap gap-2">
+                <StatusBadge value={job.intelligenceProfile.status} />
+                <StatusBadge value={`${String(job.interviewQuestions.length)} questions`} />
+              </div>
+              <p className="text-muted-foreground">
+                AI-generated draft. Review and publish before sending candidates through this plan.
+              </p>
+              <Button asChild variant="secondary">
+                <Link href={`/jobs/${job.id}/review`}>Open review</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

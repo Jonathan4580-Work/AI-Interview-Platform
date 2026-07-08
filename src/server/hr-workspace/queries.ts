@@ -92,6 +92,9 @@ export async function getJobDetail(context: HrWorkspaceContext, jobId: string) {
         },
         orderBy: { updatedAt: "desc" },
       },
+      descriptionAssets: { orderBy: { createdAt: "desc" }, take: 1 },
+      intelligenceProfile: true,
+      interviewQuestions: { orderBy: { sequence: "asc" } },
       applications: {
         where: { deletedAt: null },
         include: {
@@ -108,6 +111,27 @@ export async function getJobDetail(context: HrWorkspaceContext, jobId: string) {
       },
     },
   });
+}
+
+export async function getJobReviewDetail(context: HrWorkspaceContext, jobId: string) {
+  const job = await prisma.job.findUnique({
+    where: { companyId_id: { companyId: context.tenant.companyId, id: jobId } },
+    include: {
+      descriptionAssets: { orderBy: { createdAt: "desc" } },
+      intelligenceProfile: true,
+      interviewQuestions: { orderBy: { sequence: "asc" } },
+    },
+  });
+  if (job === null) {
+    return null;
+  }
+  const workflows = await prisma.processingWorkflow.findMany({
+    where: { companyId: context.tenant.companyId, subjectType: "job", subjectId: jobId },
+    include: { steps: { orderBy: { sequence: "asc" } } },
+    orderBy: { createdAt: "desc" },
+    take: 3,
+  });
+  return { ...job, workflows };
 }
 
 export async function listCandidates(context: HrWorkspaceContext, query: string | null) {

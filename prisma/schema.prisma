@@ -297,6 +297,33 @@ enum JobStatus {
   @@map("job_status")
 }
 
+enum JobAiAnalysisStatus {
+  DRAFT
+  AI_ANALYSIS_PENDING
+  AI_ANALYSIS_READY
+  HR_REVIEW_NEEDED
+  PUBLISHED
+  CLOSED
+  ARCHIVED
+
+  @@map("job_ai_analysis_status")
+}
+
+enum JobDescriptionSourceType {
+  PASTED_TEXT
+  PDF_UPLOAD
+  DOCX_UPLOAD
+
+  @@map("job_description_source_type")
+}
+
+enum JobDescriptionAssetStatus {
+  TEXT_EXTRACTED
+  EXTRACTION_FAILED
+
+  @@map("job_description_asset_status")
+}
+
 enum JobTemplateStatus {
   ACTIVE
   ARCHIVED
@@ -1186,6 +1213,9 @@ model Company {
   hiringPipelines         HiringPipeline[]
   pipelineStages          PipelineStage[]
   jobs                    Job[]
+  jobDescriptionAssets    JobDescriptionAsset[]
+  jobIntelligenceProfiles JobIntelligenceProfile[]
+  jobInterviewQuestions   JobInterviewQuestion[]
   jobTemplates            JobTemplate[]
   interviewPlans          InterviewPlan[]
   interviewPlanVersions   InterviewPlanVersion[]
@@ -2019,6 +2049,9 @@ model Job {
   plans        InterviewPlan[]
   applications CandidateApplication[]
   invitations  CandidateInvitation[]
+  descriptionAssets JobDescriptionAsset[]
+  intelligenceProfile JobIntelligenceProfile?
+  interviewQuestions JobInterviewQuestion[]
 
   @@unique([companyId, id])
   @@unique([companyId, slug])
@@ -2028,6 +2061,99 @@ model Job {
   @@index([companyId, teamId])
   @@index([companyId, locationId])
   @@map("jobs")
+}
+
+model JobDescriptionAsset {
+  id             String                    @id @default(cuid())
+  companyId      String                    @map("company_id")
+  jobId          String                    @map("job_id")
+  sourceType     JobDescriptionSourceType  @map("source_type")
+  status         JobDescriptionAssetStatus @default(TEXT_EXTRACTED)
+  fileName       String?                   @map("file_name")
+  mimeType       String?                   @map("mime_type")
+  storageKey     String?                   @map("storage_key")
+  extractedText  String                    @db.LongText @map("extracted_text")
+  textHash       String                    @map("text_hash")
+  metadataJson   Json                      @map("metadata_json")
+  createdAt      DateTime                  @default(now()) @map("created_at")
+  updatedAt      DateTime                  @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  job     Job     @relation(fields: [companyId, jobId], references: [companyId, id], onDelete: Cascade)
+  intelligenceProfiles JobIntelligenceProfile[]
+
+  @@unique([companyId, id])
+  @@index([companyId, jobId, createdAt])
+  @@index([companyId, textHash])
+  @@map("job_description_assets")
+}
+
+model JobIntelligenceProfile {
+  id                    String              @id @default(cuid())
+  companyId             String              @map("company_id")
+  jobId                 String              @map("job_id")
+  sourceAssetId         String?             @map("source_asset_id")
+  status                JobAiAnalysisStatus @default(DRAFT)
+  title                 String
+  departmentText        String?             @map("department_text")
+  employmentTypeText    String?             @map("employment_type_text")
+  workplaceText         String?             @map("workplace_text")
+  locationText          String?             @map("location_text")
+  experienceText        String?             @map("experience_text")
+  responsibilitiesJson  Json                @map("responsibilities_json")
+  requiredSkillsJson    Json                @map("required_skills_json")
+  niceToHaveSkillsJson  Json                @map("nice_to_have_skills_json")
+  educationJson         Json                @map("education_json")
+  toolsJson             Json                @map("tools_json")
+  seniorityJson         Json                @map("seniority_json")
+  screeningCriteriaJson Json                @map("screening_criteria_json")
+  competenciesJson      Json                @map("competencies_json")
+  interviewStructureJson Json               @map("interview_structure_json")
+  rubricJson            Json                @map("rubric_json")
+  redFlagsJson          Json                @map("red_flags_json")
+  rawAiJson             Json?               @map("raw_ai_json")
+  failureMessage        String?             @db.Text @map("failure_message")
+  analyzedAt            DateTime?           @map("analyzed_at")
+  editedAt              DateTime?           @map("edited_at")
+  publishedAt           DateTime?           @map("published_at")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  job         Job                  @relation(fields: [companyId, jobId], references: [companyId, id], onDelete: Cascade)
+  sourceAsset JobDescriptionAsset? @relation(fields: [companyId, sourceAssetId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id])
+  @@unique([companyId, jobId])
+  @@index([companyId, sourceAssetId])
+  @@index([companyId, status, updatedAt])
+  @@map("job_intelligence_profiles")
+}
+
+model JobInterviewQuestion {
+  id                     String   @id @default(cuid())
+  companyId              String   @map("company_id")
+  jobId                  String   @map("job_id")
+  sequence               Int
+  competencyName         String   @map("competency_name")
+  competencyDescription  String?  @db.Text @map("competency_description")
+  questionText           String   @db.Text @map("question_text")
+  questionType           String   @map("question_type")
+  difficulty             String
+  expectedSignalsJson    Json     @map("expected_signals_json")
+  scoringRubricJson      Json     @map("scoring_rubric_json")
+  redFlagsJson           Json     @map("red_flags_json")
+  followUpsJson          Json     @map("follow_ups_json")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  job     Job     @relation(fields: [companyId, jobId], references: [companyId, id], onDelete: Cascade)
+
+  @@unique([companyId, id])
+  @@unique([companyId, jobId, sequence])
+  @@index([companyId, jobId])
+  @@map("job_interview_questions")
 }
 
 model JobTemplate {
