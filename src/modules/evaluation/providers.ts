@@ -73,10 +73,10 @@ const OPENAI_EVALUATION_SCHEMA = {
     "limitations",
   ],
   properties: {
-    overallScore: { type: ["number", "null"] },
+    overallScore: nullableJsonSchema({ type: "number" }),
     overallConfidence: confidenceJsonSchema(),
     summary: { type: "string" },
-    recommendation: { type: ["string", "null"] },
+    recommendation: nullableJsonSchema({ type: "string" }),
     competencies: {
       type: "array",
       items: {
@@ -94,7 +94,7 @@ const OPENAI_EVALUATION_SCHEMA = {
         properties: {
           competencyKey: { type: "string" },
           label: { type: "string" },
-          score: { type: ["number", "null"] },
+          score: nullableJsonSchema({ type: "number" }),
           confidence: confidenceJsonSchema(),
           rationale: { type: "string" },
           incomplete: { type: "boolean" },
@@ -105,8 +105,8 @@ const OPENAI_EVALUATION_SCHEMA = {
               additionalProperties: false,
               required: ["transcriptSegmentId", "interviewTurnId", "claim", "excerpt"],
               properties: {
-                transcriptSegmentId: { type: ["string", "null"] },
-                interviewTurnId: { type: ["string", "null"] },
+                transcriptSegmentId: nullableJsonSchema({ type: "string" }),
+                interviewTurnId: nullableJsonSchema({ type: "string" }),
                 claim: { type: "string" },
                 excerpt: { type: "string" },
               },
@@ -222,21 +222,8 @@ export class OpenAIEvaluationProvider implements EvaluationProvider {
     if (!hasEnoughTranscriptEvidence(input.redactedInput.segments)) {
       return createOpenAIInsufficientEvidenceResult(input, started);
     }
-    const providerInput = `${input.governance.prompt.userPromptTemplate}\n\nEvaluation input:\n${JSON.stringify(
-      input.redactedInput,
-    )}`;
-    logger.info(
-      {
-        provider: this.providerKey,
-        model: env.OPENAI_MODEL,
-        transcriptSegmentCount: input.redactedInput.segments.length,
-        competencyCount: input.redactedInput.rubric.competencies.length,
-        providerInputLength: providerInput.length,
-        schemaName: OPENAI_SCHEMA_NAME,
-        timeoutMs: env.EVALUATION_PROVIDER_TIMEOUT_MS,
-      },
-      "OpenAI evaluation request prepared.",
-    );
+    const providerInput = buildOpenAIEvaluationProviderInput(input);
+    logger.info(buildOpenAIEvaluationDiagnostics(input), "OpenAI evaluation request prepared.");
     try {
       const response = await this.client.responses.create(
         {
@@ -351,6 +338,29 @@ export function getOpenAIEvaluationSchema(): Readonly<Record<string, unknown>> {
 
 export function parseOpenAIProviderOutput(output: string) {
   return providerResponseSchema.parse(JSON.parse(output));
+}
+
+export function buildOpenAIEvaluationProviderInput(
+  input: Parameters<EvaluationProvider["evaluate"]>[0],
+): string {
+  return `${input.governance.prompt.userPromptTemplate}\n\nEvaluation input:\n${JSON.stringify(
+    input.redactedInput,
+  )}`;
+}
+
+export function buildOpenAIEvaluationDiagnostics(
+  input: Parameters<EvaluationProvider["evaluate"]>[0],
+): Readonly<Record<string, unknown>> {
+  const providerInput = buildOpenAIEvaluationProviderInput(input);
+  return {
+    provider: "openai",
+    model: env.OPENAI_MODEL,
+    transcriptSegmentCount: input.redactedInput.segments.length,
+    competencyCount: input.redactedInput.rubric.competencies.length,
+    providerInputLength: providerInput.length,
+    schemaName: OPENAI_SCHEMA_NAME,
+    timeoutMs: env.EVALUATION_PROVIDER_TIMEOUT_MS,
+  };
 }
 
 function createEmptyDeterministicResult(
@@ -509,6 +519,17 @@ function estimateCostCents(usage: Response["usage"] | null | undefined): number 
   return 0;
 }
 
+function confidenceJsonSchema() {
+  return {
+    type: "string",
+    enum: ["high", "moderate", "limited", "insufficient_evidence"],
+  } as const;
+}
+
+function nullableJsonSchema<T extends Readonly<Record<string, unknown>>>(schema: T) {
+  return { anyOf: [schema, { type: "null" }] } as const;
+}
+
 function hasEnoughTranscriptEvidence(segments: readonly { readonly text: string }[]): boolean {
   const text = segments.map((segment) => segment.text.trim()).join(" ");
   return text.split(/\s+/u).filter(Boolean).length >= 5;
@@ -578,11 +599,20 @@ function createOpenAIInsufficientEvidenceResult(
   };
 }
 
-function confidenceJsonSchema() {
+export function formatSafeProviderError(error: unknown): Readonly<Record<string, unknown>> {
+  if (error instanceof EvaluationProviderError) {
+    return {
+      code: error.code,
+      message: sanitizeProviderMessage(error.message),
+      ...error.details,
+    };
+  }
   return {
-    type: "string",
-    enum: ["high", "moderate", "limited", "insufficient_evidence"],
-  } as const;
+    code: "unknown_error",
+    message: sanitizeProviderMessage(
+      error instanceof Error ? error.message : "Unknown provider failure.",
+    ),
+  };
 }
 
 function readOpenAIErrorDetails(error: unknown): Readonly<Record<string, unknown>> {
@@ -592,19 +622,55 @@ function readOpenAIErrorDetails(error: unknown): Readonly<Record<string, unknown
       readonly status?: unknown;
       readonly code?: unknown;
       readonly type?: unknown;
+      readonly param?: unknown;
       readonly request_id?: unknown;
       readonly requestID?: unknown;
       readonly message?: unknown;
+      readonly error?: unknown;
+      readonly headers?: unknown;
     };
     if (typeof candidate.status === "number") details.status = candidate.status;
     if (typeof candidate.code === "string") details.code = sanitizeProviderMessage(candidate.code);
     if (typeof candidate.type === "string") details.type = sanitizeProviderMessage(candidate.type);
+    if (typeof candidate.param === "string") {
+      details.param = sanitizeProviderMessage(candidate.param);
+    }
     const requestId = candidate.request_id ?? candidate.requestID;
     if (typeof requestId === "string") details.requestId = sanitizeProviderMessage(requestId);
     if (typeof candidate.message === "string") {
       details.message = sanitizeProviderMessage(candidate.message);
     }
+    const nested = readNestedOpenAIError(candidate.error);
+    Object.assign(details, nested);
+    const headerRequestId = readHeaderValue(candidate.headers, "x-request-id");
+    if (typeof headerRequestId === "string" && details.requestId === undefined) {
+      details.requestId = sanitizeProviderMessage(headerRequestId);
+    }
+    const responseSummary = summarizeProviderResponse(candidate.error);
+    if (responseSummary !== null) {
+      details.responseSummary = responseSummary;
+    }
   }
+  return details;
+}
+
+function readNestedOpenAIError(value: unknown): Readonly<Record<string, unknown>> {
+  if (value === null || typeof value !== "object") {
+    return {};
+  }
+  const error = value as {
+    readonly status?: unknown;
+    readonly code?: unknown;
+    readonly type?: unknown;
+    readonly param?: unknown;
+    readonly message?: unknown;
+  };
+  const details: Record<string, unknown> = {};
+  if (typeof error.status === "number") details.status = error.status;
+  if (typeof error.code === "string") details.code = sanitizeProviderMessage(error.code);
+  if (typeof error.type === "string") details.type = sanitizeProviderMessage(error.type);
+  if (typeof error.param === "string") details.param = sanitizeProviderMessage(error.param);
+  if (typeof error.message === "string") details.message = sanitizeProviderMessage(error.message);
   return details;
 }
 
@@ -613,12 +679,33 @@ function formatProviderErrorDetails(details: Readonly<Record<string, unknown>>):
     ["status", details.status],
     ["code", details.code],
     ["type", details.type],
+    ["param", details.param],
     ["requestId", details.requestId],
     ["message", details.message],
+    ["responseSummary", details.responseSummary],
   ]
     .filter((entry): entry is [string, string | number] => entry[1] !== undefined)
     .map(([key, value]) => `${key}=${String(value)}`);
   return parts.length === 0 ? "" : ` ${parts.join(" ")}`;
+}
+
+function readHeaderValue(headers: unknown, name: string): string | null {
+  if (headers !== null && typeof headers === "object" && "get" in headers) {
+    const value = (headers as { readonly get: (key: string) => unknown }).get(name);
+    return typeof value === "string" ? value : null;
+  }
+  return null;
+}
+
+function summarizeProviderResponse(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  try {
+    return sanitizeProviderMessage(JSON.stringify(value));
+  } catch {
+    return null;
+  }
 }
 
 function sanitizeProviderMessage(value: string): string {

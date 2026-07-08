@@ -1,7 +1,10 @@
 export {
+  buildOpenAIEvaluationDiagnostics,
+  buildOpenAIEvaluationProviderInput,
   createEvaluationProvider,
   DeterministicEvaluationProvider,
   EvaluationProviderError,
+  formatSafeProviderError,
   getOpenAIEvaluationSchema,
   OpenAIEvaluationProvider,
   parseOpenAIProviderOutput,

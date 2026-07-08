@@ -16,6 +16,7 @@ import {
   EvaluationProviderError,
   EvaluationService,
   createEvaluationProvider,
+  getOpenAIEvaluationSchema,
   parseOpenAIProviderOutput,
   validateProviderResult,
   type EvaluationOverrideRecord,
@@ -159,6 +160,14 @@ describe("evaluation foundation", () => {
     expect(result.competencies[0]?.evidence[0]?.excerpt).toBe("reliable payment workflow");
   });
 
+  it("uses an OpenAI schema without unsupported strict-output keywords", () => {
+    const schema = getOpenAIEvaluationSchema();
+    expect(JSON.stringify(schema)).not.toMatch(
+      /"minLength"|"maxLength"|"minimum"|"maximum"|"minItems"|"maxItems"/u,
+    );
+    expect(JSON.stringify(schema)).toContain('"anyOf"');
+  });
+
   it("normalizes malformed OpenAI output", async () => {
     env.OPENAI_API_KEY = "test-key";
 
@@ -239,7 +248,14 @@ describe("evaluation foundation", () => {
           status: 400,
           code: "invalid_json_schema",
           type: "invalid_request_error",
+          param: "text.format.schema.properties.overallScore.minimum",
           request_id: "req_openai_123",
+          error: {
+            message: "schema rejected sk-test-secret",
+            code: "invalid_json_schema",
+            type: "invalid_request_error",
+            param: "text.format.schema",
+          },
         }),
       }),
     );
@@ -260,12 +276,14 @@ describe("evaluation foundation", () => {
       expect(providerError.message).toContain("status=400");
       expect(providerError.message).toContain("code=invalid_json_schema");
       expect(providerError.message).toContain("type=invalid_request_error");
+      expect(providerError.message).toContain("param=text.format.schema");
       expect(providerError.message).toContain("requestId=req_openai_123");
       expect(providerError.message).not.toContain("sk-test-secret");
       expect(providerError.details).toMatchObject({
         status: 400,
         code: "invalid_json_schema",
         type: "invalid_request_error",
+        param: "text.format.schema",
         requestId: "req_openai_123",
       });
       return true;
