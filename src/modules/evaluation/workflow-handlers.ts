@@ -13,6 +13,7 @@ import {
   WorkflowWorkerError,
 } from "@/modules/workflows/worker";
 import { PrismaReportingRepository, ReportingService } from "@/modules/reporting";
+import { processJobDescriptionAnalysis } from "@/modules/jobs/jd-analysis-processing";
 
 import { createEvaluationProvider } from "./providers";
 import { PrismaEvaluationRepository } from "./prisma-evaluation-repository";
@@ -46,6 +47,15 @@ export function createPhase9WorkflowHandlers(): WorkflowStepHandlerRegistry {
         interviewSessionId,
       });
       return { mediaObjectCount: manifest.items.length };
+    }),
+    jd_ai_analysis: createHandler(async (input) => {
+      const context = buildContext(input.step, input.payload);
+      const jobId = input.step.workflowSubjectId;
+      const result = await processJobDescriptionAnalysis({
+        companyId: context.tenant.companyId,
+        jobId,
+      });
+      return { jobId, questionCount: result.questionCount, title: result.title };
     }),
     transcribe_recording: createHandler(async (input) => {
       const context = buildContext(input.step, input.payload);

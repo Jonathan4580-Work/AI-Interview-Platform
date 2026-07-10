@@ -25,6 +25,7 @@
     "local:smtp-smoke": "dotenv -e .env.local -- tsx scripts/local-smtp-smoke.ts",
     "local:openai-smoke": "dotenv -e .env.local -- tsx scripts/local-openai-smoke.ts",
     "local:evaluation-diagnostic": "dotenv -e .env.local -- tsx scripts/local-evaluation-diagnostic.ts",
+    "local:jd-diagnostic": "dotenv -e .env.local -- tsx scripts/local-jd-diagnostic.ts",
     "local:full-flow-status": "dotenv -e .env.local -- tsx scripts/local-full-flow-status.ts",
     "local:repair-workflow-attempts": "dotenv -e .env.local -- tsx scripts/local-repair-workflow-attempts.ts",
     "local:retry-workflow": "dotenv -e .env.local -- tsx scripts/local-repair-workflow-attempts.ts",
