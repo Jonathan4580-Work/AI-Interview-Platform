@@ -82,12 +82,7 @@ const environmentSchema = z
     OPENAI_API_URL: z.string().url().default("https://api.openai.com/v1"),
     OPENAI_API_KEY: z.string().min(1).optional(),
     OPENAI_MODEL: z.string().min(1).default("gpt-5-mini"),
-    EVALUATION_PROVIDER_TIMEOUT_MS: z.coerce
-      .number()
-      .int()
-      .min(1_000)
-      .max(120_000)
-      .default(30_000),
+    EVALUATION_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
 
     APTLY_MONITORING_ENABLED: z.enum(["true", "false"]).default("true"),
     WEBHOOK_SIGNING_SECRET_REF: secretReferenceSchema.optional(),
@@ -102,8 +97,7 @@ const environmentSchema = z
     RELEASE_IMAGE_VERSION: z.string().min(1).max(128).optional(),
   })
   .superRefine((value, context) => {
-    const isDeployedEnvironment =
-      value.APP_ENV === "staging" || value.APP_ENV === "production";
+    const isDeployedEnvironment = value.APP_ENV === "staging" || value.APP_ENV === "production";
 
     if (!isDeployedEnvironment) {
       return;

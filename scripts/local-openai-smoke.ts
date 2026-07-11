@@ -65,8 +65,7 @@ async function main(): Promise<void> {
           label: "Communication",
           score: 3,
           confidence: "moderate",
-          rationale:
-            "The synthetic smoke payload demonstrates a valid competency structure.",
+          rationale: "The synthetic smoke payload demonstrates a valid competency structure.",
           incomplete: false,
           evidence: [
             {
@@ -83,8 +82,7 @@ async function main(): Promise<void> {
       limitations: [
         {
           code: "synthetic_smoke_test",
-          message:
-            "This result validates provider connectivity and schema parsing only.",
+          message: "This result validates provider connectivity and schema parsing only.",
           confidenceImpact: "limited",
         },
       ],
@@ -112,10 +110,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  const message =
-    error instanceof Error
-      ? error.message
-      : "Unknown local OpenAI smoke failure.";
+  const message = error instanceof Error ? error.message : "Unknown local OpenAI smoke failure.";
 
   console.error(`Local OpenAI smoke FAILED: ${message}`);
   process.exitCode = 1;
