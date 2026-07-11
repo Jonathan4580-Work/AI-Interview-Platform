@@ -50,8 +50,21 @@ describe("JD job creation UX hardening", () => {
     expect(client).toContain("AI analysis has not run yet");
     expect(client).toContain("OpenAI is not called until you click Analyze JD");
     expect(client).toContain("Upload PDF or DOCX");
+    expect(client).toContain('name="detectedTitle"');
+    expect(client).toContain("Paste a job description or upload a PDF/DOCX file.");
     expect(parser).not.toContain("openai");
     expect(parser).not.toContain("analyzeJobDescription");
+  });
+
+  it("defensively prevents empty JD titles from reaching slug generation", () => {
+    const actions = source("src/server/hr-workspace/actions.ts");
+
+    expect(actions).toContain("deriveSafeJdTitle");
+    expect(actions).toContain("normalizeSafeJobTitle");
+    expect(actions).toContain("firstMeaningfulJdLine");
+    expect(actions).toContain('"Untitled Job"');
+    expect(actions).toContain('base = "untitled-job"');
+    expect(actions).not.toContain("const initialTitle = firstLine");
   });
 
   it("keeps JD review save and publish actions wired", () => {

@@ -48,6 +48,8 @@ function detectTitle(lines: readonly string[]): string | null {
     if (
       line.length >= 3 &&
       line.length <= 120 &&
+      sectionForLine(line) === null &&
+      !/^[-*•\d.)\s]+/u.test(line) &&
       !lower.includes("job description") &&
       !lower.includes("about the role") &&
       !lower.includes("overview") &&

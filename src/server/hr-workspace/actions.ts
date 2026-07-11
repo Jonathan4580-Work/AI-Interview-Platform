@@ -9,6 +9,7 @@ import { prisma } from "@/infra/database";
 import { AuditWriter, PrismaAuditEventStore } from "@/modules/audit";
 import { CandidatePortalService } from "@/modules/candidate-portal";
 import { hashJobDescriptionText } from "@/modules/jobs/jd-analysis";
+import { parseJobDescriptionAutofill } from "@/modules/jobs/jd-local-autofill";
 import { slugify } from "@/modules/organization";
 import { WorkflowService } from "@/modules/workflows";
 import { PrismaWorkflowRepository } from "@/modules/workflows/prisma-workflow-repository";
@@ -95,12 +96,17 @@ export async function createJobFromJdAction(formData: FormData): Promise<void> {
   const context = await requireHrWorkspaceContext("jobs:manage");
   const fileValue = formData.get("jobDescriptionFile");
   const file = fileValue instanceof File && fileValue.size > 0 ? fileValue : null;
+  const pastedText = readFormText(formData, "jobDescriptionText");
   const extracted = await extractJobDescriptionText({
-    pastedText: readFormText(formData, "jobDescriptionText"),
+    pastedText,
     file,
   });
   const pipeline = await ensureDefaultPipeline(context.tenant.companyId);
-  const initialTitle = firstLine(extracted.text) ?? "Draft role";
+  const initialTitle = deriveSafeJdTitle({
+    submittedTitle: readFormText(formData, "detectedTitle"),
+    pastedText,
+    extractedText: extracted.text,
+  });
   const textHash = hashJobDescriptionText(extracted.text);
 
   const created = await prisma.$transaction(async (tx) => {
@@ -108,7 +114,7 @@ export async function createJobFromJdAction(formData: FormData): Promise<void> {
       data: {
         companyId: context.tenant.companyId,
         pipelineId: pipeline.id,
-        title: initialTitle.slice(0, 120),
+        title: initialTitle,
         slug: uniqueJobSlug(context.tenant.companyId, initialTitle),
         descriptionJson: {
           summary: extracted.text.slice(0, 600),
@@ -651,10 +657,16 @@ async function ensureDefaultPipeline(companyId: string) {
 }
 
 function uniqueJobSlug(companyId: string, title: string): string {
-  const base = slugify(title);
+  const safeTitle = normalizeSafeJobTitle(title) ?? "Untitled Job";
   const digest = createHash("sha256")
-    .update(`${companyId}:${title}:${Date.now().toString()}`)
+    .update(`${companyId}:${safeTitle}:${Date.now().toString()}`)
     .digest("hex");
+  let base = "untitled-job";
+  try {
+    base = slugify(safeTitle);
+  } catch {
+    base = "untitled-job";
+  }
   return `${base}-${digest.slice(0, 8)}`;
 }
 
@@ -787,13 +799,51 @@ function buildJdCompetencyJson(value: Prisma.JsonValue): Prisma.InputJsonObject 
   } satisfies Prisma.InputJsonObject;
 }
 
-function firstLine(value: string): string | null {
+function deriveSafeJdTitle(input: {
+  readonly submittedTitle: string;
+  readonly pastedText: string;
+  readonly extractedText: string;
+}): string {
   return (
-    value
-      .split(/\r?\n|\. /u)
-      .map((line) => line.trim())
-      .find((line) => line.length >= 2) ?? null
+    normalizeSafeJobTitle(input.submittedTitle) ??
+    normalizeSafeJobTitle(parseJobDescriptionAutofill(input.pastedText).title ?? "") ??
+    normalizeSafeJobTitle(firstMeaningfulJdLine(input.pastedText)) ??
+    normalizeSafeJobTitle(firstMeaningfulJdLine(input.extractedText)) ??
+    "Untitled Job"
   );
+}
+
+function firstMeaningfulJdLine(value: string): string {
+  const lines = value.includes("\n") ? value.split(/\r?\n/u) : value.split(/[.!?]/u);
+  return (
+    lines
+      .map((line) => line.replace(/^[-*•\d.)\s]+/u, "").trim())
+      .find((line) => isUsableJobTitle(line)) ?? ""
+  );
+}
+
+function normalizeSafeJobTitle(value: string): string | null {
+  const normalized = value.replace(/\s+/gu, " ").trim();
+  if (!isUsableJobTitle(normalized)) {
+    return null;
+  }
+  return normalized.slice(0, 120);
+}
+
+function isUsableJobTitle(value: string): boolean {
+  if (value.length < 2 || value.length > 140) {
+    return false;
+  }
+  const lower = value.toLowerCase();
+  return ![
+    "job description",
+    "about the role",
+    "overview",
+    "responsibilities",
+    "requirements",
+    "nice to have",
+    "preferred",
+  ].some((label) => lower === label || lower.startsWith(`${label}:`));
 }
 
 function requiredText(formData: FormData, key: string, min: number, max: number): string {
