@@ -46,7 +46,7 @@ export function apiSuccess<TData>(
   } = {},
 ): NextResponse<ApiSuccessResponse<TData>> {
   return NextResponse.json(
-    {
+    serializeForJson({
       ok: true,
       data,
       meta: {
@@ -54,7 +54,7 @@ export function apiSuccess<TData>(
         correlationId: context.correlationId,
         ...(init.pagination === undefined ? {} : { pagination: init.pagination }),
       },
-    },
+    }) as ApiSuccessResponse<TData>,
     {
       status: init.status ?? 200,
       headers: init.headers,
@@ -69,7 +69,7 @@ export function apiErrorResponse(
   const normalized = normalizeApiError(error);
 
   return NextResponse.json(
-    {
+    serializeForJson({
       ok: false,
       error: {
         code: normalized.code,
@@ -80,7 +80,7 @@ export function apiErrorResponse(
         requestId: context.requestId,
         correlationId: context.correlationId,
       },
-    },
+    }) as ApiErrorResponse,
     { status: normalized.status },
   );
 }
@@ -161,4 +161,30 @@ function isPrismaKnownError(error: unknown, code: string): boolean {
     "code" in error &&
     (error as { readonly code?: unknown }).code === code
   );
+}
+
+function serializeForJson(value: unknown): unknown {
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => serializeForJson(item));
+  }
+
+  if (typeof value === "object" && value !== null) {
+    const output: Record<string, unknown> = {};
+
+    for (const [key, nestedValue] of Object.entries(value)) {
+      output[key] = serializeForJson(nestedValue);
+    }
+
+    return output;
+  }
+
+  return value;
 }

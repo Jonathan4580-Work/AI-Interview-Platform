@@ -16,6 +16,7 @@ async function main(): Promise<void> {
   if (env.APP_ENV !== "development") {
     throw new Error("Local OpenAI smoke requires APP_ENV=development.");
   }
+
   if (!env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is required for local OpenAI smoke tests.");
   }
@@ -44,7 +45,10 @@ async function main(): Promise<void> {
     { timeout: env.EVALUATION_PROVIDER_TIMEOUT_MS },
   );
 
-  const parsed = JSON.parse(response.output_text) as { readonly result?: unknown };
+  const parsed = JSON.parse(response.output_text) as {
+    readonly result?: unknown;
+  };
+
   if (parsed.result !== "ok") {
     throw new Error("OpenAI smoke response failed structured output validation.");
   }
@@ -55,10 +59,35 @@ async function main(): Promise<void> {
       overallConfidence: "moderate",
       summary: "Synthetic local provider smoke output.",
       recommendation: "Human review should confirm the evidence.",
-      competencies: [],
-      strengths: [],
-      developmentAreas: [],
-      limitations: [],
+      competencies: [
+        {
+          competencyKey: "communication",
+          label: "Communication",
+          score: 3,
+          confidence: "moderate",
+          rationale:
+            "The synthetic smoke payload demonstrates a valid competency structure.",
+          incomplete: false,
+          evidence: [
+            {
+              transcriptSegmentId: null,
+              interviewTurnId: null,
+              claim: "The candidate communicated clearly in the synthetic test.",
+              excerpt: "Synthetic local provider smoke evidence.",
+            },
+          ],
+        },
+      ],
+      strengths: ["Clear synthetic response structure."],
+      developmentAreas: ["Human review is still required."],
+      limitations: [
+        {
+          code: "synthetic_smoke_test",
+          message:
+            "This result validates provider connectivity and schema parsing only.",
+          confidenceImpact: "limited",
+        },
+      ],
     }),
   );
 
@@ -83,7 +112,11 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : "Unknown local OpenAI smoke failure.";
+  const message =
+    error instanceof Error
+      ? error.message
+      : "Unknown local OpenAI smoke failure.";
+
   console.error(`Local OpenAI smoke FAILED: ${message}`);
   process.exitCode = 1;
 });
