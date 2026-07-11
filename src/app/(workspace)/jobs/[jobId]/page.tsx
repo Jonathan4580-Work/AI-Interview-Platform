@@ -136,9 +136,22 @@ export default async function JobDetailPage({
                     <p className="mt-1 break-all text-sm text-muted-foreground">
                       {application.candidate.primaryEmail ?? "No email"}
                     </p>
+                    {application.candidate.phone === null ? null : (
+                      <p className="mt-1 break-all text-sm text-muted-foreground">
+                        {application.candidate.phone}
+                      </p>
+                    )}
                     <div className="mt-2 flex flex-wrap gap-2">
                       <StatusBadge value={application.status} />
                       <StatusBadge value={application.currentStage?.name ?? "No stage"} />
+                      <StatusBadge
+                        value={
+                          application.candidate.documents.length > 0
+                            ? "CV uploaded"
+                            : "CV not uploaded"
+                        }
+                      />
+                      <StatusBadge value="Screening not started" />
                     </div>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2 lg:min-w-96">

@@ -99,7 +99,15 @@ export async function getJobDetail(context: HrWorkspaceContext, jobId: string) {
       applications: {
         where: { deletedAt: null },
         include: {
-          candidate: true,
+          candidate: {
+            include: {
+              documents: {
+                where: { status: "ACTIVE", type: "RESUME", deletedAt: null },
+                orderBy: { createdAt: "desc" },
+                take: 1,
+              },
+            },
+          },
           currentStage: true,
           invitations: { orderBy: { createdAt: "desc" }, take: 3 },
           interviewSessions: {

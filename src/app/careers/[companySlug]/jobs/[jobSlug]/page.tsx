@@ -95,7 +95,7 @@ export default async function PublicCareerJobPage({
             <div>
               <p className="font-medium text-foreground">Ready to apply?</p>
               <p className="text-sm text-muted-foreground">
-                Candidate applications are coming soon.
+                Create a candidate account or sign in to upload your CV and submit your application.
               </p>
             </div>
             <Button asChild>

@@ -18,7 +18,8 @@ describe("public careers marketplace foundation", () => {
     expect(jobPage).toContain("Role summary");
     expect(jobPage).toContain("Responsibilities");
     expect(jobPage).toContain("Nice-to-have skills");
-    expect(applyPage).toContain("Candidate applications coming soon");
+    expect(applyPage).toContain("Create candidate account");
+    expect(applyPage).toContain("Submit application");
   });
 
   it("keeps public listings limited to published open jobs", () => {

@@ -422,6 +422,21 @@ enum CandidateDocumentStatus {
   @@map("candidate_document_status")
 }
 
+enum CandidateAccountStatus {
+  ACTIVE
+  DISABLED
+
+  @@map("candidate_account_status")
+}
+
+enum CandidateAccountSessionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+
+  @@map("candidate_account_session_status")
+}
+
 enum CandidateTagStatus {
   ACTIVE
   ARCHIVED
@@ -1221,6 +1236,7 @@ model Company {
   interviewPlanVersions   InterviewPlanVersion[]
   candidates              Candidate[]
   candidateApplications   CandidateApplication[]
+  candidateAccounts       CandidateAccount[]
   candidateDocuments      CandidateDocument[]
   candidateTags           CandidateTag[]
   candidateTagAssignments CandidateTagAssignment[]
@@ -2279,6 +2295,7 @@ model Candidate {
 model CandidateApplication {
   id             String            @id @default(cuid())
   companyId      String            @map("company_id")
+  candidateAccountId String?       @map("candidate_account_id")
   candidateId    String            @map("candidate_id")
   jobId          String            @map("job_id")
   currentStageId String?           @map("current_stage_id")
@@ -2292,6 +2309,7 @@ model CandidateApplication {
   deletedAt      DateTime?         @map("deleted_at")
 
   company           Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  candidateAccount  CandidateAccount?     @relation(fields: [candidateAccountId], references: [id], onDelete: SetNull)
   candidate         Candidate             @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
   job               Job                   @relation(fields: [companyId, jobId], references: [companyId, id], onDelete: Restrict)
   currentStage      PipelineStage?        @relation(fields: [companyId, currentStageId], references: [companyId, id], onDelete: Restrict)
@@ -2300,10 +2318,53 @@ model CandidateApplication {
 
   @@unique([companyId, id])
   @@unique([companyId, candidateId, jobId])
+  @@index([candidateAccountId])
   @@index([companyId, jobId, status])
   @@index([companyId, candidateId])
   @@index([companyId, currentStageId])
   @@map("candidate_applications")
+}
+
+model CandidateAccount {
+  id              String                 @id @default(cuid())
+  email           String
+  normalizedEmail String                 @map("normalized_email")
+  fullName        String                 @map("full_name")
+  phone           String?
+  passwordHash    String                 @db.Text @map("password_hash")
+  status          CandidateAccountStatus @default(ACTIVE)
+  emailVerifiedAt DateTime?              @map("email_verified_at")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+  deletedAt       DateTime?              @map("deleted_at")
+
+  company      Company                   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  companyId    String                    @map("company_id")
+  applications CandidateApplication[]
+  sessions     CandidateAccountSession[]
+
+  @@unique([companyId, id])
+  @@unique([companyId, normalizedEmail])
+  @@index([companyId, status])
+  @@map("candidate_accounts")
+}
+
+model CandidateAccountSession {
+  id          String                        @id @default(cuid())
+  accountId   String                        @map("account_id")
+  companyId   String                        @map("company_id")
+  tokenHash   String                        @unique @map("token_hash")
+  status      CandidateAccountSessionStatus @default(ACTIVE)
+  expiresAt   DateTime                      @map("expires_at")
+  lastSeenAt  DateTime?                     @map("last_seen_at")
+  revokedAt   DateTime?                     @map("revoked_at")
+  createdAt   DateTime                      @default(now()) @map("created_at")
+  updatedAt   DateTime                      @updatedAt @map("updated_at")
+
+  account CandidateAccount @relation(fields: [companyId, accountId], references: [companyId, id], onDelete: Cascade)
+
+  @@index([companyId, accountId, status, expiresAt])
+  @@map("candidate_account_sessions")
 }
 
 model CandidateDocument {
