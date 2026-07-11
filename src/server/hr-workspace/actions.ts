@@ -370,27 +370,55 @@ export async function updateJobAction(formData: FormData): Promise<void> {
   const title = requiredText(formData, "title", 2, 120);
   const summary = requiredText(formData, "summary", 1, 2_000);
   const details = optionalText(formData, "details", 10_000);
-  const job = await prisma.job.update({
-    where: { companyId_id: { companyId: context.tenant.companyId, id: jobId } },
-    data: {
-      title,
-      descriptionJson: { summary, details } satisfies Prisma.InputJsonObject,
-      employmentType: enumValue(formData, "employmentType", [
-        "FULL_TIME",
-        "PART_TIME",
-        "CONTRACT",
-        "TEMPORARY",
-        "INTERNSHIP",
-      ]),
-      workplaceType: enumValue(formData, "workplaceType", ["ONSITE", "HYBRID", "REMOTE"]),
-      seniorityLevel: enumValue(formData, "seniorityLevel", [
-        "ENTRY",
-        "MID",
-        "SENIOR",
-        "STAFF",
-        "EXECUTIVE",
-      ]),
-    },
+  const status = enumValue(formData, "status", ["DRAFT", "OPEN", "PAUSED", "CLOSED", "ARCHIVED"]);
+  const requiredSkills = textareaList(formData, "requiredSkills");
+  const responsibilities = textareaList(formData, "responsibilities");
+  const niceToHaveSkills = textareaList(formData, "niceToHaveSkills");
+  const locationText = optionalText(formData, "locationText", 160);
+  const departmentText = optionalText(formData, "departmentText", 160);
+  const experienceText = optionalText(formData, "experienceText", 400);
+  const now = new Date();
+  const job = await prisma.$transaction(async (tx) => {
+    const updated = await tx.job.update({
+      where: { companyId_id: { companyId: context.tenant.companyId, id: jobId } },
+      data: {
+        title,
+        descriptionJson: { summary, details } satisfies Prisma.InputJsonObject,
+        requirementsJson: { items: requiredSkills } satisfies Prisma.InputJsonObject,
+        employmentType: enumValue(formData, "employmentType", [
+          "FULL_TIME",
+          "PART_TIME",
+          "CONTRACT",
+          "TEMPORARY",
+          "INTERNSHIP",
+        ]),
+        workplaceType: enumValue(formData, "workplaceType", ["ONSITE", "HYBRID", "REMOTE"]),
+        seniorityLevel: enumValue(formData, "seniorityLevel", [
+          "ENTRY",
+          "MID",
+          "SENIOR",
+          "STAFF",
+          "EXECUTIVE",
+        ]),
+        status,
+        openedAt: status === "OPEN" ? now : undefined,
+        closedAt: status === "CLOSED" ? now : status === "OPEN" ? null : undefined,
+      },
+    });
+    await tx.jobIntelligenceProfile.updateMany({
+      where: { companyId: context.tenant.companyId, jobId },
+      data: {
+        title,
+        locationText,
+        departmentText,
+        experienceText,
+        responsibilitiesJson: responsibilities,
+        requiredSkillsJson: requiredSkills,
+        niceToHaveSkillsJson: niceToHaveSkills,
+        editedAt: now,
+      },
+    });
+    return updated;
   });
   await audit(context, "hr_mvp.job_updated", "job", job.id, { after: { id: job.id, title } });
   revalidatePath("/jobs");
@@ -406,7 +434,7 @@ export async function setJobStatusAction(formData: FormData): Promise<void> {
     data: {
       status,
       openedAt: status === "OPEN" ? new Date() : undefined,
-      closedAt: status === "CLOSED" ? new Date() : undefined,
+      closedAt: status === "CLOSED" ? new Date() : status === "OPEN" ? null : undefined,
     },
   });
   await audit(context, "hr_mvp.job_status_changed", "job", job.id, {
