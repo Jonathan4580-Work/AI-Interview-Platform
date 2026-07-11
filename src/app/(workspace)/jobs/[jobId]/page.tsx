@@ -30,6 +30,13 @@ export default async function JobDetailPage({
         description={`${String(job.applications.length)} applications · Updated ${formatDate(job.updatedAt)}`}
         actions={
           <div className="flex flex-wrap gap-2">
+            {job.status === "OPEN" && job.intelligenceProfile?.status === "PUBLISHED" ? (
+              <Button asChild variant="secondary">
+                <Link href={`/careers/${job.company.slug}/jobs/${job.slug}`}>
+                  View public job posting
+                </Link>
+              </Button>
+            ) : null}
             <Button asChild variant="secondary">
               <Link href={`/jobs/${job.id}/review`}>Review JD draft</Link>
             </Button>

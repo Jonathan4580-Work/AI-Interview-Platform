@@ -82,6 +82,7 @@ export async function getJobDetail(context: HrWorkspaceContext, jobId: string) {
   return prisma.job.findUnique({
     where: { companyId_id: { companyId: context.tenant.companyId, id: jobId } },
     include: {
+      company: { select: { name: true, slug: true } },
       pipeline: {
         include: { stages: { where: { status: "ACTIVE" }, orderBy: { position: "asc" } } },
       },
