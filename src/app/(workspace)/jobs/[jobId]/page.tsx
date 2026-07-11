@@ -5,15 +5,12 @@ import { Mail, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  sendInvitationAction,
-  setJobStatusAction,
-  updateApplicationStageAction,
-} from "@/server/hr-workspace/actions";
+import { sendInvitationAction, updateApplicationStageAction } from "@/server/hr-workspace/actions";
 import { requireHrWorkspaceContext } from "@/server/hr-workspace/context";
 import { getJobDetail } from "@/server/hr-workspace/queries";
 
 import { EmptyPanel, Field, NativeSelect, StatusBadge, formatDate } from "../../_components/hr-ui";
+import { JobStatusForm } from "./job-status-form";
 
 export default async function JobDetailPage({
   params,
@@ -42,17 +39,7 @@ export default async function JobDetailPage({
                 Edit
               </Link>
             </Button>
-            <form action={setJobStatusAction}>
-              <input type="hidden" name="jobId" value={job.id} />
-              <input
-                type="hidden"
-                name="status"
-                value={job.status === "OPEN" ? "CLOSED" : "OPEN"}
-              />
-              <Button type="submit" variant="secondary">
-                {job.status === "OPEN" ? "Close job" : "Activate job"}
-              </Button>
-            </form>
+            <JobStatusForm jobId={job.id} currentStatus={job.status} />
           </div>
         }
       />

@@ -5,6 +5,7 @@ import {
   hashJobDescriptionText,
   parseJobDescriptionAnalysis,
 } from "@/modules/jobs/jd-analysis";
+import { parseJobDescriptionAutofill } from "@/modules/jobs/jd-local-autofill";
 import {
   extractJobDescriptionText,
   extractPdfText,
@@ -116,5 +117,33 @@ describe("JD-driven job creation foundation", () => {
   it("extracts simple text operators from readable PDF content", () => {
     const buffer = Buffer.from("%PDF-1.4\nBT (Customer support role) Tj ET", "latin1");
     expect(extractPdfText(buffer)).toBe("Customer support role");
+  });
+
+  it("autofills obvious fields from pasted JD text without provider calls", () => {
+    const draft = parseJobDescriptionAutofill(`Software Engineer
+Department: Engineering
+Location: Colombo Hybrid
+Full-time role
+3+ years experience
+
+Responsibilities
+- Build product features
+- Review code
+
+Requirements
+- TypeScript
+- SQL
+
+Nice to have
+- Recruiting software experience`);
+
+    expect(draft.title).toBe("Software Engineer");
+    expect(draft.department).toBe("Engineering");
+    expect(draft.location).toBe("Colombo Hybrid");
+    expect(draft.employmentType).toBe("Full time");
+    expect(draft.experienceLevel).toBe("3+ years experience");
+    expect(draft.responsibilities).toContain("Build product features");
+    expect(draft.requirements).toContain("TypeScript");
+    expect(draft.niceToHaveSkills).toContain("Recruiting software experience");
   });
 });
