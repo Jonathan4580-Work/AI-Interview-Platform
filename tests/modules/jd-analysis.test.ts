@@ -146,4 +146,28 @@ Nice to have
     expect(draft.requirements).toContain("TypeScript");
     expect(draft.niceToHaveSkills).toContain("Recruiting software experience");
   });
+
+  it("detects a simple first-line job title from a pasted JD", () => {
+    const draft = parseJobDescriptionAutofill(`Software Engineer
+
+Responsibilities
+- Build and maintain application features
+
+Requirements
+- TypeScript
+- SQL`);
+
+    expect(draft.title).toBe("Software Engineer");
+  });
+
+  it("leaves uncertain title blank instead of inventing one during local autofill", () => {
+    const draft = parseJobDescriptionAutofill(`Responsibilities
+- Build product features
+
+Requirements
+- TypeScript`);
+
+    expect(draft.title).toBeNull();
+    expect(draft.responsibilities).toContain("Build product features");
+  });
 });

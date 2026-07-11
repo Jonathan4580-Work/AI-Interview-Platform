@@ -17,6 +17,7 @@ export function JobDescriptionInputCard() {
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileStatus, setFileStatus] = useState<string>("No file selected.");
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const preview = useMemo(() => parseJobDescriptionAutofill(text), [text]);
   const hasPreview =
     preview.title !== null ||
@@ -107,13 +108,33 @@ export function JobDescriptionInputCard() {
           <p className="text-muted-foreground">
             {fileName === null ? fileStatus : `${fileName}: ${fileStatus}`}
           </p>
+          <input type="hidden" name="detectedTitle" value={preview.title ?? ""} />
+          {validationMessage === null ? null : (
+            <p className="rounded-md border border-danger/30 bg-danger/10 p-3 text-danger">
+              {validationMessage}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
           <p>
             OpenAI creates an AI-generated draft only after this explicit action. HR review is
             required.
           </p>
-          <Button type="submit">Analyze JD</Button>
+          <Button
+            type="submit"
+            onClick={(event) => {
+              const hasText = text.trim().length > 0;
+              const hasFile = fileName !== null;
+              if (!hasText && !hasFile) {
+                event.preventDefault();
+                setValidationMessage("Paste a job description or upload a PDF/DOCX file.");
+                return;
+              }
+              setValidationMessage(null);
+            }}
+          >
+            Analyze JD
+          </Button>
         </div>
       </CardContent>
     </Card>
