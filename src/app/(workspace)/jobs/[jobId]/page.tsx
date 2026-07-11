@@ -12,6 +12,11 @@ import { getJobDetail } from "@/server/hr-workspace/queries";
 import { EmptyPanel, Field, NativeSelect, StatusBadge, formatDate } from "../../_components/hr-ui";
 import { JobStatusForm } from "./job-status-form";
 
+type JobDetail = NonNullable<Awaited<ReturnType<typeof getJobDetail>>>;
+type JobApplication = JobDetail["applications"][number];
+type JobStage = JobDetail["pipeline"]["stages"][number];
+type CvScreening = JobApplication["cvScreenings"][number];
+
 export default async function JobDetailPage({
   params,
 }: {
@@ -124,97 +129,207 @@ export default async function JobDetailPage({
             />
           ) : (
             job.applications.map((application) => (
-              <div
+              <ApplicationCard
                 key={application.id}
-                className="rounded-lg border border-border bg-surface p-4 shadow-xs"
-              >
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0">
-                    <Link
-                      href={`/candidates/${application.candidate.id}`}
-                      className="font-medium text-foreground underline-offset-4 hover:underline"
-                    >
-                      {application.candidate.fullName}
-                    </Link>
-                    <p className="mt-1 break-all text-sm text-muted-foreground">
-                      {application.candidate.primaryEmail ?? "No email"}
-                    </p>
-                    {application.candidate.phone === null ? null : (
-                      <p className="mt-1 break-all text-sm text-muted-foreground">
-                        {application.candidate.phone}
-                      </p>
-                    )}
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {application.candidateAccountId === null ? null : (
-                        <StatusBadge value="Public application" />
-                      )}
-                      <StatusBadge value={application.status} />
-                      <StatusBadge value={application.currentStage?.name ?? "No stage"} />
-                      <StatusBadge
-                        value={
-                          application.candidate.documents.length > 0
-                            ? "CV uploaded"
-                            : "CV not uploaded"
-                        }
-                      />
-                      <StatusBadge value="Screening not started" />
-                    </div>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Applied {formatDate(application.appliedAt)}
-                    </p>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2 lg:min-w-96">
-                    <form action={updateApplicationStageAction} className="grid gap-2">
-                      <input type="hidden" name="applicationId" value={application.id} />
-                      <Field label="Pipeline stage">
-                        <NativeSelect
-                          name="stageId"
-                          defaultValue={application.currentStageId ?? ""}
-                        >
-                          <option value="">No stage</option>
-                          {job.pipeline.stages.map((stage) => (
-                            <option key={stage.id} value={stage.id}>
-                              {stage.name}
-                            </option>
-                          ))}
-                        </NativeSelect>
-                      </Field>
-                      <Button type="submit" variant="secondary">
-                        Update stage
-                      </Button>
-                    </form>
-                    <form action={sendInvitationAction} className="grid gap-2">
-                      <input type="hidden" name="applicationId" value={application.id} />
-                      <Field label="Invitation expiry">
-                        <NativeSelect name="expiresInHours" defaultValue="72">
-                          <option value="72">3 days</option>
-                          <option value="24">1 day</option>
-                          <option value="168">7 days</option>
-                        </NativeSelect>
-                      </Field>
-                      <Button type="submit" disabled={application.candidate.primaryEmail === null}>
-                        <Mail aria-hidden="true" />
-                        Send invitation
-                      </Button>
-                    </form>
-                  </div>
-                </div>
-                <div className="mt-4 grid gap-2 text-sm text-muted-foreground">
-                  <p>{application.invitations.length} recent invitations</p>
-                  {application.invitations.map((invitation) => (
-                    <p key={invitation.id}>
-                      <StatusBadge value={invitation.status} /> Expires{" "}
-                      {formatDate(invitation.expiresAt)}
-                    </p>
-                  ))}
-                </div>
-              </div>
+                application={application}
+                stages={job.pipeline.stages}
+              />
             ))
           )}
         </CardContent>
       </Card>
     </div>
   );
+}
+
+function ApplicationCard({
+  application,
+  stages,
+}: {
+  readonly application: JobApplication;
+  readonly stages: readonly JobStage[];
+}) {
+  const screening = application.cvScreenings.at(0) ?? null;
+  const matchScore = screening?.matchScore;
+  const recommendation = screening?.recommendation;
+  return (
+    <div className="rounded-lg border border-border bg-surface p-4 shadow-xs">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <Link
+            href={`/candidates/${application.candidate.id}`}
+            className="font-medium text-foreground underline-offset-4 hover:underline"
+          >
+            {application.candidate.fullName}
+          </Link>
+          <p className="mt-1 break-all text-sm text-muted-foreground">
+            {application.candidate.primaryEmail ?? "No email"}
+          </p>
+          {application.candidate.phone === null ? null : (
+            <p className="mt-1 break-all text-sm text-muted-foreground">
+              {application.candidate.phone}
+            </p>
+          )}
+          <div className="mt-2 flex flex-wrap gap-2">
+            {application.candidateAccountId === null ? null : (
+              <StatusBadge value="Public application" />
+            )}
+            <StatusBadge value={application.status} />
+            <StatusBadge value={application.currentStage?.name ?? "No stage"} />
+            <StatusBadge
+              value={application.candidate.documents.length > 0 ? "CV uploaded" : "CV not uploaded"}
+            />
+            <StatusBadge value={screeningLabel(screening)} />
+            {matchScore === null || matchScore === undefined ? null : (
+              <StatusBadge value={`${String(matchScore)} match score`} />
+            )}
+            {recommendation === null || recommendation === undefined ? null : (
+              <StatusBadge value={recommendation} />
+            )}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Applied {formatDate(application.appliedAt)}
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:min-w-96">
+          <form action={updateApplicationStageAction} className="grid gap-2">
+            <input type="hidden" name="applicationId" value={application.id} />
+            <Field label="Pipeline stage">
+              <NativeSelect name="stageId" defaultValue={application.currentStageId ?? ""}>
+                <option value="">No stage</option>
+                {stages.map((stage) => (
+                  <option key={stage.id} value={stage.id}>
+                    {stage.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            </Field>
+            <Button type="submit" variant="secondary">
+              Update stage
+            </Button>
+          </form>
+          <form action={sendInvitationAction} className="grid gap-2">
+            <input type="hidden" name="applicationId" value={application.id} />
+            <Field label="Invitation expiry">
+              <NativeSelect name="expiresInHours" defaultValue="72">
+                <option value="72">3 days</option>
+                <option value="24">1 day</option>
+                <option value="168">7 days</option>
+              </NativeSelect>
+            </Field>
+            <Button type="submit" disabled={application.candidate.primaryEmail === null}>
+              <Mail aria-hidden="true" />
+              Send invitation
+            </Button>
+          </form>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-2 text-sm text-muted-foreground">
+        <p>{application.invitations.length} recent invitations</p>
+        {application.invitations.map((invitation) => (
+          <p key={invitation.id}>
+            <StatusBadge value={invitation.status} /> Expires {formatDate(invitation.expiresAt)}
+          </p>
+        ))}
+      </div>
+      <ScreeningDetails screening={screening} />
+    </div>
+  );
+}
+
+function ScreeningDetails({ screening }: { readonly screening: CvScreening | null }) {
+  if (screening === null) {
+    return (
+      <p className="mt-4 rounded-md border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
+        CV screening will start after a public application with CV upload is submitted.
+      </p>
+    );
+  }
+  if (screening.screeningStatus === "PENDING") {
+    return (
+      <p className="mt-4 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+        Screening pending. The local worker will extract CV text and run advisory screening.
+      </p>
+    );
+  }
+  if (screening.screeningStatus === "FAILED") {
+    return (
+      <p className="mt-4 rounded-md border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
+        Screening failed:{" "}
+        {screening.failureMessageSafe ?? "The screening worker could not complete this CV."}
+      </p>
+    );
+  }
+  return (
+    <details className="mt-4 rounded-lg border border-border bg-muted/20 p-4">
+      <summary className="cursor-pointer text-sm font-medium text-foreground">
+        View screening details
+      </summary>
+      <div className="mt-4 grid gap-4 text-sm">
+        <p className="rounded-md border border-info/25 bg-info-soft p-3 text-info">
+          AI screening is advisory. HR must review before making decisions.
+        </p>
+        <DetailBlock title="HR summary" value={screening.hrSummary} />
+        <DetailList title="Matched skills" values={jsonStringList(screening.matchedSkillsJson)} />
+        <DetailList title="Missing skills" values={jsonStringList(screening.missingSkillsJson)} />
+        <DetailBlock title="Experience match" value={screening.experienceMatch} />
+        <DetailBlock title="Responsibility match" value={screening.responsibilityMatch} />
+        <DetailBlock title="Education/certification match" value={screening.educationMatch} />
+        <DetailList title="Concerns" values={jsonStringList(screening.concernsJson)} />
+        <DetailList
+          title="Suggested interview focus"
+          values={jsonStringList(screening.focusAreasJson)}
+        />
+        <DetailList title="CV evidence excerpts" values={jsonStringList(screening.evidenceJson)} />
+        <DetailList title="Limitations" values={jsonStringList(screening.limitationsJson)} />
+      </div>
+    </details>
+  );
+}
+
+function DetailBlock({ title, value }: { readonly title: string; readonly value: string | null }) {
+  return (
+    <div>
+      <p className="font-medium text-foreground">{title}</p>
+      <p className="mt-1 text-muted-foreground">{value ?? "Not recorded."}</p>
+    </div>
+  );
+}
+
+function DetailList({
+  title,
+  values,
+}: {
+  readonly title: string;
+  readonly values: readonly string[];
+}) {
+  return (
+    <div>
+      <p className="font-medium text-foreground">{title}</p>
+      {values.length === 0 ? (
+        <p className="mt-1 text-muted-foreground">None recorded.</p>
+      ) : (
+        <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
+          {values.map((value) => (
+            <li key={value}>{value}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function screeningLabel(screening: CvScreening | null): string {
+  if (screening === null) return "Screening not started";
+  if (screening.screeningStatus === "COMPLETE") return "Screening complete";
+  if (screening.screeningStatus === "FAILED") return "Screening failed";
+  return "Screening pending";
+}
+
+function jsonStringList(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
 }
 
 function readSummary(value: unknown): string {

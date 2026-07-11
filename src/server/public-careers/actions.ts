@@ -3,9 +3,14 @@
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/infra/database";
+import { AuditWriter, PrismaAuditEventStore } from "@/modules/audit";
 import { PasswordPolicyError } from "@/modules/auth/password";
+import { ensureCvScreeningWorkflow } from "@/modules/cv-screening/service";
 import { normalizeEmail } from "@/modules/identity";
 import { LocalFilesystemStorageProvider } from "@/modules/media/local-storage-provider";
+import { createTenantContext } from "@/modules/tenant";
+import { WorkflowService } from "@/modules/workflows";
+import { PrismaWorkflowRepository } from "@/modules/workflows/prisma-workflow-repository";
 
 import {
   authenticateCandidateAccount,
@@ -220,7 +225,7 @@ export async function submitPublicApplicationAction(formData: FormData): Promise
   const checksumSha256 = sha256(bytes);
   await new LocalFilesystemStorageProvider().writeObject(storageKey, bytes);
 
-  await prisma.candidateDocument.create({
+  const document = await prisma.candidateDocument.create({
     data: {
       companyId: job.company.id,
       candidateId: result.candidateId,
@@ -247,5 +252,70 @@ export async function submitPublicApplicationAction(formData: FormData): Promise
     },
   });
 
+  await createCvScreeningWorkflow({
+    companyId: job.company.id,
+    applicationId: result.applicationId,
+    candidateId: result.candidateId,
+    jobId: job.id,
+    cvDocumentId: document.id,
+  });
+
   redirect("/candidate/applications?submitted=1");
+}
+
+async function createCvScreeningWorkflow(input: {
+  readonly companyId: string;
+  readonly applicationId: string;
+  readonly candidateId: string;
+  readonly jobId: string;
+  readonly cvDocumentId: string;
+}): Promise<void> {
+  const context = {
+    tenant: createTenantContext(input.companyId),
+    actor: { type: "system" as const, id: null },
+    request: {
+      requestId: `public-application-${input.applicationId}`,
+      correlationId: `public-application-${input.applicationId}`,
+      sessionId: null,
+      ipAddress: null,
+      userAgent: "public-careers",
+    },
+  };
+  await ensureCvScreeningWorkflow(input);
+  const workflowService = new WorkflowService(
+    new PrismaWorkflowRepository(),
+    new AuditWriter(new PrismaAuditEventStore()),
+  );
+  const workflow = await workflowService.createWorkflow({
+    context,
+    workflowType: "cv_screening",
+    subjectType: "candidate_application",
+    subjectId: input.applicationId,
+    idempotencyKey: `cv-screening:${input.companyId}:${input.applicationId}:${input.cvDocumentId}`,
+    metadata: {
+      applicationId: input.applicationId,
+      candidateId: input.candidateId,
+      jobId: input.jobId,
+      cvDocumentId: input.cvDocumentId,
+    },
+    steps: [
+      {
+        stepKey: "cv_text_extraction",
+        queueName: "orchestration",
+        sequence: 1,
+        maxAttempts: 2,
+        metadata: { workflowSubjectId: input.applicationId, cvDocumentId: input.cvDocumentId },
+      },
+      {
+        stepKey: "cv_ai_screening",
+        queueName: "evaluation",
+        sequence: 2,
+        dependencyStepKeys: ["cv_text_extraction"],
+        maxAttempts: 2,
+        metadata: { workflowSubjectId: input.applicationId, cvDocumentId: input.cvDocumentId },
+      },
+    ],
+  });
+  await ensureCvScreeningWorkflow({ ...input, workflowId: workflow.id });
+  await workflowService.queueReadySteps({ context, workflowId: workflow.id });
 }

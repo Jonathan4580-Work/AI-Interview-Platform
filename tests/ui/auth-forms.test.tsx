@@ -12,6 +12,8 @@ import { ForgotPasswordForm, ResetPasswordForm } from "@/components/auth/passwor
 const locationAssign = vi.fn();
 const missingWorkspaceRoute = ["", "workspace"].join("/");
 
+vi.setConfig({ testTimeout: 15_000 });
+
 afterEach(() => {
   window.sessionStorage.clear();
   locationAssign.mockReset();

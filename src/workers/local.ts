@@ -47,6 +47,8 @@ logger.info(
       "media",
       "transcription",
       "evaluation",
+      "cv-text-extraction",
+      "cv-screening",
       "reporting",
       "notifications",
     ],

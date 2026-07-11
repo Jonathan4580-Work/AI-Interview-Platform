@@ -437,6 +437,39 @@ enum CandidateAccountSessionStatus {
   @@map("candidate_account_session_status")
 }
 
+enum CvTextExtractionStatus {
+  PENDING
+  COMPLETE
+  FAILED
+
+  @@map("cv_text_extraction_status")
+}
+
+enum CvScreeningStatus {
+  PENDING
+  COMPLETE
+  FAILED
+
+  @@map("cv_screening_status")
+}
+
+enum CvScreeningRecommendation {
+  RECOMMENDED
+  MAYBE
+  NOT_RECOMMENDED
+
+  @@map("cv_screening_recommendation")
+}
+
+enum CvScreeningConfidence {
+  HIGH
+  MODERATE
+  LIMITED
+  INSUFFICIENT_EVIDENCE
+
+  @@map("cv_screening_confidence")
+}
+
 enum CandidateTagStatus {
   ACTIVE
   ARCHIVED
@@ -1238,6 +1271,7 @@ model Company {
   candidateApplications   CandidateApplication[]
   candidateAccounts       CandidateAccount[]
   candidateDocuments      CandidateDocument[]
+  applicationCvScreenings ApplicationCvScreening[]
   candidateTags           CandidateTag[]
   candidateTagAssignments CandidateTagAssignment[]
   candidateNotes          CandidateNote[]
@@ -2068,6 +2102,7 @@ model Job {
   descriptionAssets JobDescriptionAsset[]
   intelligenceProfile JobIntelligenceProfile?
   interviewQuestions JobInterviewQuestion[]
+  cvScreenings ApplicationCvScreening[]
 
   @@unique([companyId, id])
   @@unique([companyId, slug])
@@ -2266,6 +2301,7 @@ model Candidate {
   mergedInto        Candidate?               @relation("CandidateMergeTarget", fields: [companyId, mergedIntoId], references: [companyId, id], onDelete: Restrict)
   mergedCandidates  Candidate[]              @relation("CandidateMergeTarget")
   applications      CandidateApplication[]
+  cvScreenings      ApplicationCvScreening[]
   documents         CandidateDocument[]
   tagAssignments    CandidateTagAssignment[]
   notes             CandidateNote[]
@@ -2315,6 +2351,7 @@ model CandidateApplication {
   currentStage      PipelineStage?        @relation(fields: [companyId, currentStageId], references: [companyId, id], onDelete: Restrict)
   invitations       CandidateInvitation[]
   interviewSessions InterviewSession[]
+  cvScreenings      ApplicationCvScreening[]
 
   @@unique([companyId, id])
   @@unique([companyId, candidateId, jobId])
@@ -2384,11 +2421,59 @@ model CandidateDocument {
 
   company   Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
   candidate Candidate @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  cvScreenings ApplicationCvScreening[]
 
   @@unique([companyId, id])
   @@unique([companyId, storageKey])
   @@index([companyId, candidateId, status])
   @@map("candidate_documents")
+}
+
+model ApplicationCvScreening {
+  id                   String                    @id @default(cuid())
+  companyId            String                    @map("company_id")
+  applicationId        String                    @map("application_id")
+  candidateId          String                    @map("candidate_id")
+  jobId                String                    @map("job_id")
+  cvDocumentId         String?                   @map("cv_document_id")
+  processingWorkflowId String?                   @map("processing_workflow_id")
+  extractionStatus     CvTextExtractionStatus    @default(PENDING) @map("extraction_status")
+  screeningStatus      CvScreeningStatus         @default(PENDING) @map("screening_status")
+  extractedText        String?                   @db.LongText @map("extracted_text")
+  extractedTextHash    String?                   @map("extracted_text_hash")
+  matchScore           Int?                      @map("match_score")
+  recommendation       CvScreeningRecommendation?
+  confidence           CvScreeningConfidence?
+  hrSummary            String?                   @db.Text @map("hr_summary")
+  matchedSkillsJson    Json                      @map("matched_skills_json")
+  missingSkillsJson    Json                      @map("missing_skills_json")
+  experienceMatch      String?                   @db.Text @map("experience_match")
+  responsibilityMatch  String?                   @db.Text @map("responsibility_match")
+  educationMatch       String?                   @db.Text @map("education_match")
+  concernsJson         Json                      @map("concerns_json")
+  focusAreasJson       Json                      @map("focus_areas_json")
+  evidenceJson         Json                      @map("evidence_json")
+  limitationsJson      Json                      @map("limitations_json")
+  provider             String?
+  model                String?
+  failureCode          String?                   @map("failure_code")
+  failureMessageSafe   String?                   @db.Text @map("failure_message_safe")
+  completedAt          DateTime?                 @map("completed_at")
+  createdAt            DateTime                  @default(now()) @map("created_at")
+  updatedAt            DateTime                  @updatedAt @map("updated_at")
+
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Restrict, map: "cv_screen_company_fk")
+  application CandidateApplication @relation(fields: [companyId, applicationId], references: [companyId, id], onDelete: Cascade, map: "cv_screen_app_fk")
+  candidate   Candidate            @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade, map: "cv_screen_candidate_fk")
+  job         Job                  @relation(fields: [companyId, jobId], references: [companyId, id], onDelete: Restrict, map: "cv_screen_job_fk")
+  document    CandidateDocument?   @relation(fields: [companyId, cvDocumentId], references: [companyId, id], onDelete: Restrict, map: "cv_screen_doc_fk")
+
+  @@unique([companyId, id], map: "cv_screen_company_id_key")
+  @@unique([companyId, applicationId], map: "cv_screen_app_key")
+  @@index([companyId, jobId, screeningStatus], map: "cv_screen_job_status_idx")
+  @@index([companyId, candidateId], map: "cv_screen_candidate_idx")
+  @@index([companyId, processingWorkflowId], map: "cv_screen_workflow_idx")
+  @@map("application_cv_screenings")
 }
 
 model CandidateTag {

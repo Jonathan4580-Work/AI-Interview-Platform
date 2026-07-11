@@ -14,6 +14,11 @@ import {
 } from "@/modules/workflows/worker";
 import { PrismaReportingRepository, ReportingService } from "@/modules/reporting";
 import { processJobDescriptionAnalysis } from "@/modules/jobs/jd-analysis-processing";
+import {
+  CvScreeningError,
+  extractCvTextForApplication,
+  screenApplicationCv,
+} from "@/modules/cv-screening/service";
 
 import { createEvaluationProvider } from "./providers";
 import { PrismaEvaluationRepository } from "./prisma-evaluation-repository";
@@ -56,6 +61,44 @@ export function createPhase9WorkflowHandlers(): WorkflowStepHandlerRegistry {
         jobId,
       });
       return { jobId, questionCount: result.questionCount, title: result.title };
+    }),
+    cv_text_extraction: createHandler(async (input) => {
+      const context = buildContext(input.step, input.payload);
+      try {
+        const result = await extractCvTextForApplication({
+          companyId: context.tenant.companyId,
+          applicationId: input.step.workflowSubjectId,
+        });
+        return result;
+      } catch (error) {
+        if (error instanceof CvScreeningError) {
+          throw new WorkflowWorkerError(
+            error.message,
+            error.retryable ? "retryable" : "terminal",
+            error.code,
+          );
+        }
+        throw error;
+      }
+    }),
+    cv_ai_screening: createHandler(async (input) => {
+      const context = buildContext(input.step, input.payload);
+      try {
+        const result = await screenApplicationCv({
+          companyId: context.tenant.companyId,
+          applicationId: input.step.workflowSubjectId,
+        });
+        return result;
+      } catch (error) {
+        if (error instanceof CvScreeningError) {
+          throw new WorkflowWorkerError(
+            formatCvScreeningWorkflowMessage(error),
+            error.retryable ? "retryable" : "terminal",
+            error.code,
+          );
+        }
+        throw error;
+      }
     }),
     transcribe_recording: createHandler(async (input) => {
       const context = buildContext(input.step, input.payload);
@@ -107,6 +150,16 @@ export function createPhase9WorkflowHandlers(): WorkflowStepHandlerRegistry {
 }
 
 function formatProviderWorkflowMessage(error: EvaluationProviderError): string {
+  const detailText = Object.entries(error.details)
+    .filter((entry): entry is [string, string | number | boolean] =>
+      ["string", "number", "boolean"].includes(typeof entry[1]),
+    )
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .join(" ");
+  return detailText.length === 0 ? error.message : `${error.message} ${detailText}`;
+}
+
+function formatCvScreeningWorkflowMessage(error: CvScreeningError): string {
   const detailText = Object.entries(error.details)
     .filter((entry): entry is [string, string | number | boolean] =>
       ["string", "number", "boolean"].includes(typeof entry[1]),

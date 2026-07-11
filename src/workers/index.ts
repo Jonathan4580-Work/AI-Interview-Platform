@@ -12,6 +12,8 @@ const registeredWorkerClasses = [
   "media-finalization",
   "transcription",
   "evaluation",
+  "cv-text-extraction",
+  "cv-screening",
   "reporting",
   "results-notifications",
 ] as const;
