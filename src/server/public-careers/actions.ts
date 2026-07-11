@@ -1,7 +1,6 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/infra/database";
 import { PasswordPolicyError } from "@/modules/auth/password";
@@ -248,6 +247,5 @@ export async function submitPublicApplicationAction(formData: FormData): Promise
     },
   });
 
-  revalidatePath(`/jobs/${job.id}`);
   redirect("/candidate/applications?submitted=1");
 }

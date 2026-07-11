@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   loginCandidateAccountAction,
   registerCandidateAccountAction,
@@ -16,6 +17,8 @@ import { getCandidateAccountSession } from "@/server/public-careers/candidate-au
 import { getPublicCareerJobDetail } from "@/server/public-careers/queries";
 
 import type { ReactNode } from "react";
+
+import { CandidateAuthSubmitButton, CandidateCvInput } from "./candidate-apply-controls";
 
 export default async function PublicApplyPage({
   params,
@@ -71,9 +74,10 @@ export default async function PublicApplyPage({
             </CardHeader>
             <CardContent>
               {query.applyError === undefined ? null : (
-                <p className="mb-4 rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
-                  {query.applyError}
-                </p>
+                <Alert variant="danger" className="mb-4">
+                  <AlertTitle>Application not submitted</AlertTitle>
+                  <AlertDescription>{query.applyError}</AlertDescription>
+                </Alert>
               )}
               <form action={submitPublicApplicationAction} className="grid gap-4">
                 <input type="hidden" name="companySlug" value={job.company.slug} />
@@ -95,12 +99,7 @@ export default async function PublicApplyPage({
                   <Input name="phone" defaultValue={candidateSession.phone ?? ""} />
                 </Field>
                 <Field label="CV">
-                  <Input
-                    name="cv"
-                    type="file"
-                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    required
-                  />
+                  <CandidateCvInput />
                 </Field>
                 <Field label="Cover note">
                   <Textarea
@@ -116,10 +115,10 @@ export default async function PublicApplyPage({
                   </span>
                 </label>
                 <div className="flex flex-wrap items-center gap-3">
-                  <Button type="submit">
+                  <CandidateAuthSubmitButton pendingLabel="Uploading CV...">
                     <FileText aria-hidden="true" />
                     Submit application
-                  </Button>
+                  </CandidateAuthSubmitButton>
                   <p className="text-sm text-muted-foreground">
                     PDF and DOCX CV files up to 10 MB are supported.
                   </p>
@@ -152,9 +151,10 @@ function CandidateRegisterCard({
       </CardHeader>
       <CardContent>
         {authError === undefined ? null : (
-          <p className="mb-4 rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
-            {authError}
-          </p>
+          <Alert variant="danger" className="mb-4">
+            <AlertTitle>Account action failed</AlertTitle>
+            <AlertDescription>{authError}</AlertDescription>
+          </Alert>
         )}
         <form action={registerCandidateAccountAction} className="grid gap-3">
           <input type="hidden" name="companyId" value={companyId} />
@@ -174,7 +174,9 @@ function CandidateRegisterCard({
           <Field label="Confirm password">
             <Input name="confirmPassword" type="password" autoComplete="new-password" required />
           </Field>
-          <Button type="submit">Create account</Button>
+          <CandidateAuthSubmitButton pendingLabel="Creating account...">
+            Create account
+          </CandidateAuthSubmitButton>
         </form>
       </CardContent>
     </Card>
@@ -206,9 +208,9 @@ function CandidateLoginCard({
           <Field label="Password">
             <Input name="password" type="password" autoComplete="current-password" required />
           </Field>
-          <Button type="submit" variant="secondary">
+          <CandidateAuthSubmitButton variant="secondary" pendingLabel="Signing in...">
             Sign in and continue
-          </Button>
+          </CandidateAuthSubmitButton>
         </form>
       </CardContent>
     </Card>

@@ -36,7 +36,10 @@ export function JobStatusForm({
       <input type="hidden" name="jobId" value={jobId} />
       <input type="hidden" name="status" value={nextStatus} />
       {isClosing ? <span className="text-sm text-muted-foreground">Confirm close?</span> : null}
-      <SubmitButton label={isClosing ? "Confirm close" : "Reopen job"} />
+      <SubmitButton
+        label={isClosing ? "Confirm close" : "Reopen job"}
+        pendingLabel={isClosing ? "Closing job..." : "Reopening job..."}
+      />
       {isClosing ? (
         <Button
           type="button"
@@ -52,11 +55,17 @@ export function JobStatusForm({
   );
 }
 
-function SubmitButton({ label }: { readonly label: string }) {
+function SubmitButton({
+  label,
+  pendingLabel,
+}: {
+  readonly label: string;
+  readonly pendingLabel: string;
+}) {
   const status = useFormStatus();
   return (
     <Button type="submit" variant="secondary" disabled={status.pending}>
-      {status.pending ? "Saving..." : label}
+      {status.pending ? pendingLabel : label}
     </Button>
   );
 }

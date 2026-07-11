@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { BriefcaseBusiness, LogOut } from "lucide-react";
 
+import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { signOutCandidateAccountAction } from "@/server/public-careers/actions";
@@ -49,22 +51,24 @@ export default async function CandidateApplicationsPage({
             </p>
           </div>
           <form action={signOutCandidateAccountAction}>
-            <Button type="submit" variant="secondary">
+            <PendingSubmitButton variant="secondary" pendingLabel="Signing out...">
               <LogOut aria-hidden="true" />
               Sign out
-            </Button>
+            </PendingSubmitButton>
           </form>
         </div>
 
         {query.submitted === "1" ? (
-          <p className="rounded-md border border-success/30 bg-success/5 px-3 py-2 text-sm text-success">
-            Application submitted. The hiring team can now review your CV.
-          </p>
+          <Alert variant="success">
+            <AlertTitle>Application submitted</AlertTitle>
+            <AlertDescription>The hiring team can now review your CV.</AlertDescription>
+          </Alert>
         ) : null}
         {query.applyError === undefined ? null : (
-          <p className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
-            {query.applyError}
-          </p>
+          <Alert variant="warning">
+            <AlertTitle>Application already exists</AlertTitle>
+            <AlertDescription>{query.applyError}</AlertDescription>
+          </Alert>
         )}
 
         <Card>
@@ -76,8 +80,12 @@ export default async function CandidateApplicationsPage({
           </CardHeader>
           <CardContent className="grid gap-3">
             {data.applications.length === 0 ? (
-              <div className="rounded-md border border-dashed border-border p-5 text-sm text-muted-foreground">
-                You have not submitted any applications with this candidate account yet.
+              <div className="rounded-md border border-dashed border-border bg-muted/20 p-6 text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">No applications yet</p>
+                <p className="mt-1">
+                  Return to a company job posting to upload your CV and submit your first
+                  application.
+                </p>
               </div>
             ) : (
               data.applications.map((application) => (

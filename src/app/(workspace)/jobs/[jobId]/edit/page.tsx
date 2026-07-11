@@ -2,9 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/layout/page-header";
+import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { setJobStatusAction, updateJobAction } from "@/server/hr-workspace/actions";
+import { updateJobAction } from "@/server/hr-workspace/actions";
 import { requireHrWorkspaceContext } from "@/server/hr-workspace/context";
 import { getJobDetail } from "@/server/hr-workspace/queries";
 
@@ -15,6 +16,7 @@ import {
   StatusBadge,
   TextField,
 } from "../../../_components/hr-ui";
+import { JobStatusForm } from "../job-status-form";
 
 export default async function EditJobPage({
   params,
@@ -147,7 +149,9 @@ export default async function EditJobPage({
               <span className="flex items-center gap-2">
                 Current status <StatusBadge value={job.status} />
               </span>
-              <Button type="submit">Save changes</Button>
+              <PendingSubmitButton pendingLabel="Saving changes...">
+                Save changes
+              </PendingSubmitButton>
             </div>
           </CardContent>
         </Card>
@@ -161,13 +165,7 @@ export default async function EditJobPage({
           <p>
             Closed jobs are removed from open-job counts and should not be used for new invitations.
           </p>
-          <form action={setJobStatusAction}>
-            <input type="hidden" name="jobId" value={job.id} />
-            <input type="hidden" name="status" value={job.status === "OPEN" ? "CLOSED" : "OPEN"} />
-            <Button type="submit" variant="secondary">
-              {job.status === "OPEN" ? "Close job" : "Reopen job"}
-            </Button>
-          </form>
+          <JobStatusForm jobId={job.id} currentStatus={job.status} />
         </CardContent>
       </Card>
     </div>

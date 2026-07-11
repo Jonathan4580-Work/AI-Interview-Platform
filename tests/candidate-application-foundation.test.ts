@@ -63,15 +63,21 @@ describe("candidate application foundation", () => {
 
   it("replaces the public apply placeholder with real candidate auth and CV submission", () => {
     const applyPage = source("src/app/careers/[companySlug]/jobs/[jobSlug]/apply/page.tsx");
+    const applyControls = source(
+      "src/app/careers/[companySlug]/jobs/[jobSlug]/apply/candidate-apply-controls.tsx",
+    );
     const actions = source("src/server/public-careers/actions.ts");
 
     expect(applyPage).toContain("Create candidate account");
     expect(applyPage).toContain("Already applied before?");
     expect(applyPage).toContain("Submit application");
-    expect(applyPage).toContain('accept=".pdf,.docx');
+    expect(applyControls).toContain('accept=".pdf,.docx');
+    expect(applyControls).toContain("No CV selected.");
+    expect(applyControls).toContain("selected");
     expect(actions).toContain("submitPublicApplicationAction");
     expect(actions).toContain('consent !== "on"');
     expect(actions).toContain("LocalFilesystemStorageProvider");
+    expect(actions).not.toContain("revalidatePath");
     expect(applyPage).not.toContain("Candidate applications coming soon");
   });
 
@@ -91,8 +97,23 @@ describe("candidate application foundation", () => {
 
     expect(dashboardPage).toContain("My applications");
     expect(dashboardPage).toContain("View job");
+    expect(dashboardPage).toContain("Application submitted");
     expect(hrJobPage).toContain("CV uploaded");
     expect(hrJobPage).toContain("Screening not started");
+    expect(hrJobPage).toContain("Public application");
     expect(hrQueries).toContain("documents:");
+  });
+
+  it("adds pending states to candidate application actions", () => {
+    const applyPage = source("src/app/careers/[companySlug]/jobs/[jobSlug]/apply/page.tsx");
+    const dashboardPage = source("src/app/candidate/applications/page.tsx");
+    const pendingButton = source("src/components/forms/pending-submit-button.tsx");
+
+    expect(pendingButton).toContain("useFormStatus");
+    expect(pendingButton).toContain("aria-busy");
+    expect(applyPage).toContain("Creating account...");
+    expect(applyPage).toContain("Signing in...");
+    expect(applyPage).toContain("Uploading CV...");
+    expect(dashboardPage).toContain("Signing out...");
   });
 });

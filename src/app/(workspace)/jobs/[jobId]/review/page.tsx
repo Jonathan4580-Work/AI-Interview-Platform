@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/layout/page-header";
+import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { publishJdJobAction, saveJdReviewAction } from "@/server/hr-workspace/actions";
@@ -46,9 +47,12 @@ export default async function JobReviewPage({
             </Button>
             <form action={publishJdJobAction}>
               <input type="hidden" name="jobId" value={job.id} />
-              <Button type="submit" disabled={job.interviewQuestions.length < 3}>
+              <PendingSubmitButton
+                pendingLabel="Publishing..."
+                disabled={job.interviewQuestions.length < 3}
+              >
                 Publish job
-              </Button>
+              </PendingSubmitButton>
             </form>
           </div>
         }
@@ -331,9 +335,9 @@ export default async function JobReviewPage({
                 Saving keeps the job in HR review. Publishing activates the job and its interview
                 plan.
               </p>
-              <Button type="submit" variant="secondary">
+              <PendingSubmitButton variant="secondary" pendingLabel="Saving draft...">
                 Save draft
-              </Button>
+              </PendingSubmitButton>
             </div>
           </CardContent>
         </Card>

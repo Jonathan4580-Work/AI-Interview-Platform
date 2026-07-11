@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/layout/page-header";
-import { Button } from "@/components/ui/button";
+import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createJobAction, createJobFromJdAction } from "@/server/hr-workspace/actions";
 import { requireHrWorkspaceContext } from "@/server/hr-workspace/context";
@@ -74,7 +74,7 @@ export default async function NewJobPage() {
               />
             </Field>
             <div className="flex justify-end">
-              <Button type="submit">Create job</Button>
+              <PendingSubmitButton pendingLabel="Creating job...">Create job</PendingSubmitButton>
             </div>
           </CardContent>
         </Card>

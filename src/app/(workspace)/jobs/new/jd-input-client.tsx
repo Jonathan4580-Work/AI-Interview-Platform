@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { parseJobDescriptionAutofill } from "@/modules/jobs/jd-local-autofill";
 
@@ -120,8 +120,8 @@ export function JobDescriptionInputCard() {
             OpenAI creates an AI-generated draft only after this explicit action. HR review is
             required.
           </p>
-          <Button
-            type="submit"
+          <PendingSubmitButton
+            pendingLabel="Analyzing JD..."
             onClick={(event) => {
               const hasText = text.trim().length > 0;
               const hasFile = fileName !== null;
@@ -134,7 +134,7 @@ export function JobDescriptionInputCard() {
             }}
           >
             Analyze JD
-          </Button>
+          </PendingSubmitButton>
         </div>
       </CardContent>
     </Card>

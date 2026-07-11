@@ -17,7 +17,8 @@ describe("JD job creation UX hardening", () => {
     expect(page).toContain("JobStatusForm");
     expect(statusForm).toContain("Confirm close");
     expect(statusForm).toContain("Reopen job");
-    expect(statusForm).toContain("Saving...");
+    expect(statusForm).toContain("Closing job...");
+    expect(statusForm).toContain("Reopening job...");
   });
 
   it("exposes real edit fields for JD-created jobs", () => {

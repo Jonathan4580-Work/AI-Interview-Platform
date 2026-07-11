@@ -124,7 +124,10 @@ export default async function JobDetailPage({
             />
           ) : (
             job.applications.map((application) => (
-              <div key={application.id} className="rounded-lg border border-border p-4">
+              <div
+                key={application.id}
+                className="rounded-lg border border-border bg-surface p-4 shadow-xs"
+              >
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <Link
@@ -142,6 +145,9 @@ export default async function JobDetailPage({
                       </p>
                     )}
                     <div className="mt-2 flex flex-wrap gap-2">
+                      {application.candidateAccountId === null ? null : (
+                        <StatusBadge value="Public application" />
+                      )}
                       <StatusBadge value={application.status} />
                       <StatusBadge value={application.currentStage?.name ?? "No stage"} />
                       <StatusBadge
@@ -153,6 +159,9 @@ export default async function JobDetailPage({
                       />
                       <StatusBadge value="Screening not started" />
                     </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Applied {formatDate(application.appliedAt)}
+                    </p>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2 lg:min-w-96">
                     <form action={updateApplicationStageAction} className="grid gap-2">
