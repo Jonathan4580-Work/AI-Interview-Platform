@@ -45,6 +45,22 @@ async function main(): Promise<void> {
   console.log(`CV MIME type: ${document?.contentType ?? "none"}`);
   console.log(`JD intelligence exists: ${String(application.job.intelligenceProfile !== null)}`);
   console.log(`Model: ${env.OPENAI_MODEL}`);
+  console.log(`PDF extraction method used: ${screening?.extractionMethod ?? "not_ready"}`);
+  console.log(
+    `Raw extracted length: ${
+      screening?.extractionRawLength === null || screening?.extractionRawLength === undefined
+        ? "not_ready"
+        : String(screening.extractionRawLength)
+    }`,
+  );
+  console.log(
+    `Cleaned extracted length: ${
+      screening?.extractionCleanedLength === null ||
+      screening?.extractionCleanedLength === undefined
+        ? "not_ready"
+        : String(screening.extractionCleanedLength)
+    }`,
+  );
   console.log(`Extracted text length: ${String(extractedText.length)}`);
   console.log(
     `Extraction quality score: ${

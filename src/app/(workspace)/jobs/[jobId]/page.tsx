@@ -273,8 +273,8 @@ function ScreeningDetails({ screening }: { readonly screening: CvScreening | nul
         </p>
         {isLowQuality ? (
           <p className="rounded-md border border-warning/30 bg-warning/10 p-3 text-warning">
-            CV extraction quality is low. Ask candidate to upload a clearer resume. Screening is
-            based on limited evidence.
+            CV extraction quality is low. Ask the candidate to upload DOCX or a selectable text PDF.
+            Screening is based on limited evidence.
           </p>
         ) : null}
         <DetailBlock

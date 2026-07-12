@@ -2443,6 +2443,9 @@ model ApplicationCvScreening {
     extractedTextHash    String?                   @map("extracted_text_hash")
     extractionQualityScore Int?                    @map("extraction_quality_score")
     extractionMetadataRemoved Boolean              @default(false) @map("extraction_metadata_removed")
+    extractionMethod     String?                   @map("extraction_method")
+    extractionRawLength  Int?                      @map("extraction_raw_length")
+    extractionCleanedLength Int?                   @map("extraction_cleaned_length")
     matchScore           Int?                      @map("match_score")
   recommendation       CvScreeningRecommendation?
   confidence           CvScreeningConfidence?

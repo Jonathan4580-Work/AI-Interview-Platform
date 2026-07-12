@@ -101,6 +101,9 @@ describe("AI CV screening foundation", () => {
     expect(diagnostic).toContain("screeningStatus");
     expect(diagnostic).toContain("CV filename");
     expect(diagnostic).toContain("CV MIME type");
+    expect(diagnostic).toContain("PDF extraction method used");
+    expect(diagnostic).toContain("Raw extracted length");
+    expect(diagnostic).toContain("Cleaned extracted length");
     expect(diagnostic).toContain("Extraction quality score");
     expect(diagnostic).toContain("Metadata removed");
     expect(diagnostic).toContain("Extracted CV text preview");
@@ -142,6 +145,26 @@ describe("AI CV screening foundation", () => {
     expect(extracted.quality.score).toBeLessThan(45);
   });
 
+  it("extracts selectable PDF text encoded through a ToUnicode CMap", () => {
+    const pdf = createSelectableCmapPdf([
+      "Professional summary Software engineer focused on recruitment platforms",
+      "Skills TypeScript React Prisma MySQL OpenAI",
+      "Experience Built browser interview workflows and worker queues",
+      "Projects Aptly AI screening workflow",
+      "Education Computer Science",
+    ]);
+
+    const extracted = extractTextFromDocument(pdf, "application/pdf", "selectable-cv.pdf");
+
+    expect(extracted.method).toBe("pdf_stream_cmap");
+    expect(extracted.rawLength).toBeGreaterThan(0);
+    expect(extracted.cleanedLength).toBeGreaterThan(0);
+    expect(extracted.text).toContain("Professional summary");
+    expect(extracted.text).toContain("Skills TypeScript React Prisma MySQL OpenAI");
+    expect(extracted.text).toContain("Projects Aptly AI screening workflow");
+    expect(extracted.quality.score).toBeGreaterThanOrEqual(60);
+  });
+
   it("extracts paragraph and table text from DOCX resumes", () => {
     const docx = createSyntheticDocx(`
       <w:document>
@@ -178,6 +201,17 @@ describe("AI CV screening foundation", () => {
     expect(resume.score).toBeGreaterThan(metadata.score);
     expect(metadata.score).toBeLessThan(45);
   });
+
+  it("shows candidates that DOCX is recommended for screening accuracy", () => {
+    const applyControls = source(
+      "src/app/careers/[companySlug]/jobs/[jobSlug]/apply/candidate-apply-controls.tsx",
+    );
+    const hrJobPage = source("src/app/(workspace)/jobs/[jobId]/page.tsx");
+
+    expect(applyControls).toContain("DOCX is recommended for best screening accuracy");
+    expect(applyControls).toContain("PDFs may not extract clearly");
+    expect(hrJobPage).toContain("upload DOCX or a selectable text");
+  });
 });
 
 function createSyntheticPdf(lines: readonly string[]): Buffer {
@@ -186,6 +220,38 @@ function createSyntheticPdf(lines: readonly string[]): Buffer {
   return Buffer.concat([
     Buffer.from("%PDF-1.7\n1 0 obj\n<</Filter /FlateDecode>>\nstream\n", "latin1"),
     compressed,
+    Buffer.from("\nendstream\nendobj\n%%EOF", "latin1"),
+  ]);
+}
+
+function createSelectableCmapPdf(lines: readonly string[]): Buffer {
+  const text = lines.join("\n");
+  const chars = Array.from(new Set(Array.from(text)));
+  const codeByChar = new Map<string, string>();
+  chars.forEach((char, index) => {
+    codeByChar.set(char, (index + 1).toString(16).padStart(4, "0"));
+  });
+  const encodedLines = lines
+    .map(
+      (line) =>
+        `<${Array.from(line)
+          .map((char) => codeByChar.get(char) ?? "")
+          .join("")}> Tj`,
+    )
+    .join("\n");
+  const cmap = [
+    "begincmap",
+    "beginbfchar",
+    ...chars.map(
+      (char) =>
+        `<${codeByChar.get(char) ?? "0000"}> <${char.codePointAt(0)?.toString(16).padStart(4, "0") ?? "0000"}>`,
+    ),
+    "endbfchar",
+    "endcmap",
+  ].join("\n");
+  return Buffer.concat([
+    Buffer.from("%PDF-1.7\n1 0 obj\n<</Filter /FlateDecode>>\nstream\n", "latin1"),
+    deflateSync(Buffer.from(`${cmap}\nBT\n${encodedLines}\nET`, "utf8")),
     Buffer.from("\nendstream\nendobj\n%%EOF", "latin1"),
   ]);
 }
