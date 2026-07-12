@@ -41,9 +41,19 @@ async function main(): Promise<void> {
   console.log(`Job ID: ${application.jobId}`);
   console.log(`Candidate account ID: ${application.candidateAccountId ?? "none"}`);
   console.log(`CV document exists: ${String(document !== null)}`);
+  console.log(`CV filename: ${document?.fileName ?? "none"}`);
+  console.log(`CV MIME type: ${document?.contentType ?? "none"}`);
   console.log(`JD intelligence exists: ${String(application.job.intelligenceProfile !== null)}`);
   console.log(`Model: ${env.OPENAI_MODEL}`);
-  console.log(`Input length: ${String(extractedText.length)}`);
+  console.log(`Extracted text length: ${String(extractedText.length)}`);
+  console.log(
+    `Extraction quality score: ${
+      screening?.extractionQualityScore === null || screening?.extractionQualityScore === undefined
+        ? "not_ready"
+        : String(screening.extractionQualityScore)
+    }`,
+  );
+  console.log(`Metadata removed: ${String(screening?.extractionMetadataRemoved ?? false)}`);
   console.log(
     `Screening status: ${screening === null ? "not_started" : screening.screeningStatus}`,
   );

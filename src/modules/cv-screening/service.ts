@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { inflateRawSync, inflateSync } from "node:zlib";
 
 import OpenAI from "openai";
 
@@ -42,8 +43,8 @@ export async function extractCvTextForApplication(input: {
   }
 
   const bytes = await new LocalFilesystemStorageProvider().readObject(document.storageKey);
-  const extractedText = extractTextFromDocument(bytes, document.contentType, document.fileName);
-  const normalizedText = normalizeExtractedText(extractedText);
+  const extraction = extractTextFromDocument(bytes, document.contentType, document.fileName);
+  const normalizedText = extraction.text;
 
   await prisma.applicationCvScreening.update({
     where: {
@@ -53,6 +54,8 @@ export async function extractCvTextForApplication(input: {
       cvDocumentId: document.id,
       extractionStatus: "COMPLETE",
       extractedText: normalizedText,
+      extractionQualityScore: extraction.quality.score,
+      extractionMetadataRemoved: extraction.quality.metadataRemoved,
       extractedTextHash:
         normalizedText.length === 0
           ? null
@@ -87,11 +90,14 @@ export async function screenApplicationCv(input: {
 
   const cvText = normalizeExtractedText(screening.extractedText ?? "");
   const jobProfile = application.job.intelligenceProfile;
-  if (cvText.length < 120 || jobProfile === null) {
+  const qualityScore = screening.extractionQualityScore ?? scoreExtractedText(cvText).score;
+  if (cvText.length < 120 || qualityScore < 45 || jobProfile === null) {
     const result = createInsufficientEvidenceResult(
-      cvText.length < 120
-        ? "CV text was too short to evaluate reliably."
-        : "Published JD intelligence was not available.",
+      qualityScore < 45
+        ? "CV text could not be extracted clearly. Request a cleaner PDF/DOCX."
+        : cvText.length < 120
+          ? "CV text was too short to evaluate reliably."
+          : "Published JD intelligence was not available.",
     );
     await persistScreeningResult(input.companyId, input.applicationId, result, {
       provider: "deterministic",
@@ -200,6 +206,8 @@ export async function ensureCvScreeningWorkflow(input: {
       processingWorkflowId: input.workflowId ?? undefined,
       extractionStatus: "PENDING",
       screeningStatus: "PENDING",
+      extractionQualityScore: null,
+      extractionMetadataRemoved: false,
       failureCode: null,
       failureMessageSafe: null,
     },
@@ -248,31 +256,241 @@ export function parseCvScreeningProviderOutput(output: string): CvScreeningResul
   };
 }
 
-function extractTextFromDocument(bytes: Buffer, contentType: string, fileName: string): string {
+export function extractTextFromDocument(
+  bytes: Buffer,
+  contentType: string,
+  fileName: string,
+): CvTextExtractionResult {
   const text = bytes.toString("latin1");
+  let extractedText = "";
   if (contentType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf")) {
-    return extractPdfText(text);
-  }
-  if (
+    extractedText = extractPdfText(bytes, text);
+  } else if (
     contentType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
     fileName.toLowerCase().endsWith(".docx")
   ) {
-    return extractDocxLikeText(text);
+    extractedText = extractDocxText(bytes, text);
   }
-  return "";
+  const cleaned = cleanExtractedResumeText(extractedText);
+  const normalized = normalizeExtractedText(cleaned.text);
+  const quality = scoreExtractedText(normalized, cleaned.metadataRemoved);
+  return { text: normalized, quality };
 }
 
-function extractPdfText(text: string): string {
-  const matches = [...text.matchAll(/\(([^()\r\n]{3,})\)/gu)].map((match) => match[1]);
-  return matches.join(" ");
+function extractPdfText(bytes: Buffer, text: string): string {
+  const chunks = [text, ...decodePdfStreams(bytes)];
+  return chunks.flatMap(extractPdfTextTokens).join("\n");
+}
+
+function decodePdfStreams(bytes: Buffer): readonly string[] {
+  const value = bytes.toString("latin1");
+  const streams: string[] = [];
+  const streamPattern = /<<(.*?)>>\s*stream\r?\n?([\s\S]*?)\r?\n?endstream/gu;
+  for (const match of value.matchAll(streamPattern)) {
+    const dictionary = match[1];
+    const stream = match[2];
+    if (!dictionary.includes("FlateDecode")) continue;
+    const streamBytes = Buffer.from(stream, "latin1");
+    const inflated = inflatePdfStream(streamBytes);
+    if (inflated.length > 0) streams.push(inflated);
+  }
+  return streams;
+}
+
+function inflatePdfStream(bytes: Buffer): string {
+  try {
+    return inflateSync(bytes).toString("utf8");
+  } catch {
+    try {
+      return inflateRawSync(bytes).toString("utf8");
+    } catch {
+      return "";
+    }
+  }
+}
+
+function extractPdfTextTokens(text: string): readonly string[] {
+  const literalTokens = [...text.matchAll(/\((?:\\.|[^\\()]){2,}\)/gu)]
+    .map((match) => decodePdfLiteral(match[0]))
+    .filter(hasMinimumTextTokenLength);
+  const hexTokens = [...text.matchAll(/<([0-9A-Fa-f]{6,})>/gu)]
+    .map((match) => decodePdfHex(match[1]))
+    .filter(hasMinimumTextTokenLength);
+  return [...literalTokens, ...hexTokens];
 }
 
 function extractDocxLikeText(text: string): string {
   return text.replace(/<[^>]+>/gu, " ").replace(/[^\p{L}\p{N}\s.,;:!?@#/+()-]/gu, " ");
 }
 
+function extractDocxText(bytes: Buffer, fallbackText: string): string {
+  const documentXml = readZipTextEntries(bytes)
+    .filter((entry) =>
+      /^word\/(?:document|footnotes|endnotes|header\d*|footer\d*)\.xml$/u.test(entry.name),
+    )
+    .map((entry) => entry.text)
+    .join("\n");
+  if (documentXml.length > 0) return extractDocxXmlText(documentXml);
+  return extractDocxLikeText(fallbackText);
+}
+
+function readZipTextEntries(
+  bytes: Buffer,
+): readonly { readonly name: string; readonly text: string }[] {
+  const entries: { readonly name: string; readonly text: string }[] = [];
+  let offset = 0;
+  while (offset < bytes.length - 30) {
+    if (bytes.readUInt32LE(offset) !== 0x04034b50) {
+      offset += 1;
+      continue;
+    }
+    const compressionMethod = bytes.readUInt16LE(offset + 8);
+    const compressedSize = bytes.readUInt32LE(offset + 18);
+    const fileNameLength = bytes.readUInt16LE(offset + 26);
+    const extraLength = bytes.readUInt16LE(offset + 28);
+    const nameStart = offset + 30;
+    const dataStart = nameStart + fileNameLength + extraLength;
+    const dataEnd = dataStart + compressedSize;
+    if (dataEnd > bytes.length) break;
+    const name = bytes.subarray(nameStart, nameStart + fileNameLength).toString("utf8");
+    const data = bytes.subarray(dataStart, dataEnd);
+    const text = inflateZipEntry(data, compressionMethod);
+    if (text.length > 0) entries.push({ name, text });
+    offset = dataEnd;
+  }
+  return entries;
+}
+
+function inflateZipEntry(data: Buffer, compressionMethod: number): string {
+  try {
+    if (compressionMethod === 0) return data.toString("utf8");
+    if (compressionMethod === 8) return inflateRawSync(data).toString("utf8");
+    return "";
+  } catch {
+    return "";
+  }
+}
+
+function extractDocxXmlText(xml: string): string {
+  return xml
+    .replace(/<w:tab\s*\/>/gu, " ")
+    .replace(/<\/w:p>/gu, "\n")
+    .replace(/<\/w:tr>/gu, "\n")
+    .replace(/<\/w:tc>/gu, " ")
+    .replace(/<[^>]+>/gu, "")
+    .replace(/&amp;/gu, "&")
+    .replace(/&lt;/gu, "<")
+    .replace(/&gt;/gu, ">")
+    .replace(/&quot;/gu, '"')
+    .replace(/&apos;/gu, "'");
+}
+
+function cleanExtractedResumeText(value: string): {
+  readonly text: string;
+  readonly metadataRemoved: boolean;
+} {
+  let metadataRemoved = false;
+  const seen = new Set<string>();
+  const lines = value
+    .split(/[\r\n]+/u)
+    .map((line) => normalizeExtractedText(line))
+    .flatMap(splitLikelyResumeLine)
+    .map((line) => normalizeExtractedText(line))
+    .filter((line) => {
+      if (line.length < 2) return false;
+      if (isPdfMetadataLine(line) || isGarbledLine(line)) {
+        metadataRemoved = true;
+        return false;
+      }
+      const key = line.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  return { text: lines.join("\n"), metadataRemoved };
+}
+
+function splitLikelyResumeLine(line: string): readonly string[] {
+  return line.split(/\s+[|•]\s+|\s{3,}/u);
+}
+
+function isPdfMetadataLine(line: string): boolean {
+  const normalized = line.toLowerCase();
+  return (
+    /^d:\d{14}/u.test(normalized) ||
+    /^(producer|creator|author|creationdate|moddate|trapped|metadata|pdf|xmp|adobe)\b/u.test(
+      normalized,
+    ) ||
+    normalized === "anonymous" ||
+    normalized === "opensource anonymous" ||
+    /font|cidfont|encoding|obj|endobj|xref|startxref/u.test(normalized)
+  );
+}
+
+function isGarbledLine(line: string): boolean {
+  const letters = Array.from(line.matchAll(/\p{L}/gu)).length;
+  const printable = Array.from(line).filter((char) =>
+    /[\p{L}\p{N}\s.,;:!?@#/+()'-]/u.test(char),
+  ).length;
+  const ratio = line.length === 0 ? 0 : printable / line.length;
+  return ratio < 0.72 || (line.length > 12 && letters < 4);
+}
+
+function decodePdfLiteral(value: string): string {
+  return value
+    .slice(1, -1)
+    .replace(/\\([nrtbf()\\])/gu, (_match, escape: string) => {
+      if (escape === "n" || escape === "r") return "\n";
+      if (escape === "t") return " ";
+      if (escape === "b" || escape === "f") return "";
+      return escape;
+    })
+    .replace(/\\([0-7]{1,3})/gu, (_match, octal: string) =>
+      String.fromCharCode(Number.parseInt(octal, 8)),
+    );
+}
+
+function decodePdfHex(value: string): string {
+  const pairs = value.length % 2 === 0 ? value : `${value}0`;
+  const bytes = Buffer.from(pairs, "hex");
+  const utf16 = bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff;
+  return utf16 ? bytes.subarray(2).toString("utf16le") : bytes.toString("utf8");
+}
+
+function hasMinimumTextTokenLength(value: string): boolean {
+  const normalized = normalizeExtractedText(value);
+  return normalized.length >= 2;
+}
+
 function normalizeExtractedText(value: string): string {
   return value.replace(/\s+/gu, " ").trim().slice(0, 40_000);
+}
+
+export function scoreExtractedText(
+  value: string,
+  metadataRemoved = false,
+): CvTextExtractionQuality {
+  const text = normalizeExtractedText(value);
+  const usefulWords = [...text.matchAll(/\b[\p{L}][\p{L}+#.-]{2,}\b/gu)].length;
+  const sectionCount = RESUME_SECTION_PATTERNS.filter((pattern) => pattern.test(text)).length;
+  const metadataLineCount = text
+    .split(/[\r\n]+/u)
+    .filter((line) => isPdfMetadataLine(line) || isGarbledLine(line)).length;
+  const lengthScore = Math.min(35, Math.floor(text.length / 25));
+  const wordScore = Math.min(35, Math.floor(usefulWords * 1.5));
+  const sectionScore = Math.min(25, sectionCount * 7);
+  const metadataPenalty = Math.min(35, metadataLineCount * 8);
+  const score = Math.max(
+    0,
+    Math.min(100, lengthScore + wordScore + sectionScore - metadataPenalty),
+  );
+  return {
+    score,
+    usefulWords,
+    sectionCount,
+    metadataRemoved,
+    level: score >= 75 ? "high" : score >= 45 ? "moderate" : "low",
+  };
 }
 
 function buildProviderInput(input: {
@@ -400,7 +618,10 @@ function createInsufficientEvidenceResult(reason: string): CvScreeningResult {
     matchScore: 0,
     recommendation: "Maybe",
     confidence: "insufficient_evidence",
-    hrSummary: "The CV could not be screened reliably from the available text.",
+    hrSummary:
+      reason === "CV text could not be extracted clearly. Request a cleaner PDF/DOCX."
+        ? "CV text could not be extracted clearly. Request a cleaner PDF/DOCX."
+        : "The CV could not be screened reliably from the available text.",
     matchedSkills: [],
     missingSkills: [],
     experienceMatch: "Insufficient evidence.",
@@ -412,6 +633,28 @@ function createInsufficientEvidenceResult(reason: string): CvScreeningResult {
     limitations: [reason],
   };
 }
+
+interface CvTextExtractionResult {
+  readonly text: string;
+  readonly quality: CvTextExtractionQuality;
+}
+
+interface CvTextExtractionQuality {
+  readonly score: number;
+  readonly usefulWords: number;
+  readonly sectionCount: number;
+  readonly metadataRemoved: boolean;
+  readonly level: "high" | "moderate" | "low";
+}
+
+const RESUME_SECTION_PATTERNS = [
+  /\b(summary|profile|objective)\b/iu,
+  /\b(experience|employment|work history)\b/iu,
+  /\b(projects?|portfolio)\b/iu,
+  /\b(skills?|technical skills|technologies)\b/iu,
+  /\b(education|degree|university|college)\b/iu,
+  /\b(certifications?|licenses?)\b/iu,
+] as const;
 
 function readScore(value: unknown): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 100) {

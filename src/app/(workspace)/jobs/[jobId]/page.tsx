@@ -260,6 +260,8 @@ function ScreeningDetails({ screening }: { readonly screening: CvScreening | nul
       </p>
     );
   }
+  const isLowQuality =
+    screening.extractionQualityScore !== null && screening.extractionQualityScore < 45;
   return (
     <details className="mt-4 rounded-lg border border-border bg-muted/20 p-4">
       <summary className="cursor-pointer text-sm font-medium text-foreground">
@@ -269,6 +271,22 @@ function ScreeningDetails({ screening }: { readonly screening: CvScreening | nul
         <p className="rounded-md border border-info/25 bg-info-soft p-3 text-info">
           AI screening is advisory. HR must review before making decisions.
         </p>
+        {isLowQuality ? (
+          <p className="rounded-md border border-warning/30 bg-warning/10 p-3 text-warning">
+            CV extraction quality is low. Ask candidate to upload a clearer resume. Screening is
+            based on limited evidence.
+          </p>
+        ) : null}
+        <DetailBlock
+          title="CV extraction quality"
+          value={
+            screening.extractionQualityScore === null
+              ? "Not recorded."
+              : `${String(screening.extractionQualityScore)}/100${
+                  screening.extractionMetadataRemoved ? " · metadata removed" : ""
+                }`
+          }
+        />
         <DetailBlock title="HR summary" value={screening.hrSummary} />
         <DetailList title="Matched skills" values={jsonStringList(screening.matchedSkillsJson)} />
         <DetailList title="Missing skills" values={jsonStringList(screening.missingSkillsJson)} />

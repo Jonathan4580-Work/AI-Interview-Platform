@@ -2437,11 +2437,13 @@ model ApplicationCvScreening {
   jobId                String                    @map("job_id")
   cvDocumentId         String?                   @map("cv_document_id")
   processingWorkflowId String?                   @map("processing_workflow_id")
-  extractionStatus     CvTextExtractionStatus    @default(PENDING) @map("extraction_status")
-  screeningStatus      CvScreeningStatus         @default(PENDING) @map("screening_status")
-  extractedText        String?                   @db.LongText @map("extracted_text")
-  extractedTextHash    String?                   @map("extracted_text_hash")
-  matchScore           Int?                      @map("match_score")
+    extractionStatus     CvTextExtractionStatus    @default(PENDING) @map("extraction_status")
+    screeningStatus      CvScreeningStatus         @default(PENDING) @map("screening_status")
+    extractedText        String?                   @db.LongText @map("extracted_text")
+    extractedTextHash    String?                   @map("extracted_text_hash")
+    extractionQualityScore Int?                    @map("extraction_quality_score")
+    extractionMetadataRemoved Boolean              @default(false) @map("extraction_metadata_removed")
+    matchScore           Int?                      @map("match_score")
   recommendation       CvScreeningRecommendation?
   confidence           CvScreeningConfidence?
   hrSummary            String?                   @db.Text @map("hr_summary")
