@@ -93,11 +93,15 @@ export async function screenApplicationCv(input: {
 
   const cvText = normalizeExtractedText(screening.extractedText ?? "");
   const jobProfile = application.job.intelligenceProfile;
-  const qualityScore = screening.extractionQualityScore ?? scoreExtractedText(cvText).score;
+  const quality = scoreExtractedText(cvText);
+  const qualityScore =
+    screening.extractionQualityScore === null
+      ? quality.score
+      : Math.min(screening.extractionQualityScore, quality.score);
   if (cvText.length < 120 || qualityScore < 45 || jobProfile === null) {
     const result = createInsufficientEvidenceResult(
       qualityScore < 45
-        ? "CV text could not be extracted clearly. Request a cleaner PDF/DOCX."
+        ? "PDF text could not be extracted clearly. Ask candidate to upload DOCX or a selectable text PDF."
         : cvText.length < 120
           ? "CV text was too short to evaluate reliably."
           : "Published JD intelligence was not available.",
@@ -556,28 +560,71 @@ function normalizeExtractedText(value: string): string {
   return value.replace(/\s+/gu, " ").trim().slice(0, 40_000);
 }
 
+function readTextTokens(value: string): readonly string[] {
+  return Array.from(value.matchAll(/\b[\p{L}][\p{L}+#.'-]{2,}\b/gu), (match) => match[0]);
+}
+
+function isGarbageToken(token: string): boolean {
+  const normalized = token.replace(/['.-]/gu, "");
+  if (normalized.length < 4) return false;
+  const lower = normalized.toLowerCase();
+  if (COMMON_RESUME_WORDS.has(lower)) return false;
+  if (!/[aeiou]/iu.test(normalized)) return true;
+  if (/[A-Z][a-z][A-Z]|[a-z][A-Z][a-z][A-Z]/u.test(normalized)) return true;
+  const uppercaseCount = Array.from(normalized.matchAll(/[A-Z]/gu)).length;
+  const uppercaseRatio = uppercaseCount / normalized.length;
+  if (uppercaseRatio > 0.35 && uppercaseRatio < 0.9 && !KNOWN_MIXED_CASE_WORDS.has(lower))
+    return true;
+  const bigrams = new Set<string>();
+  for (let index = 0; index < lower.length - 1; index += 1) {
+    bigrams.add(lower.slice(index, index + 2));
+  }
+  return lower.length >= 9 && bigrams.size <= Math.ceil(lower.length / 3);
+}
+
+function countUsefulResumeKeywords(value: string): number {
+  const lower = value.toLowerCase();
+  return RESUME_KEYWORDS.reduce(
+    (count, keyword) => (lower.includes(keyword) ? count + 1 : count),
+    0,
+  );
+}
+
 export function scoreExtractedText(
   value: string,
   metadataRemoved = false,
 ): CvTextExtractionQuality {
   const text = normalizeExtractedText(value);
-  const usefulWords = [...text.matchAll(/\b[\p{L}][\p{L}+#.-]{2,}\b/gu)].length;
+  const tokens = readTextTokens(text);
+  const usefulWords = tokens.filter((token) => token.length >= 3 && !isGarbageToken(token)).length;
+  const garbageTokenCount = tokens.filter(isGarbageToken).length;
+  const garbageTokenRatio = tokens.length === 0 ? 1 : garbageTokenCount / tokens.length;
+  const usefulKeywordCount = countUsefulResumeKeywords(text);
   const sectionCount = RESUME_SECTION_PATTERNS.filter((pattern) => pattern.test(text)).length;
   const metadataLineCount = text
     .split(/[\r\n]+/u)
     .filter((line) => isPdfMetadataLine(line) || isGarbledLine(line)).length;
-  const lengthScore = Math.min(35, Math.floor(text.length / 25));
-  const wordScore = Math.min(35, Math.floor(usefulWords * 1.5));
-  const sectionScore = Math.min(25, sectionCount * 7);
+  const readabilityScore = Math.max(0, Math.round((1 - garbageTokenRatio) * 100));
+  const lengthScore = Math.min(20, Math.floor(text.length / 45));
+  const wordScore = Math.min(25, usefulWords);
+  const sectionScore = Math.min(30, sectionCount * 8);
+  const keywordScore = Math.min(25, usefulKeywordCount * 3);
   const metadataPenalty = Math.min(35, metadataLineCount * 8);
-  const score = Math.max(
+  let score = Math.max(
     0,
-    Math.min(100, lengthScore + wordScore + sectionScore - metadataPenalty),
+    Math.min(100, lengthScore + wordScore + sectionScore + keywordScore - metadataPenalty),
   );
+  if (garbageTokenRatio > 0.22) score = Math.min(score, 35);
+  if (readabilityScore < 72) score = Math.min(score, 35);
+  if (sectionCount === 0 && usefulKeywordCount < 6) score = Math.min(score, 35);
+  if (tokens.length < 18) score = Math.min(score, 35);
   return {
     score,
     usefulWords,
     sectionCount,
+    usefulKeywordCount,
+    garbageTokenRatio,
+    readabilityScore,
     metadataRemoved,
     level: score >= 75 ? "high" : score >= 45 ? "moderate" : "low",
   };
@@ -709,8 +756,9 @@ function createInsufficientEvidenceResult(reason: string): CvScreeningResult {
     recommendation: "Maybe",
     confidence: "insufficient_evidence",
     hrSummary:
-      reason === "CV text could not be extracted clearly. Request a cleaner PDF/DOCX."
-        ? "CV text could not be extracted clearly. Request a cleaner PDF/DOCX."
+      reason ===
+      "PDF text could not be extracted clearly. Ask candidate to upload DOCX or a selectable text PDF."
+        ? "PDF text could not be extracted clearly. Ask candidate to upload DOCX or a selectable text PDF."
         : "The CV could not be screened reliably from the available text.",
     matchedSkills: [],
     missingSkills: [],
@@ -736,6 +784,9 @@ interface CvTextExtractionQuality {
   readonly score: number;
   readonly usefulWords: number;
   readonly sectionCount: number;
+  readonly usefulKeywordCount: number;
+  readonly garbageTokenRatio: number;
+  readonly readabilityScore: number;
   readonly metadataRemoved: boolean;
   readonly level: "high" | "moderate" | "low";
 }
@@ -748,6 +799,68 @@ const RESUME_SECTION_PATTERNS = [
   /\b(education|degree|university|college)\b/iu,
   /\b(certifications?|licenses?)\b/iu,
 ] as const;
+
+const RESUME_KEYWORDS = [
+  "summary",
+  "profile",
+  "experience",
+  "employment",
+  "project",
+  "skills",
+  "technical",
+  "education",
+  "certification",
+  "engineer",
+  "developer",
+  "software",
+  "frontend",
+  "backend",
+  "full stack",
+  "typescript",
+  "javascript",
+  "react",
+  "node",
+  "python",
+  "sql",
+  "mysql",
+  "postgresql",
+  "api",
+  "cloud",
+  "aws",
+  "azure",
+  "docker",
+  "prisma",
+  "openai",
+] as const;
+
+const COMMON_RESUME_WORDS = new Set([
+  ...RESUME_KEYWORDS,
+  "professional",
+  "built",
+  "building",
+  "focused",
+  "recruitment",
+  "platform",
+  "platforms",
+  "workflow",
+  "workflows",
+  "candidate",
+  "customer",
+  "support",
+  "systems",
+  "computer",
+  "science",
+]);
+
+const KNOWN_MIXED_CASE_WORDS = new Set([
+  "typescript",
+  "javascript",
+  "openai",
+  "postgresql",
+  "mysql",
+  "github",
+  "linkedin",
+]);
 
 function readScore(value: unknown): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 100) {

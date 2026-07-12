@@ -46,8 +46,8 @@ export function CandidateCvInput() {
         {fileLabel}
       </p>
       <p className="text-xs text-muted-foreground">
-        DOCX is recommended for best screening accuracy. PDF is supported, but scanned or protected
-        PDFs may not extract clearly.
+        DOCX is recommended for best AI screening accuracy. PDF is supported, but some PDFs may not
+        extract clearly.
       </p>
     </div>
   );

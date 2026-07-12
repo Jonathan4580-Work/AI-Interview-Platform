@@ -1,5 +1,6 @@
 import { env } from "../src/config";
 import { prisma } from "../src/infra/database";
+import { scoreExtractedText } from "../src/modules/cv-screening/service";
 
 async function main(): Promise<void> {
   const applicationId = process.argv.at(2)?.trim();
@@ -36,6 +37,7 @@ async function main(): Promise<void> {
   const recommendation = screening?.recommendation;
   const failureCode = screening?.failureCode;
   const failureMessageSafe = screening?.failureMessageSafe;
+  const quality = scoreExtractedText(extractedText, screening?.extractionMetadataRemoved ?? false);
 
   console.log(`Application ID: ${application.id}`);
   console.log(`Job ID: ${application.jobId}`);
@@ -68,6 +70,17 @@ async function main(): Promise<void> {
         ? "not_ready"
         : String(screening.extractionQualityScore)
     }`,
+  );
+  console.log(`Readability score: ${String(quality.readabilityScore)}`);
+  console.log(`Garbage token ratio: ${quality.garbageTokenRatio.toFixed(2)}`);
+  console.log(`Resume section count: ${String(quality.sectionCount)}`);
+  console.log(`Useful keyword count: ${String(quality.usefulKeywordCount)}`);
+  console.log(
+    `AI screening skipped because extraction was unreadable: ${String(
+      quality.score < 45 &&
+        screening?.provider === "deterministic" &&
+        screening.model === "insufficient-evidence",
+    )}`,
   );
   console.log(`Metadata removed: ${String(screening?.extractionMetadataRemoved ?? false)}`);
   console.log(

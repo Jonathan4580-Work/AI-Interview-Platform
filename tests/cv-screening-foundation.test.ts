@@ -105,6 +105,11 @@ describe("AI CV screening foundation", () => {
     expect(diagnostic).toContain("Raw extracted length");
     expect(diagnostic).toContain("Cleaned extracted length");
     expect(diagnostic).toContain("Extraction quality score");
+    expect(diagnostic).toContain("Readability score");
+    expect(diagnostic).toContain("Garbage token ratio");
+    expect(diagnostic).toContain("Resume section count");
+    expect(diagnostic).toContain("Useful keyword count");
+    expect(diagnostic).toContain("AI screening skipped because extraction was unreadable");
     expect(diagnostic).toContain("Metadata removed");
     expect(diagnostic).toContain("Extracted CV text preview");
   });
@@ -165,13 +170,36 @@ describe("AI CV screening foundation", () => {
     expect(extracted.quality.score).toBeGreaterThanOrEqual(60);
   });
 
+  it("scores corrupted selectable PDF glyph text as unreadable", () => {
+    const corrupted = scoreExtractedText(
+      "kFfAg WFt DFpFnoNaFwg Jonathan Th oma RftnF UI AoaNowFw kFfAg DFaNoNaFwg WFt RftnF DFpFnoNaFwg",
+      true,
+    );
+
+    expect(corrupted.score).toBeLessThan(45);
+    expect(corrupted.readabilityScore).toBeLessThan(72);
+    expect(corrupted.garbageTokenRatio).toBeGreaterThan(0.22);
+    expect(corrupted.sectionCount).toBe(0);
+  });
+
+  it("keeps unreadable PDF extraction away from OpenAI screening", () => {
+    const service = source("src/modules/cv-screening/service.ts");
+
+    expect(service).toContain("qualityScore < 45");
+    expect(service).toContain("insufficient-evidence");
+    expect(service).toContain("PDF text could not be extracted clearly");
+    expect(service.indexOf("qualityScore < 45")).toBeLessThan(service.indexOf("new OpenAI"));
+  });
+
   it("extracts paragraph and table text from DOCX resumes", () => {
     const docx = createSyntheticDocx(`
       <w:document>
         <w:body>
           <w:p><w:r><w:t>Jane Candidate</w:t></w:r></w:p>
+          <w:p><w:r><w:t>Professional summary Customer operations analyst building support workflows</w:t></w:r></w:p>
           <w:p><w:r><w:t>Experience Product support specialist</w:t></w:r></w:p>
           <w:tbl><w:tr><w:tc><w:p><w:r><w:t>Skills</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Customer discovery SQL Excel</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+          <w:p><w:r><w:t>Projects Improved reporting and application review processes</w:t></w:r></w:p>
           <w:p><w:r><w:t>Education Diploma in Business</w:t></w:r></w:p>
         </w:body>
       </w:document>
@@ -185,12 +213,12 @@ describe("AI CV screening foundation", () => {
 
     expect(extracted.text).toContain("Jane Candidate");
     expect(extracted.text).toContain("Customer discovery SQL Excel");
-    expect(extracted.quality.score).toBeGreaterThanOrEqual(45);
+    expect(extracted.quality.score).toBeGreaterThanOrEqual(75);
   });
 
   it("scores cleaned resume text higher than metadata-heavy text", () => {
     const resume = scoreExtractedText(
-      "Summary Backend engineer Experience Built APIs Projects Interview platform Skills TypeScript Prisma MySQL Education Computer Science",
+      "Professional summary Backend software engineer with five years of experience building recruiting platforms and workflow systems. Experience Built TypeScript APIs, React interfaces, Prisma services, MySQL reporting, PostgreSQL integrations, queue workers, and OpenAI evaluation tooling. Projects Interview platform, candidate application system, CV screening workflow, and reporting dashboard. Skills TypeScript JavaScript React Node Prisma MySQL PostgreSQL Docker OpenAI. Education Bachelor of Computer Science.",
       true,
     );
     const metadata = scoreExtractedText(
@@ -199,6 +227,7 @@ describe("AI CV screening foundation", () => {
     );
 
     expect(resume.score).toBeGreaterThan(metadata.score);
+    expect(resume.score).toBeGreaterThanOrEqual(75);
     expect(metadata.score).toBeLessThan(45);
   });
 
@@ -208,9 +237,9 @@ describe("AI CV screening foundation", () => {
     );
     const hrJobPage = source("src/app/(workspace)/jobs/[jobId]/page.tsx");
 
-    expect(applyControls).toContain("DOCX is recommended for best screening accuracy");
-    expect(applyControls).toContain("PDFs may not extract clearly");
-    expect(hrJobPage).toContain("upload DOCX or a selectable text");
+    expect(applyControls).toContain("DOCX is recommended for best AI screening accuracy");
+    expect(applyControls).toContain("some PDFs may");
+    expect(hrJobPage).toContain("PDF text could not be extracted clearly");
   });
 });
 
