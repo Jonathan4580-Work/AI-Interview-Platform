@@ -57,7 +57,10 @@ describe("candidate application foundation", () => {
   it("maps existing application statuses to candidate-facing labels", () => {
     expect(normalizeCandidateStatus("NEW")).toBe("Submitted");
     expect(normalizeCandidateStatus("IN_REVIEW")).toBe("Under HR Review");
+    expect(normalizeCandidateStatus("SHORTLISTED")).toBe("Shortlisted");
+    expect(normalizeCandidateStatus("AVAILABILITY_REQUESTED")).toBe("Availability Requested");
     expect(normalizeCandidateStatus("INTERVIEW")).toBe("Interview Invited");
+    expect(normalizeCandidateStatus("NOT_SELECTED")).toBe("Not Selected");
     expect(normalizeCandidateStatus("REJECTED")).toBe("Not Selected");
   });
 

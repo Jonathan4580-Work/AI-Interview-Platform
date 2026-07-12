@@ -14,10 +14,20 @@ export function normalizeCandidateStatus(status: string): string {
       return "Submitted";
     case "IN_REVIEW":
       return "Under HR Review";
+    case "SHORTLISTED":
+      return "Shortlisted";
+    case "AVAILABILITY_REQUESTED":
+      return "Availability Requested";
+    case "AVAILABILITY_CONFIRMED":
+      return "Availability Confirmed";
+    case "INTERVIEW_INVITED":
     case "INTERVIEW":
       return "Interview Invited";
+    case "INTERVIEW_COMPLETED":
+      return "Interview Completed";
     case "HIRED":
       return "Hired";
+    case "NOT_SELECTED":
     case "REJECTED":
       return "Not Selected";
     default:

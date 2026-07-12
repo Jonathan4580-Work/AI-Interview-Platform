@@ -396,6 +396,12 @@ enum CandidateSourceType {
 enum ApplicationStatus {
   NEW
   IN_REVIEW
+  SHORTLISTED
+  NOT_SELECTED
+  AVAILABILITY_REQUESTED
+  AVAILABILITY_CONFIRMED
+  INTERVIEW_INVITED
+  INTERVIEW_COMPLETED
   INTERVIEW
   OFFER
   HIRED
@@ -404,6 +410,32 @@ enum ApplicationStatus {
   ARCHIVED
 
   @@map("application_status")
+}
+
+enum ApplicationDecisionType {
+  SHORTLISTED
+  NOT_SELECTED
+  RETURNED_TO_REVIEW
+
+  @@map("application_decision_type")
+}
+
+enum AvailabilityRequestStatus {
+  ACTIVE
+  CONFIRMED
+  EXPIRED
+  CANCELLED
+
+  @@map("availability_request_status")
+}
+
+enum InterviewAvailabilitySlotStatus {
+  OPEN
+  SELECTED
+  EXPIRED
+  CANCELLED
+
+  @@map("interview_availability_slot_status")
 }
 
 enum CandidateDocumentType {
@@ -1269,6 +1301,9 @@ model Company {
   interviewPlanVersions   InterviewPlanVersion[]
   candidates              Candidate[]
   candidateApplications   CandidateApplication[]
+  applicationDecisionHistory ApplicationDecisionHistory[]
+  availabilitySlots       InterviewAvailabilitySlot[]
+  availabilityRequests    ApplicationAvailabilityRequest[]
   candidateAccounts       CandidateAccount[]
   candidateDocuments      CandidateDocument[]
   applicationCvScreenings ApplicationCvScreening[]
@@ -1390,6 +1425,9 @@ model User {
   teamMemberships         TeamMember[]
   candidateNotes          CandidateNote[]
   candidateMergeEvents    CandidateMergeEvent[]
+  applicationDecisionHistory ApplicationDecisionHistory[]
+  availabilitySlotsCreated InterviewAvailabilitySlot[]
+  availabilityRequestsCreated ApplicationAvailabilityRequest[]
   credentials             AuthCredential[]
   sessions                AuthSession[]
   passwordResetTokens     PasswordResetToken[]
@@ -2103,6 +2141,9 @@ model Job {
   intelligenceProfile JobIntelligenceProfile?
   interviewQuestions JobInterviewQuestion[]
   cvScreenings ApplicationCvScreening[]
+  availabilitySlots InterviewAvailabilitySlot[]
+  availabilityRequests ApplicationAvailabilityRequest[]
+  applicationDecisionHistory ApplicationDecisionHistory[]
 
   @@unique([companyId, id])
   @@unique([companyId, slug])
@@ -2303,6 +2344,8 @@ model Candidate {
   applications      CandidateApplication[]
   cvScreenings      ApplicationCvScreening[]
   documents         CandidateDocument[]
+  applicationDecisionHistory ApplicationDecisionHistory[]
+  availabilityRequests ApplicationAvailabilityRequest[]
   tagAssignments    CandidateTagAssignment[]
   notes             CandidateNote[]
   invitations       CandidateInvitation[]
@@ -2352,6 +2395,9 @@ model CandidateApplication {
   invitations       CandidateInvitation[]
   interviewSessions InterviewSession[]
   cvScreenings      ApplicationCvScreening[]
+  decisionHistory   ApplicationDecisionHistory[]
+  availabilityRequests ApplicationAvailabilityRequest[]
+  selectedAvailabilitySlots InterviewAvailabilitySlot[] @relation("SelectedApplicationAvailabilitySlot")
 
   @@unique([companyId, id])
   @@unique([companyId, candidateId, jobId])
@@ -2360,6 +2406,94 @@ model CandidateApplication {
   @@index([companyId, candidateId])
   @@index([companyId, currentStageId])
   @@map("candidate_applications")
+}
+
+model ApplicationDecisionHistory {
+  id              String                  @id @default(cuid())
+  companyId       String                  @map("company_id")
+  applicationId   String                  @map("application_id")
+  candidateId     String                  @map("candidate_id")
+  jobId           String                  @map("job_id")
+  decision        ApplicationDecisionType
+  note            String?                 @db.Text
+  createdByUserId String?                 @map("created_by_user_id")
+  createdAt       DateTime                @default(now()) @map("created_at")
+
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  application CandidateApplication @relation(fields: [companyId, applicationId], references: [companyId, id], onDelete: Cascade)
+  candidate   Candidate            @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  job         Job                  @relation(fields: [companyId, jobId], references: [companyId, id], onDelete: Restrict)
+  createdBy   User?                @relation(fields: [companyId, createdByUserId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id], map: "adh_company_id_key")
+  @@index([companyId, applicationId, createdAt], map: "adh_app_created_idx")
+  @@index([companyId, candidateId], map: "adh_candidate_idx")
+  @@index([companyId, jobId], map: "adh_job_idx")
+  @@map("application_decision_history")
+}
+
+model InterviewAvailabilitySlot {
+  id                    String                          @id @default(cuid())
+  companyId             String                          @map("company_id")
+  jobId                 String                          @map("job_id")
+  startAt               DateTime                        @map("start_at")
+  endAt                 DateTime                        @map("end_at")
+  timezone              String
+  locationNote          String?                         @db.Text @map("location_note")
+  isOnline              Boolean                         @default(true) @map("is_online")
+  status                InterviewAvailabilitySlotStatus @default(OPEN)
+  selectedApplicationId String?                         @map("selected_application_id")
+  selectedAt            DateTime?                       @map("selected_at")
+  createdByUserId       String?                         @map("created_by_user_id")
+  createdAt             DateTime                        @default(now()) @map("created_at")
+  updatedAt             DateTime                        @updatedAt @map("updated_at")
+  cancelledAt           DateTime?                       @map("cancelled_at")
+
+  company             Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  job                 Job                   @relation(fields: [companyId, jobId], references: [companyId, id], onDelete: Cascade)
+  selectedApplication CandidateApplication? @relation("SelectedApplicationAvailabilitySlot", fields: [companyId, selectedApplicationId], references: [companyId, id], onDelete: Restrict)
+  createdBy           User?                 @relation(fields: [companyId, createdByUserId], references: [companyId, id], onDelete: Restrict)
+  requests            ApplicationAvailabilityRequest[]
+
+  @@unique([companyId, id], map: "ias_company_id_key")
+  @@index([companyId, jobId, status, startAt], map: "ias_job_status_start_idx")
+  @@index([companyId, selectedApplicationId], map: "ias_selected_app_idx")
+  @@map("interview_availability_slots")
+}
+
+model ApplicationAvailabilityRequest {
+  id                 String                    @id @default(cuid())
+  companyId          String                    @map("company_id")
+  jobId              String                    @map("job_id")
+  applicationId      String                    @map("application_id")
+  candidateId        String                    @map("candidate_id")
+  candidateAccountId String?                   @map("candidate_account_id")
+  tokenHash          String                    @unique(map: "aar_token_hash_key") @map("token_hash")
+  tokenSalt          String                    @map("token_salt")
+  status             AvailabilityRequestStatus @default(ACTIVE)
+  expiresAt          DateTime                  @map("expires_at")
+  sentAt             DateTime?                 @map("sent_at")
+  confirmedAt        DateTime?                 @map("confirmed_at")
+  cancelledAt        DateTime?                 @map("cancelled_at")
+  selectedSlotId     String?                   @map("selected_slot_id")
+  emailStatus        String                    @default("LINK_GENERATED") @map("email_status")
+  createdByUserId    String?                   @map("created_by_user_id")
+  createdAt          DateTime                  @default(now()) @map("created_at")
+  updatedAt          DateTime                  @updatedAt @map("updated_at")
+
+  company          Company                    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  job              Job                        @relation(fields: [companyId, jobId], references: [companyId, id], onDelete: Cascade)
+  application      CandidateApplication       @relation(fields: [companyId, applicationId], references: [companyId, id], onDelete: Cascade)
+  candidate        Candidate                  @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  candidateAccount CandidateAccount?          @relation(fields: [companyId, candidateAccountId], references: [companyId, id], onDelete: Restrict)
+  selectedSlot     InterviewAvailabilitySlot? @relation(fields: [companyId, selectedSlotId], references: [companyId, id], onDelete: Restrict)
+  createdBy        User?                      @relation(fields: [companyId, createdByUserId], references: [companyId, id], onDelete: Restrict)
+
+  @@unique([companyId, id], map: "aar_company_id_key")
+  @@index([companyId, applicationId, status], map: "aar_app_status_idx")
+  @@index([companyId, jobId, status, expiresAt], map: "aar_job_status_exp_idx")
+  @@index([companyId, candidateAccountId], map: "aar_cand_acc_idx")
+  @@map("application_availability_requests")
 }
 
 model CandidateAccount {
@@ -2379,6 +2513,7 @@ model CandidateAccount {
   companyId    String                    @map("company_id")
   applications CandidateApplication[]
   sessions     CandidateAccountSession[]
+  availabilityRequests ApplicationAvailabilityRequest[]
 
   @@unique([companyId, id], map: "cand_acc_company_id_key")
   @@unique([companyId, normalizedEmail], map: "cand_acc_email_key")

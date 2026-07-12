@@ -7,6 +7,10 @@ import { redirect } from "next/navigation";
 
 import { prisma } from "@/infra/database";
 import { AuditWriter, PrismaAuditEventStore } from "@/modules/audit";
+import {
+  createAvailabilityRequestToken,
+  hashAvailabilityRequestToken,
+} from "@/modules/availability/tokens";
 import { CandidatePortalService } from "@/modules/candidate-portal";
 import { hashJobDescriptionText } from "@/modules/jobs/jd-analysis";
 import { parseJobDescriptionAutofill } from "@/modules/jobs/jd-local-autofill";
@@ -21,6 +25,7 @@ import type { Prisma } from "@prisma/client";
 
 const DEFAULT_REQUIREMENTS = ["Review the role description before the interview."];
 const DEFAULT_EXPIRY_HOURS = 72;
+const DEFAULT_AVAILABILITY_EXPIRY_DAYS = 7;
 
 export async function createJobAction(formData: FormData): Promise<void> {
   const context = await requireHrWorkspaceContext("jobs:manage");
@@ -536,6 +541,151 @@ export async function updateApplicationStageAction(formData: FormData): Promise<
   revalidatePath("/candidates");
 }
 
+export async function shortlistApplicationAction(formData: FormData): Promise<void> {
+  await recordApplicationDecision(formData, "SHORTLISTED", "SHORTLISTED");
+}
+
+export async function markApplicationNotSelectedAction(formData: FormData): Promise<void> {
+  await recordApplicationDecision(formData, "NOT_SELECTED", "NOT_SELECTED");
+}
+
+export async function returnApplicationToReviewAction(formData: FormData): Promise<void> {
+  await recordApplicationDecision(formData, "RETURNED_TO_REVIEW", "IN_REVIEW");
+}
+
+export async function createAvailabilitySlotAction(formData: FormData): Promise<void> {
+  const context = await requireHrWorkspaceContext("applications:manage");
+  const jobId = requiredText(formData, "jobId", 1, 200);
+  const date = requiredText(formData, "slotDate", 8, 20);
+  const start = requiredText(formData, "startTime", 4, 20);
+  const end = requiredText(formData, "endTime", 4, 20);
+  const timezone = readFormText(formData, "timezone").trim() || "Asia/Colombo";
+  const startAt = new Date(`${date}T${start}:00`);
+  const endAt = new Date(`${date}T${end}:00`);
+  if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || endAt <= startAt) {
+    throw new Error("Availability slot start and end times are invalid.");
+  }
+
+  const job = await prisma.job.findUnique({
+    where: { companyId_id: { companyId: context.tenant.companyId, id: jobId } },
+    select: { id: true },
+  });
+  if (job === null) {
+    throw new Error("Job was not found.");
+  }
+
+  const slot = await prisma.interviewAvailabilitySlot.create({
+    data: {
+      companyId: context.tenant.companyId,
+      jobId,
+      startAt,
+      endAt,
+      timezone,
+      locationNote: optionalText(formData, "locationNote", 1_000),
+      isOnline: formData.get("isOnline") !== "false",
+      status: "OPEN",
+      createdByUserId: context.actor.id,
+    },
+  });
+  await audit(context, "availability.slot_created", "interview_availability_slot", slot.id, {
+    after: { id: slot.id, jobId, startAt: slot.startAt, endAt: slot.endAt, status: slot.status },
+  });
+  revalidatePath(`/jobs/${jobId}`);
+}
+
+export async function sendAvailabilityRequestAction(formData: FormData): Promise<void> {
+  const context = await requireHrWorkspaceContext("applications:manage");
+  const applicationId = requiredText(formData, "applicationId", 1, 200);
+  const now = new Date();
+  const tokenSalt = randomBytes(16).toString("base64url");
+
+  const result = await prisma.$transaction(async (tx) => {
+    const application = await tx.candidateApplication.findUnique({
+      where: { companyId_id: { companyId: context.tenant.companyId, id: applicationId } },
+      include: { job: true, candidate: true },
+    });
+    if (application === null) {
+      throw new Error("Application was not found.");
+    }
+    if (application.status !== "SHORTLISTED" && application.status !== "AVAILABILITY_REQUESTED") {
+      throw new Error("Shortlist the application before requesting availability.");
+    }
+    if (application.job.status !== "OPEN") {
+      throw new Error("Availability can only be requested for open jobs.");
+    }
+
+    const openSlotCount = await tx.interviewAvailabilitySlot.count({
+      where: {
+        companyId: context.tenant.companyId,
+        jobId: application.jobId,
+        status: "OPEN",
+        startAt: { gt: now },
+      },
+    });
+    if (openSlotCount === 0) {
+      throw new Error("Create at least one upcoming availability slot first.");
+    }
+
+    await tx.applicationAvailabilityRequest.updateMany({
+      where: {
+        companyId: context.tenant.companyId,
+        applicationId,
+        status: "ACTIVE",
+      },
+      data: { status: "CANCELLED", cancelledAt: now },
+    });
+
+    const request = await tx.applicationAvailabilityRequest.create({
+      data: {
+        companyId: context.tenant.companyId,
+        jobId: application.jobId,
+        applicationId: application.id,
+        candidateId: application.candidateId,
+        candidateAccountId: application.candidateAccountId,
+        tokenHash: `pending:${randomBytes(16).toString("base64url")}`,
+        tokenSalt,
+        status: "ACTIVE",
+        expiresAt: new Date(now.getTime() + DEFAULT_AVAILABILITY_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
+        sentAt: now,
+        emailStatus: "LINK_GENERATED",
+        createdByUserId: context.actor.id,
+      },
+    });
+    const token = createAvailabilityRequestToken({
+      requestId: request.id,
+      companyId: request.companyId,
+      applicationId: request.applicationId,
+      tokenSalt,
+    });
+    const updated = await tx.applicationAvailabilityRequest.update({
+      where: { companyId_id: { companyId: context.tenant.companyId, id: request.id } },
+      data: { tokenHash: hashAvailabilityRequestToken(token) },
+    });
+    await tx.candidateApplication.update({
+      where: { companyId_id: { companyId: context.tenant.companyId, id: application.id } },
+      data: { status: "AVAILABILITY_REQUESTED" },
+    });
+    return { request: updated, application };
+  });
+
+  await audit(
+    context,
+    "availability.request_sent",
+    "application_availability_request",
+    result.request.id,
+    {
+      after: {
+        id: result.request.id,
+        applicationId: result.application.id,
+        status: result.request.status,
+        emailStatus: result.request.emailStatus,
+      },
+    },
+  );
+  revalidatePath(`/jobs/${result.application.jobId}`);
+  revalidatePath(`/candidates/${result.application.candidateId}`);
+}
+
 export async function sendInvitationAction(formData: FormData): Promise<void> {
   const context = await requireHrWorkspaceContext("invitations:manage");
   const applicationId = requiredText(formData, "applicationId", 1, 200);
@@ -880,6 +1030,49 @@ function enumValue<const T extends readonly [string, ...string[]]>(
 function readFormText(formData: FormData, key: string): string {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
+}
+
+async function recordApplicationDecision(
+  formData: FormData,
+  decision: "SHORTLISTED" | "NOT_SELECTED" | "RETURNED_TO_REVIEW",
+  nextStatus: "SHORTLISTED" | "NOT_SELECTED" | "IN_REVIEW",
+): Promise<void> {
+  const context = await requireHrWorkspaceContext("applications:manage");
+  const applicationId = requiredText(formData, "applicationId", 1, 200);
+  const note = optionalText(formData, "decisionNote", 2_000);
+  const now = new Date();
+  const application = await prisma.$transaction(async (tx) => {
+    const existing = await tx.candidateApplication.findUnique({
+      where: { companyId_id: { companyId: context.tenant.companyId, id: applicationId } },
+    });
+    if (existing === null) {
+      throw new Error("Application was not found.");
+    }
+    const updated = await tx.candidateApplication.update({
+      where: { companyId_id: { companyId: context.tenant.companyId, id: applicationId } },
+      data: {
+        status: nextStatus,
+        rejectedAt: nextStatus === "NOT_SELECTED" ? now : null,
+      },
+    });
+    await tx.applicationDecisionHistory.create({
+      data: {
+        companyId: context.tenant.companyId,
+        applicationId: updated.id,
+        candidateId: updated.candidateId,
+        jobId: updated.jobId,
+        decision,
+        note,
+        createdByUserId: context.actor.id,
+      },
+    });
+    return updated;
+  });
+  await audit(context, "application.decision_recorded", "candidate_application", application.id, {
+    after: { id: application.id, decision, status: application.status, noteAdded: note !== null },
+  });
+  revalidatePath(`/jobs/${application.jobId}`);
+  revalidatePath(`/candidates/${application.candidateId}`);
 }
 
 async function audit(

@@ -98,6 +98,24 @@ export default async function CandidateApplicationsPage({
                         Applied {formatDate(application.appliedAt)}
                       </p>
                       <p className="mt-2 text-sm text-muted-foreground">{application.nextStep}</p>
+                      {application.availability === null ? null : (
+                        <div className="mt-3 rounded-md border border-border bg-muted/20 p-3 text-sm">
+                          <p className="font-medium text-foreground">
+                            Availability {application.availability.status.toLowerCase()}
+                          </p>
+                          {application.availability.selectedSlotStartAt === null ? null : (
+                            <p className="mt-1 text-muted-foreground">
+                              Selected{" "}
+                              {formatDateTime(application.availability.selectedSlotStartAt)}
+                            </p>
+                          )}
+                          {application.availability.url === null ? null : (
+                            <Button asChild size="sm" className="mt-3">
+                              <Link href={application.availability.url}>Choose interview time</Link>
+                            </Button>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <span className="rounded-md border border-border bg-muted px-2 py-1 text-xs font-medium text-foreground">
@@ -124,4 +142,8 @@ export default async function CandidateApplicationsPage({
 
 function formatDate(value: Date): string {
   return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(value);
+}
+
+function formatDateTime(value: Date): string {
+  return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(value);
 }

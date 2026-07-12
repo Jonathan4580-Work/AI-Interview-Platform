@@ -1,13 +1,26 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Mail, Pencil } from "lucide-react";
+import { CalendarPlus, Mail, Pencil } from "lucide-react";
 
+import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { sendInvitationAction, updateApplicationStageAction } from "@/server/hr-workspace/actions";
+import {
+  createAvailabilitySlotAction,
+  markApplicationNotSelectedAction,
+  returnApplicationToReviewAction,
+  sendAvailabilityRequestAction,
+  sendInvitationAction,
+  shortlistApplicationAction,
+  updateApplicationStageAction,
+} from "@/server/hr-workspace/actions";
 import { requireHrWorkspaceContext } from "@/server/hr-workspace/context";
 import { getJobDetail } from "@/server/hr-workspace/queries";
+import {
+  createAvailabilityRequestToken,
+  createAvailabilityRequestUrl,
+} from "@/modules/availability/tokens";
 
 import { EmptyPanel, Field, NativeSelect, StatusBadge, formatDate } from "../../_components/hr-ui";
 import { JobStatusForm } from "./job-status-form";
@@ -16,6 +29,7 @@ type JobDetail = NonNullable<Awaited<ReturnType<typeof getJobDetail>>>;
 type JobApplication = JobDetail["applications"][number];
 type JobStage = JobDetail["pipeline"]["stages"][number];
 type CvScreening = JobApplication["cvScreenings"][number];
+type AvailabilitySlot = JobDetail["availabilitySlots"][number];
 
 export default async function JobDetailPage({
   params,
@@ -117,6 +131,8 @@ export default async function JobDetailPage({
         </Card>
       </div>
 
+      <AvailabilitySlotsCard jobId={job.id} slots={job.availabilitySlots} />
+
       <Card>
         <CardHeader>
           <CardTitle>Candidates and applications</CardTitle>
@@ -142,6 +158,90 @@ export default async function JobDetailPage({
   );
 }
 
+function AvailabilitySlotsCard({
+  jobId,
+  slots,
+}: {
+  readonly jobId: string;
+  readonly slots: readonly AvailabilitySlot[];
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <CalendarPlus aria-hidden="true" className="size-4" />
+          Availability slots
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <form
+          action={createAvailabilitySlotAction}
+          className="grid gap-3 rounded-lg border border-border bg-muted/20 p-4 md:grid-cols-[1fr_1fr_1fr_1.5fr_auto]"
+        >
+          <input type="hidden" name="jobId" value={jobId} />
+          <Field label="Date">
+            <input
+              required
+              name="slotDate"
+              type="date"
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            />
+          </Field>
+          <Field label="Start">
+            <input
+              required
+              name="startTime"
+              type="time"
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            />
+          </Field>
+          <Field label="End">
+            <input
+              required
+              name="endTime"
+              type="time"
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            />
+          </Field>
+          <Field label="Meeting note">
+            <input
+              name="locationNote"
+              placeholder="Online interview"
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            />
+          </Field>
+          <PendingSubmitButton pendingLabel="Adding..." className="self-end">
+            Add slot
+          </PendingSubmitButton>
+        </form>
+        {slots.length === 0 ? (
+          <EmptyPanel
+            title="No availability slots"
+            description="Create one or more slots before requesting candidate availability."
+          />
+        ) : (
+          <div className="grid gap-2">
+            {slots.map((slot) => (
+              <div
+                key={slot.id}
+                className="flex flex-col gap-2 rounded-md border border-border p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="font-medium text-foreground">
+                    {formatDateTime(slot.startAt)} - {formatTime(slot.endAt)}
+                  </p>
+                  <p className="text-muted-foreground">{slot.locationNote ?? "Online interview"}</p>
+                </div>
+                <StatusBadge value={slot.status} />
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function ApplicationCard({
   application,
   stages,
@@ -152,6 +252,12 @@ function ApplicationCard({
   const screening = application.cvScreenings.at(0) ?? null;
   const matchScore = screening?.matchScore;
   const recommendation = screening?.recommendation;
+  const activeAvailability = application.availabilityRequests.find(
+    (request) => request.status === "ACTIVE",
+  );
+  const confirmedAvailability = application.availabilityRequests.find(
+    (request) => request.status === "CONFIRMED",
+  );
   return (
     <div className="rounded-lg border border-border bg-surface p-4 shadow-xs">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -184,9 +290,46 @@ function ApplicationCard({
               <StatusBadge value={`${String(matchScore)} match score`} />
             )}
             {recommendation === null || recommendation === undefined ? null : (
-              <StatusBadge value={recommendation} />
+              <StatusBadge value={`AI: ${recommendation}`} />
             )}
           </div>
+          <div className="mt-3 grid gap-1 text-sm text-muted-foreground">
+            <p>
+              <span className="font-medium text-foreground">AI Recommendation:</span>{" "}
+              {recommendation ?? "Not available"}
+            </p>
+            <p>
+              <span className="font-medium text-foreground">HR Decision:</span>{" "}
+              {decisionLabel(application.status)}
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Application Status:</span>{" "}
+              {applicationStatusLabel(application.status)}
+            </p>
+          </div>
+          {activeAvailability === undefined ? null : (
+            <div className="mt-3 rounded-md border border-info/25 bg-info-soft p-3 text-sm text-info">
+              <p className="font-medium">Availability request sent</p>
+              <p className="mt-1 break-all">
+                Candidate link: {availabilityRequestUrl(activeAvailability)}
+              </p>
+              <Button asChild size="sm" variant="secondary" className="mt-2">
+                <a href={availabilityRequestUrl(activeAvailability)} target="_blank">
+                  Open candidate availability
+                </a>
+              </Button>
+            </div>
+          )}
+          {confirmedAvailability?.selectedSlot === null ||
+          confirmedAvailability?.selectedSlot === undefined ? null : (
+            <div className="mt-3 rounded-md border border-success/25 bg-success/10 p-3 text-sm text-success">
+              <p className="font-medium">Availability confirmed</p>
+              <p className="mt-1">
+                {formatDateTime(confirmedAvailability.selectedSlot.startAt)} -{" "}
+                {formatTime(confirmedAvailability.selectedSlot.endAt)}
+              </p>
+            </div>
+          )}
           <p className="mt-2 text-xs text-muted-foreground">
             Applied {formatDate(application.appliedAt)}
           </p>
@@ -208,6 +351,48 @@ function ApplicationCard({
               Update stage
             </Button>
           </form>
+          <div className="grid gap-2">
+            <form action={shortlistApplicationAction} className="grid gap-2">
+              <input type="hidden" name="applicationId" value={application.id} />
+              <textarea
+                name="decisionNote"
+                placeholder="Optional HR note"
+                className="min-h-16 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+              <PendingSubmitButton
+                variant="secondary"
+                pendingLabel="Shortlisting..."
+                disabled={application.status === "SHORTLISTED"}
+              >
+                Shortlist
+              </PendingSubmitButton>
+            </form>
+            <form action={markApplicationNotSelectedAction}>
+              <input type="hidden" name="applicationId" value={application.id} />
+              <PendingSubmitButton
+                variant="secondary"
+                pendingLabel="Updating..."
+                disabled={application.status === "NOT_SELECTED"}
+              >
+                Mark as not selected
+              </PendingSubmitButton>
+            </form>
+            <form action={returnApplicationToReviewAction}>
+              <input type="hidden" name="applicationId" value={application.id} />
+              <PendingSubmitButton variant="secondary" pendingLabel="Updating...">
+                Return to review
+              </PendingSubmitButton>
+            </form>
+            <form action={sendAvailabilityRequestAction}>
+              <input type="hidden" name="applicationId" value={application.id} />
+              <PendingSubmitButton
+                pendingLabel="Sending request..."
+                disabled={application.status !== "SHORTLISTED"}
+              >
+                Send availability request
+              </PendingSubmitButton>
+            </form>
+          </div>
           <form action={sendInvitationAction} className="grid gap-2">
             <input type="hidden" name="applicationId" value={application.id} />
             <Field label="Invitation expiry">
@@ -217,9 +402,15 @@ function ApplicationCard({
                 <option value="168">7 days</option>
               </NativeSelect>
             </Field>
-            <Button type="submit" disabled={application.candidate.primaryEmail === null}>
+            <Button
+              type="submit"
+              disabled={
+                application.candidate.primaryEmail === null ||
+                application.status !== "AVAILABILITY_CONFIRMED"
+              }
+            >
               <Mail aria-hidden="true" />
-              Send invitation
+              Send interview invite
             </Button>
           </form>
         </div>
@@ -234,6 +425,17 @@ function ApplicationCard({
       </div>
       <ScreeningDetails screening={screening} />
     </div>
+  );
+}
+
+function availabilityRequestUrl(request: JobApplication["availabilityRequests"][number]): string {
+  return createAvailabilityRequestUrl(
+    createAvailabilityRequestToken({
+      requestId: request.id,
+      companyId: request.companyId,
+      applicationId: request.applicationId,
+      tokenSalt: request.tokenSalt,
+    }),
   );
 }
 
@@ -342,6 +544,41 @@ function screeningLabel(screening: CvScreening | null): string {
   if (screening.screeningStatus === "COMPLETE") return "Screening complete";
   if (screening.screeningStatus === "FAILED") return "Screening failed";
   return "Screening pending";
+}
+
+function decisionLabel(status: string): string {
+  switch (status) {
+    case "SHORTLISTED":
+      return "Shortlisted";
+    case "NOT_SELECTED":
+    case "REJECTED":
+      return "Not selected";
+    case "AVAILABILITY_REQUESTED":
+      return "Availability requested";
+    case "AVAILABILITY_CONFIRMED":
+      return "Availability confirmed";
+    default:
+      return "Under review";
+  }
+}
+
+function applicationStatusLabel(status: string): string {
+  return status
+    .toLowerCase()
+    .split("_")
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}
+
+function formatDateTime(value: Date): string {
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(value);
+}
+
+function formatTime(value: Date): string {
+  return new Intl.DateTimeFormat("en", { timeStyle: "short" }).format(value);
 }
 
 function jsonStringList(value: unknown): readonly string[] {

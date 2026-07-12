@@ -110,6 +110,12 @@ export async function getJobDetail(context: HrWorkspaceContext, jobId: string) {
           },
           currentStage: true,
           cvScreenings: { orderBy: { updatedAt: "desc" }, take: 1 },
+          decisionHistory: { orderBy: { createdAt: "desc" }, take: 3 },
+          availabilityRequests: {
+            orderBy: { createdAt: "desc" },
+            take: 2,
+            include: { selectedSlot: true },
+          },
           invitations: { orderBy: { createdAt: "desc" }, take: 3 },
           interviewSessions: {
             orderBy: { updatedAt: "desc" },
@@ -119,6 +125,7 @@ export async function getJobDetail(context: HrWorkspaceContext, jobId: string) {
         },
         orderBy: { updatedAt: "desc" },
       },
+      availabilitySlots: { orderBy: { startAt: "asc" }, take: 20 },
     },
   });
 }
