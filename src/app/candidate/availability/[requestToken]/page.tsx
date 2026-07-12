@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { CalendarClock, CheckCircle2 } from "lucide-react";
 
 import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
+import { PremiumHero } from "@/components/recruiting/recruiting-ui";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,16 +30,11 @@ export default async function CandidateAvailabilityPage({
   return (
     <main className="min-h-screen bg-background">
       <section className="mx-auto grid w-full max-w-4xl gap-5 px-4 py-10 sm:px-6 lg:px-8">
-        <div className="grid gap-2">
-          <p className="text-sm font-medium text-muted-foreground">{request.company.name}</p>
-          <h1 className="text-3xl font-semibold tracking-normal text-foreground">
-            Confirm interview availability
-          </h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Select the interview time that works best for you. The hiring team will send the
-            interview invitation after your availability is confirmed.
-          </p>
-        </div>
+        <PremiumHero
+          eyebrow={request.company.name}
+          title="Confirm interview availability"
+          description="Select the interview time that works best for you. The hiring team will send the interview invitation after your availability is confirmed."
+        />
 
         {confirmed ? (
           <Alert variant="success">
@@ -66,7 +62,7 @@ export default async function CandidateAvailabilityPage({
           </Alert>
         ) : null}
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CalendarClock aria-hidden="true" className="size-4" />
@@ -85,7 +81,7 @@ export default async function CandidateAvailabilityPage({
             </div>
 
             {confirmed || expired ? null : (
-              <form action={confirmCandidateAvailabilityAction} className="grid gap-3">
+              <form action={confirmCandidateAvailabilityAction} className="grid gap-4">
                 <input type="hidden" name="requestToken" value={requestToken} />
                 {slots.length === 0 ? (
                   <div className="rounded-md border border-dashed border-border p-5 text-sm text-muted-foreground">
@@ -97,7 +93,7 @@ export default async function CandidateAvailabilityPage({
                     {slots.map((slot) => (
                       <label
                         key={slot.id}
-                        className="flex cursor-pointer gap-3 rounded-lg border border-border p-4 transition hover:bg-muted/30"
+                        className="flex cursor-pointer gap-3 rounded-2xl border border-border/80 bg-white/80 p-4 shadow-xs transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-primary-soft/40"
                       >
                         <input
                           required

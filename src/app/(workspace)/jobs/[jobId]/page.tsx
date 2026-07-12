@@ -4,6 +4,7 @@ import { CalendarPlus, Mail, Pencil } from "lucide-react";
 
 import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 import { PageHeader } from "@/components/layout/page-header";
+import { AIInsightCard, ChipList, SectionCard } from "@/components/recruiting/recruiting-ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -133,11 +134,11 @@ export default async function JobDetailPage({
 
       <AvailabilitySlotsCard jobId={job.id} slots={job.availabilitySlots} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Candidates and applications</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3">
+      <SectionCard
+        title="Candidates and applications"
+        description="Review public applications, advisory screening, HR decisions, availability, and interview invitations."
+      >
+        <div className="grid gap-3">
           {job.applications.length === 0 ? (
             <EmptyPanel
               title="No applications"
@@ -152,8 +153,8 @@ export default async function JobDetailPage({
               />
             ))
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </SectionCard>
     </div>
   );
 }
@@ -259,7 +260,7 @@ function ApplicationCard({
     (request) => request.status === "CONFIRMED",
   );
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 shadow-xs">
+    <div className="rounded-2xl border border-border/80 bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <Link
@@ -465,16 +466,28 @@ function ScreeningDetails({ screening }: { readonly screening: CvScreening | nul
   const isLowQuality =
     screening.extractionQualityScore !== null && screening.extractionQualityScore < 45;
   return (
-    <details className="mt-4 rounded-lg border border-border bg-muted/20 p-4">
-      <summary className="cursor-pointer text-sm font-medium text-foreground">
-        View screening details
+    <details className="mt-5 rounded-2xl border border-primary/15 bg-white/90 p-4 shadow-xs">
+      <summary className="cursor-pointer text-sm font-semibold text-foreground">
+        AI screening result
       </summary>
       <div className="mt-4 grid gap-4 text-sm">
-        <p className="rounded-md border border-info/25 bg-info-soft p-3 text-info">
-          AI screening is advisory. HR must review before making decisions.
-        </p>
+        <AIInsightCard title="Advisory screening">
+          <div className="grid gap-4 md:grid-cols-3">
+            <DetailBlock
+              title="Match score"
+              value={
+                screening.matchScore === null ? "Not scored" : `${String(screening.matchScore)}/100`
+              }
+            />
+            <DetailBlock title="Recommendation" value={screening.recommendation} />
+            <DetailBlock title="Confidence" value={screening.confidence} />
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            AI screening supports HR review. It does not make hiring decisions.
+          </p>
+        </AIInsightCard>
         {isLowQuality ? (
-          <p className="rounded-md border border-warning/30 bg-warning/10 p-3 text-warning">
+          <p className="rounded-xl border border-warning/30 bg-warning/10 p-4 text-warning">
             PDF text could not be extracted clearly. Ask candidate to upload DOCX or a selectable
             text PDF. Screening is based on limited evidence.
           </p>
@@ -526,15 +539,9 @@ function DetailList({
   return (
     <div>
       <p className="font-medium text-foreground">{title}</p>
-      {values.length === 0 ? (
-        <p className="mt-1 text-muted-foreground">None recorded.</p>
-      ) : (
-        <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
-          {values.map((value) => (
-            <li key={value}>{value}</li>
-          ))}
-        </ul>
-      )}
+      <div className="mt-2">
+        <ChipList values={values} />
+      </div>
     </div>
   );
 }

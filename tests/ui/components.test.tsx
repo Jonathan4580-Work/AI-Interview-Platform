@@ -25,7 +25,7 @@ describe("core UI components", () => {
       </div>,
     );
 
-    expect(screen.getByRole("button", { name: "Continue" })).toHaveClass("bg-primary");
+    expect(screen.getByRole("button", { name: "Continue" })).toHaveClass("bg-gradient-to-r");
     expect(screen.getByText("Active")).toHaveClass("bg-success-soft");
   });
 

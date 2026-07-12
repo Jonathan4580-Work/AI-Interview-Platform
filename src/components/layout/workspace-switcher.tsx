@@ -28,24 +28,24 @@ function WorkspaceSwitcher({ workspace, workspaces = [], className }: WorkspaceS
         <Button
           variant="secondary"
           className={cn(
-            "min-h-12 justify-start gap-3 px-2.5 py-2 text-left leading-tight",
+            "min-h-14 justify-start gap-3 rounded-xl border-white/10 bg-white/10 px-3 py-2.5 text-left leading-tight text-white shadow-none hover:bg-white/15",
             className,
           )}
         >
-          <span className="grid size-7 shrink-0 place-items-center rounded-sm bg-primary-soft text-xs font-semibold text-primary">
+          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-xs font-bold text-primary shadow-sm">
             {workspace.name.slice(0, 1).toUpperCase()}
           </span>
           <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 text-left">
-            <span className="block truncate text-sm font-medium leading-5 text-foreground">
+            <span className="block truncate text-sm font-semibold leading-5 text-current">
               {workspace.name}
             </span>
             {workspace.planLabel ? (
-              <span className="block truncate text-xs leading-4 text-muted-foreground">
+              <span className="block truncate text-xs leading-4 text-current/70">
                 {workspace.planLabel}
               </span>
             ) : null}
           </span>
-          <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <ChevronsUpDown className="size-4 shrink-0 text-current/60" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

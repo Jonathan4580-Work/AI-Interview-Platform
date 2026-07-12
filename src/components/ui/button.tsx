@@ -7,12 +7,14 @@ import type { VariantProps } from "class-variance-authority";
 import type { ComponentPropsWithoutRef } from "react";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium tracking-normal transition-colors duration-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-semibold tracking-normal transition-all duration-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        primary: "bg-primary text-primary-foreground shadow-xs hover:bg-primary-hover",
-        secondary: "border border-border bg-surface text-foreground shadow-xs hover:bg-muted",
+        primary:
+          "bg-gradient-to-r from-primary to-indigo-500 text-primary-foreground shadow-sm shadow-primary/20 hover:-translate-y-0.5 hover:from-primary-hover hover:to-indigo-600",
+        secondary:
+          "border border-border/80 bg-surface text-foreground shadow-xs hover:-translate-y-0.5 hover:border-primary/25 hover:bg-primary-soft/50",
         quiet: "text-slate hover:bg-muted hover:text-foreground",
         destructive: "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90",
         outline: "border border-border bg-transparent text-foreground hover:bg-muted",

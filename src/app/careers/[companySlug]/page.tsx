@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, BriefcaseBusiness, MapPin } from "lucide-react";
 
+import { PremiumHero } from "@/components/recruiting/recruiting-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -34,20 +35,13 @@ export default async function PublicCareersPage({
 
   return (
     <main className="min-h-screen bg-background">
-      <section className="border-b border-border bg-surface">
-        <div className="mx-auto grid w-full max-w-6xl gap-5 px-4 py-14 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-center gap-3">
-            <Badge variant="neutral">{data.jobs.length} open roles</Badge>
-            <span className="text-sm font-medium text-muted-foreground">Careers at</span>
-          </div>
-          <h1 className="max-w-3xl text-4xl font-semibold tracking-normal text-foreground sm:text-5xl">
-            {data.company.name}
-          </h1>
-          <p className="max-w-2xl text-base text-muted-foreground">
-            Explore open roles, review the expectations, and apply with a CV when a role feels
-            right.
-          </p>
-        </div>
+      <section className="mx-auto w-full max-w-6xl px-4 pt-8 sm:px-6 lg:px-8">
+        <PremiumHero
+          eyebrow={`${String(data.jobs.length)} open roles`}
+          title={`Join ${data.company.name}`}
+          description="Explore open roles, understand the interview process, and apply with a CV when a role feels right."
+          actions={<Badge variant="neutral">Candidate applications</Badge>}
+        />
       </section>
 
       <section className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-8 sm:px-6 lg:px-8">
@@ -65,7 +59,10 @@ export default async function PublicCareersPage({
         ) : (
           <div className="grid gap-3">
             {data.jobs.map((job) => (
-              <Card key={job.id} className="transition-shadow hover:shadow-sm">
+              <Card
+                key={job.id}
+                className="transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
+              >
                 <CardContent className="grid gap-4 p-5 md:grid-cols-[1fr_auto] md:items-center">
                   <div className="min-w-0">
                     <Link

@@ -17,7 +17,7 @@ interface TopNavigationProps {
 
 function TopNavigation({ user, workspace, onSignOut, onOpenMobileNavigation }: TopNavigationProps) {
   return (
-    <header className="sticky top-0 z-header flex min-h-16 items-center gap-3 border-b border-border bg-surface/95 px-4 py-2 backdrop-blur sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-header flex min-h-16 items-center gap-3 border-b border-border/70 bg-white/80 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
       <Button
         variant="quiet"
         size="icon"
@@ -28,13 +28,16 @@ function TopNavigation({ user, workspace, onSignOut, onOpenMobileNavigation }: T
         <Menu aria-hidden="true" />
       </Button>
       <div className="hidden min-w-0 lg:block">
-        <WorkspaceSwitcher workspace={workspace} className="w-64" />
+        <WorkspaceSwitcher
+          workspace={workspace}
+          className="w-72 border-border/80 bg-surface text-foreground hover:bg-muted"
+        />
       </div>
       <div className="min-w-0 flex-1">
         <form
           role="search"
           action="/search"
-          className="flex h-9 max-w-md items-center gap-2 rounded-md border border-border bg-muted px-3 text-sm text-muted-foreground focus-within:ring-2 focus-within:ring-ring"
+          className="flex h-11 max-w-xl items-center gap-2 rounded-xl border border-border/80 bg-muted/70 px-3 text-sm text-muted-foreground shadow-xs focus-within:bg-white focus-within:ring-2 focus-within:ring-ring/30"
         >
           <label className="sr-only" htmlFor="global-workspace-search">
             Search workspace

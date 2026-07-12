@@ -14,7 +14,7 @@ function Sidebar({ navigation, workspace, className }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "hidden min-h-dvh w-64 shrink-0 border-r border-border bg-surface px-3 py-4 lg:flex lg:flex-col",
+        "hidden min-h-dvh w-72 shrink-0 border-r border-white/40 bg-slate-950 px-4 py-5 text-white shadow-md lg:flex lg:flex-col",
         className,
       )}
     >
@@ -22,13 +22,13 @@ function Sidebar({ navigation, workspace, className }: SidebarProps) {
         <AptlyLogo />
       </div>
       <WorkspaceSwitcher workspace={workspace} className="mb-4 w-full" />
-      <nav className="space-y-1" aria-label="Primary">
+      <nav className="space-y-1.5" aria-label="Primary">
         {navigation.map((item) =>
           item.disabled || item.href === undefined ? (
             <div
               key={item.label}
               aria-disabled="true"
-              className="flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground opacity-70"
+              className="flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-slate-400 opacity-80"
               title="Not available in this staging build"
             >
               <item.icon className="size-4" aria-hidden="true" />
@@ -41,8 +41,8 @@ function Sidebar({ navigation, workspace, className }: SidebarProps) {
               href={item.href}
               aria-current={item.current ? "page" : undefined}
               className={cn(
-                "flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium text-slate transition-colors duration-base hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                item.current && "bg-primary-soft text-primary",
+                "flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-slate-300 transition-colors duration-base hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
+                item.current && "bg-white text-slate-950 shadow-sm",
               )}
             >
               <item.icon className="size-4" aria-hidden="true" />

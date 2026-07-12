@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { BriefcaseBusiness, LogOut } from "lucide-react";
+import { BriefcaseBusiness, CalendarClock, FileText, LogOut } from "lucide-react";
 
 import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
+import { Timeline } from "@/components/recruiting/recruiting-ui";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,7 +72,7 @@ export default async function CandidateApplicationsPage({
           </Alert>
         )}
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BriefcaseBusiness aria-hidden="true" className="size-4" />
@@ -89,18 +90,25 @@ export default async function CandidateApplicationsPage({
               </div>
             ) : (
               data.applications.map((application) => (
-                <article key={application.id} className="rounded-lg border border-border p-4">
+                <article
+                  key={application.id}
+                  className="rounded-2xl border border-border/80 bg-gradient-to-br from-white to-blue-50/40 p-5 shadow-xs"
+                >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
-                      <h2 className="font-medium text-foreground">{application.jobTitle}</h2>
+                      <h2 className="text-lg font-semibold text-foreground">
+                        {application.jobTitle}
+                      </h2>
                       <p className="text-sm text-muted-foreground">{application.companyName}</p>
-                      <p className="mt-2 text-sm text-muted-foreground">
+                      <p className="mt-3 inline-flex items-center gap-2 text-sm text-muted-foreground">
+                        <FileText className="size-4" aria-hidden="true" />
                         Applied {formatDate(application.appliedAt)}
                       </p>
                       <p className="mt-2 text-sm text-muted-foreground">{application.nextStep}</p>
                       {application.availability === null ? null : (
-                        <div className="mt-3 rounded-md border border-border bg-muted/20 p-3 text-sm">
-                          <p className="font-medium text-foreground">
+                        <div className="mt-3 rounded-xl border border-primary/15 bg-primary-soft/60 p-3 text-sm">
+                          <p className="flex items-center gap-2 font-medium text-foreground">
+                            <CalendarClock className="size-4" aria-hidden="true" />
                             Availability {application.availability.status.toLowerCase()}
                           </p>
                           {application.availability.selectedSlotStartAt === null ? null : (
@@ -130,6 +138,19 @@ export default async function CandidateApplicationsPage({
                       </Button>
                     </div>
                   </div>
+                  <div className="mt-5">
+                    <Timeline
+                      current={timelineCurrent(application.status)}
+                      steps={[
+                        "Applied",
+                        "Under HR Review",
+                        "Shortlisted",
+                        "Availability",
+                        "Interview",
+                        "Completed",
+                      ]}
+                    />
+                  </div>
                 </article>
               ))
             )}
@@ -142,6 +163,15 @@ export default async function CandidateApplicationsPage({
 
 function formatDate(value: Date): string {
   return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(value);
+}
+
+function timelineCurrent(status: string): string {
+  if (status.includes("Completed")) return "Completed";
+  if (status.includes("Interview")) return "Interview";
+  if (status.includes("Availability")) return "Availability";
+  if (status.includes("Shortlisted")) return "Shortlisted";
+  if (status.includes("Review")) return "Under HR Review";
+  return "Applied";
 }
 
 function formatDateTime(value: Date): string {

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, FileText, LockKeyhole, UserRound } from "lucide-react";
 
+import { PremiumHero, SectionCard } from "@/components/recruiting/recruiting-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,16 +47,18 @@ export default async function PublicApplyPage({
           </Link>
         </Button>
 
-        <div className="grid gap-2">
-          <p className="text-sm font-medium text-muted-foreground">{job.company.name}</p>
-          <h1 className="text-3xl font-semibold tracking-normal text-foreground">
-            Apply for {job.title}
-          </h1>
+        <PremiumHero
+          eyebrow={job.company.name}
+          title={`Apply for ${job.title}`}
+          description="Create a candidate account or sign in, upload your CV, and submit your application securely."
+        />
+        <div className="grid gap-3 rounded-2xl border border-border/80 bg-white/80 p-4 shadow-xs">
           <div className="flex flex-wrap gap-2">
             {job.location === null ? null : <Badge variant="neutral">{job.location}</Badge>}
             <Badge variant="neutral">{job.employmentType}</Badge>
             <Badge variant="neutral">{job.seniorityLevel}</Badge>
           </div>
+          <p className="text-sm leading-6 text-muted-foreground">{job.summary}</p>
         </div>
 
         {candidateSession === null ? (
@@ -68,64 +71,77 @@ export default async function PublicApplyPage({
             <CandidateLoginCard companyId={job.company.id} returnTo={returnTo} />
           </div>
         ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>Application details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {query.applyError === undefined ? null : (
-                <Alert variant="danger" className="mb-4">
-                  <AlertTitle>Application not submitted</AlertTitle>
-                  <AlertDescription>{query.applyError}</AlertDescription>
-                </Alert>
-              )}
-              <form action={submitPublicApplicationAction} className="grid gap-4">
-                <input type="hidden" name="companySlug" value={job.company.slug} />
-                <input type="hidden" name="jobSlug" value={job.slug} />
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Field label="Full name">
-                    <Input name="fullName" defaultValue={candidateSession.fullName} required />
+          <div className="grid gap-4 lg:grid-cols-[0.72fr_1.28fr]">
+            <SectionCard
+              title="Before you submit"
+              description="Your CV is used for HR review and advisory screening only."
+            >
+              <div className="grid gap-3 text-sm text-muted-foreground">
+                <p>DOCX is recommended for best AI screening accuracy.</p>
+                <p>PDF is supported, but scanned or protected PDFs may not extract clearly.</p>
+                <p>After submission, you can track progress from your candidate dashboard.</p>
+              </div>
+            </SectionCard>
+            <Card>
+              <CardHeader>
+                <CardTitle>Application details</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {query.applyError === undefined ? null : (
+                  <Alert variant="danger" className="mb-4">
+                    <AlertTitle>Application not submitted</AlertTitle>
+                    <AlertDescription>{query.applyError}</AlertDescription>
+                  </Alert>
+                )}
+                <form action={submitPublicApplicationAction} className="grid gap-4">
+                  <input type="hidden" name="companySlug" value={job.company.slug} />
+                  <input type="hidden" name="jobSlug" value={job.slug} />
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Field label="Full name">
+                      <Input name="fullName" defaultValue={candidateSession.fullName} required />
+                    </Field>
+                    <Field label="Email">
+                      <Input
+                        name="email"
+                        type="email"
+                        defaultValue={candidateSession.email}
+                        required
+                      />
+                    </Field>
+                  </div>
+                  <Field label="Phone number">
+                    <Input name="phone" defaultValue={candidateSession.phone ?? ""} />
                   </Field>
-                  <Field label="Email">
-                    <Input
-                      name="email"
-                      type="email"
-                      defaultValue={candidateSession.email}
-                      required
+                  <Field label="CV">
+                    <CandidateCvInput />
+                  </Field>
+                  <Field label="Cover note">
+                    <Textarea
+                      name="coverNote"
+                      placeholder="Optional context you would like the hiring team to know."
                     />
                   </Field>
-                </div>
-                <Field label="Phone number">
-                  <Input name="phone" defaultValue={candidateSession.phone ?? ""} />
-                </Field>
-                <Field label="CV">
-                  <CandidateCvInput />
-                </Field>
-                <Field label="Cover note">
-                  <Textarea
-                    name="coverNote"
-                    placeholder="Optional context you would like the hiring team to know."
-                  />
-                </Field>
-                <label className="flex gap-3 rounded-md border border-border bg-surface p-3 text-sm">
-                  <input name="consent" type="checkbox" className="mt-1 size-4" required />
-                  <span className="text-muted-foreground">
-                    I confirm this application is accurate and consent to Aptly and{" "}
-                    {job.company.name} processing my application data for recruitment.
-                  </span>
-                </label>
-                <div className="flex flex-wrap items-center gap-3">
-                  <CandidateAuthSubmitButton pendingLabel="Uploading CV...">
-                    <FileText aria-hidden="true" />
-                    Submit application
-                  </CandidateAuthSubmitButton>
-                  <p className="text-sm text-muted-foreground">
-                    PDF and DOCX CV files up to 10 MB are supported.
-                  </p>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+                  <label className="flex gap-3 rounded-md border border-border bg-surface p-3 text-sm">
+                    <input name="consent" type="checkbox" className="mt-1 size-4" required />
+                    <span className="text-muted-foreground">
+                      I confirm this application is accurate and consent to Aptly and{" "}
+                      {job.company.name} processing my application data for recruitment.
+                    </span>
+                  </label>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <CandidateAuthSubmitButton pendingLabel="Uploading CV...">
+                      <FileText aria-hidden="true" />
+                      Submit application
+                    </CandidateAuthSubmitButton>
+                    <p className="text-sm text-muted-foreground">
+                      DOCX is recommended for best screening accuracy. PDF and DOCX files up to 10
+                      MB are supported.
+                    </p>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
         )}
       </section>
     </main>

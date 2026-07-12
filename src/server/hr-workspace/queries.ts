@@ -15,6 +15,11 @@ export async function getDashboardData(context: HrWorkspaceContext) {
   const companyId = context.tenant.companyId;
   const [
     activeJobs,
+    newApplications,
+    screeningPending,
+    recommendedCandidates,
+    shortlistedCandidates,
+    availabilityRequested,
     totalCandidates,
     invitationsSent,
     interviewsAwaitingCompletion,
@@ -23,6 +28,21 @@ export async function getDashboardData(context: HrWorkspaceContext) {
     recentActivity,
   ] = await Promise.all([
     prisma.job.count({ where: { companyId, status: "OPEN", deletedAt: null } }),
+    prisma.candidateApplication.count({
+      where: { companyId, status: "NEW", deletedAt: null },
+    }),
+    prisma.applicationCvScreening.count({
+      where: { companyId, screeningStatus: "PENDING" },
+    }),
+    prisma.applicationCvScreening.count({
+      where: { companyId, screeningStatus: "COMPLETE", recommendation: "RECOMMENDED" },
+    }),
+    prisma.candidateApplication.count({
+      where: { companyId, status: "SHORTLISTED", deletedAt: null },
+    }),
+    prisma.candidateApplication.count({
+      where: { companyId, status: "AVAILABILITY_REQUESTED", deletedAt: null },
+    }),
     prisma.candidate.count({ where: { companyId, status: "ACTIVE", deletedAt: null } }),
     prisma.candidateInvitation.count({
       where: { companyId, status: { in: ["SENT", "OPENED", "ACCEPTED"] } },
@@ -52,6 +72,11 @@ export async function getDashboardData(context: HrWorkspaceContext) {
 
   return {
     activeJobs,
+    newApplications,
+    screeningPending,
+    recommendedCandidates,
+    shortlistedCandidates,
+    availabilityRequested,
     totalCandidates,
     invitationsSent,
     interviewsAwaitingCompletion,

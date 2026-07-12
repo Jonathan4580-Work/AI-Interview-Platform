@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, MapPin } from "lucide-react";
 
+import { PremiumHero, SectionCard } from "@/components/recruiting/recruiting-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,47 +35,43 @@ export default async function PublicCareerJobPage({
 
   return (
     <main className="min-h-screen bg-background">
-      <section className="border-b border-border bg-surface">
-        <div className="mx-auto grid w-full max-w-5xl gap-5 px-4 py-10 sm:px-6 lg:px-8">
-          <Button asChild variant="quiet" className="w-fit">
-            <Link href={`/careers/${job.company.slug}`}>
-              <ArrowLeft aria-hidden="true" />
-              All roles
-            </Link>
-          </Button>
-          <div className="grid gap-3">
-            <p className="text-sm font-medium text-muted-foreground">{job.company.name}</p>
-            <h1 className="text-4xl font-semibold tracking-normal text-foreground">{job.title}</h1>
-            <div className="flex flex-wrap gap-2">
-              {job.location === null ? null : (
-                <Badge variant="neutral">
-                  <MapPin className="mr-1 size-3" aria-hidden="true" />
-                  {job.location}
-                </Badge>
-              )}
-              <Badge variant="neutral">{job.employmentType}</Badge>
-              <Badge variant="neutral">{job.workplaceType}</Badge>
-              <Badge variant="neutral">{job.seniorityLevel}</Badge>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3">
+      <section className="mx-auto grid w-full max-w-5xl gap-5 px-4 pt-8 sm:px-6 lg:px-8">
+        <Button asChild variant="quiet" className="w-fit">
+          <Link href={`/careers/${job.company.slug}`}>
+            <ArrowLeft aria-hidden="true" />
+            All roles
+          </Link>
+        </Button>
+        <PremiumHero
+          eyebrow={job.company.name}
+          title={job.title}
+          description={job.summary}
+          actions={
             <Button asChild>
-              <Link href={`/careers/${job.company.slug}/jobs/${job.slug}/apply`}>Apply</Link>
+              <Link href={`/careers/${job.company.slug}/jobs/${job.slug}/apply`}>Apply now</Link>
             </Button>
-          </div>
+          }
+        />
+        <div className="-mt-2 flex flex-wrap gap-2">
+          {job.location === null ? null : (
+            <Badge variant="neutral">
+              <MapPin className="mr-1 size-3" aria-hidden="true" />
+              {job.location}
+            </Badge>
+          )}
+          <Badge variant="neutral">{job.employmentType}</Badge>
+          <Badge variant="neutral">{job.workplaceType}</Badge>
+          <Badge variant="neutral">{job.seniorityLevel}</Badge>
         </div>
       </section>
 
       <section className="mx-auto grid w-full max-w-5xl gap-5 px-4 py-8 sm:px-6 lg:px-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Role summary</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 text-sm text-muted-foreground">
+        <SectionCard title="Role overview" description="What you will help the team accomplish.">
+          <div className="grid gap-3 text-sm text-muted-foreground">
             <p>{job.summary}</p>
             {job.details.length === 0 ? null : <p>{job.details}</p>}
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
 
         <InfoSection title="Responsibilities" items={job.responsibilities} />
         <InfoSection

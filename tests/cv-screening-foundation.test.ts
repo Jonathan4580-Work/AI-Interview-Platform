@@ -81,13 +81,13 @@ describe("AI CV screening foundation", () => {
     const candidateDashboard = source("src/app/candidate/applications/page.tsx");
     const applyPage = source("src/app/careers/[companySlug]/jobs/[jobSlug]/apply/page.tsx");
 
-    expect(hrJobPage).toContain("View screening details");
-    expect(hrJobPage).toContain("AI screening is advisory");
+    expect(hrJobPage).toContain("AI screening result");
+    expect(hrJobPage).toContain("AI screening supports HR review");
     expect(hrJobPage).toContain("Screening pending");
     expect(hrJobPage).toContain("match score");
     expect(candidateDashboard).not.toContain("AI screening");
     expect(candidateDashboard).not.toContain("Match score");
-    expect(applyPage).not.toContain("AI screening");
+    expect(applyPage).not.toContain("Match score");
     expect(applyPage).not.toContain("recommendation");
   });
 

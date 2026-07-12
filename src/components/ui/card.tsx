@@ -5,14 +5,17 @@ import type { ComponentPropsWithoutRef } from "react";
 function Card({ className, ...props }: ComponentPropsWithoutRef<"section">) {
   return (
     <section
-      className={cn("rounded-lg border border-border bg-surface shadow-xs", className)}
+      className={cn(
+        "rounded-xl border border-border/80 bg-surface/95 shadow-sm backdrop-blur-sm",
+        className,
+      )}
       {...props}
     />
   );
 }
 
 function CardHeader({ className, ...props }: ComponentPropsWithoutRef<"div">) {
-  return <div className={cn("space-y-1 border-b border-border p-4", className)} {...props} />;
+  return <div className={cn("space-y-1 border-b border-border/70 p-5", className)} {...props} />;
 }
 
 function CardTitle({ className, ...props }: ComponentPropsWithoutRef<"h2">) {
@@ -29,7 +32,7 @@ function CardDescription({ className, ...props }: ComponentPropsWithoutRef<"p">)
 }
 
 function CardContent({ className, ...props }: ComponentPropsWithoutRef<"div">) {
-  return <div className={cn("p-4", className)} {...props} />;
+  return <div className={cn("p-5", className)} {...props} />;
 }
 
 function CardFooter({ className, ...props }: ComponentPropsWithoutRef<"div">) {

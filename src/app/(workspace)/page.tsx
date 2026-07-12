@@ -1,9 +1,19 @@
 import Link from "next/link";
-import { BriefcaseBusiness, CalendarCheck, Mail, Plus, Search, UserRound } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  CalendarCheck,
+  ClipboardCheck,
+  FileSearch,
+  Mail,
+  Plus,
+  Search,
+  Sparkles,
+  Star,
+  UserRound,
+} from "lucide-react";
 
-import { PageHeader } from "@/components/layout/page-header";
+import { MetricCard, PremiumHero, SectionCard } from "@/components/recruiting/recruiting-ui";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireHrWorkspaceContext } from "@/server/hr-workspace/context";
 import { getDashboardData } from "@/server/hr-workspace/queries";
 
@@ -21,24 +31,50 @@ export default async function WorkspaceOverviewPage() {
   const dashboard = await getDashboardData(context);
 
   const stats = [
-    { label: "Active jobs", value: dashboard.activeJobs, href: "/jobs" },
-    { label: "Total candidates", value: dashboard.totalCandidates, href: "/candidates" },
-    { label: "Invitations sent", value: dashboard.invitationsSent, href: "/candidates" },
+    { label: "Open jobs", value: dashboard.activeJobs, href: "/jobs", icon: BriefcaseBusiness },
+    { label: "New applications", value: dashboard.newApplications, href: "/jobs", icon: UserRound },
+    {
+      label: "Screening pending",
+      value: dashboard.screeningPending,
+      href: "/jobs",
+      icon: FileSearch,
+    },
+    {
+      label: "Recommended",
+      value: dashboard.recommendedCandidates,
+      href: "/candidates",
+      icon: Star,
+    },
+    {
+      label: "Shortlisted",
+      value: dashboard.shortlistedCandidates,
+      href: "/jobs",
+      icon: ClipboardCheck,
+    },
+    {
+      label: "Availability requested",
+      value: dashboard.availabilityRequested,
+      href: "/jobs",
+      icon: CalendarCheck,
+    },
     {
       label: "Awaiting completion",
       value: dashboard.interviewsAwaitingCompletion,
       href: "/interviews",
+      icon: CalendarCheck,
     },
-    { label: "Completed interviews", value: dashboard.interviewsCompleted, href: "/interviews" },
-    { label: "Results ready", value: dashboard.resultsReady, href: "/interviews" },
+    { label: "Reports ready", value: dashboard.resultsReady, href: "/reports", icon: Sparkles },
   ];
+  const recentActivityDescription = `${String(
+    dashboard.invitationsSent,
+  )} invitations sent · ${String(dashboard.interviewsCompleted)} interviews completed`;
 
   return (
     <div className="grid gap-6">
-      <PageHeader
+      <PremiumHero
         eyebrow="Hiring workspace"
-        title="Dashboard"
-        description="Track open roles, candidates, invitations, interviews, and ready results."
+        title="Recruiting command center"
+        description="Track jobs, applications, AI screening, availability, interviews, and reports from one polished workspace."
         actions={
           <Button asChild>
             <Link href="/jobs/new">
@@ -49,29 +85,38 @@ export default async function WorkspaceOverviewPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {stats.map((stat) => (
-          <Link
-            key={stat.label}
-            href={stat.href}
-            className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Card className="h-full transition-colors hover:border-primary/40 hover:bg-muted/40">
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{stat.label}</p>
-                <p className="mt-3 text-3xl font-semibold text-foreground">{stat.value}</p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {stats.map((stat, index) => {
+          const Icon = stat.icon;
+          return (
+            <Link
+              key={stat.label}
+              href={stat.href}
+              className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <MetricCard
+                label={stat.label}
+                value={stat.value}
+                caption={index < 2 ? "Live workspace total" : "Needs HR attention"}
+                icon={<Icon className="size-5" aria-hidden="true" />}
+                tone={
+                  index % 4 === 0
+                    ? "blue"
+                    : index % 4 === 1
+                      ? "green"
+                      : index % 4 === 2
+                        ? "amber"
+                        : "violet"
+                }
+              />
+            </Link>
+          );
+        })}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick actions</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-2">
+        <SectionCard title="Next actions" description="Fast paths for the work HR does every day.">
+          <div className="grid gap-2">
             {quickActions.map((action) => {
               const Icon = action.icon;
               return (
@@ -89,39 +134,34 @@ export default async function WorkspaceOverviewPage() {
                 Search workspace
               </Link>
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {dashboard.recentActivity.length === 0 ? (
-              <EmptyPanel
-                title="No activity yet"
-                description="Actions such as job creation, candidate updates, and invitations will appear here."
-              />
-            ) : (
-              <ol className="grid gap-3">
-                {dashboard.recentActivity.map((event) => (
-                  <li
-                    key={event.id}
-                    className="rounded-md border border-border bg-background p-3 text-sm"
-                  >
-                    <p className="font-medium text-foreground">
-                      {titleCase(event.action.replaceAll(".", " "))}
-                    </p>
-                    <p className="mt-1 text-muted-foreground">
-                      {titleCase(event.resourceType.replaceAll("_", " "))} ·{" "}
-                      {formatDate(event.createdAt)}
-                    </p>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </CardContent>
-        </Card>
+        <SectionCard title="Recent activity" description={recentActivityDescription}>
+          {dashboard.recentActivity.length === 0 ? (
+            <EmptyPanel
+              title="No activity yet"
+              description="Actions such as job creation, candidate updates, and invitations will appear here."
+            />
+          ) : (
+            <ol className="grid gap-3">
+              {dashboard.recentActivity.map((event) => (
+                <li
+                  key={event.id}
+                  className="rounded-xl border border-border/80 bg-white/80 p-4 text-sm shadow-xs"
+                >
+                  <p className="font-medium text-foreground">
+                    {titleCase(event.action.replaceAll(".", " "))}
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    {titleCase(event.resourceType.replaceAll("_", " "))} ·{" "}
+                    {formatDate(event.createdAt)}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          )}
+        </SectionCard>
       </div>
     </div>
   );
