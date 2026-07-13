@@ -19,7 +19,7 @@ import type { ShellNavigationItem } from "@/components/layout/navigation-types";
 import type { PermissionKey } from "@/modules/access-control";
 
 export const workspaceNavigationRoutes = [
-  "/",
+  "/dashboard",
   "/jobs",
   "/candidates",
   "/interviews",
@@ -52,7 +52,7 @@ export const shellAudienceStorageKey = "aptly_shell_audience";
 export type ShellAudience = "company" | "platform";
 
 const companyNavigationDefinitions = [
-  { label: "Dashboard", href: "/", icon: BarChart3, permission: undefined },
+  { label: "Dashboard", href: "/dashboard", icon: BarChart3, permission: undefined },
   { label: "Jobs", href: "/jobs", icon: BriefcaseBusiness, permission: "jobs:read" },
   { label: "Candidates", href: "/candidates", icon: UserRound, permission: "candidates:read" },
   { label: "Interviews", href: "/interviews", icon: CalendarCheck, permission: "interviews:read" },
@@ -121,10 +121,6 @@ type NavigationDefinition = Omit<ShellNavigationItem, "current"> & {
 };
 
 function isCurrentNavigationItem(pathname: string, href: string): boolean {
-  if (href === "/") {
-    return pathname === "/";
-  }
-
   if (href === "/settings/integrations") {
     return pathname === href;
   }

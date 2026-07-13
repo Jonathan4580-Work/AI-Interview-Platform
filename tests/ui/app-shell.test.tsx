@@ -15,14 +15,14 @@ import { permissionKeys } from "@/modules/access-control";
 
 import type { ReactElement } from "react";
 
-const navigationState = vi.hoisted(() => ({ pathname: "/" }));
+const navigationState = vi.hoisted(() => ({ pathname: "/dashboard" }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => navigationState.pathname,
 }));
 
 afterEach(() => {
-  navigationState.pathname = "/";
+  navigationState.pathname = "/dashboard";
   window.localStorage.clear();
   document.documentElement.classList.remove("dark");
   delete document.documentElement.dataset.theme;
@@ -70,7 +70,7 @@ describe("application shell", () => {
     const primaryNavigation = screen.getByRole("navigation", { name: "Primary" });
     const links = within(primaryNavigation).getAllByRole("link");
     expect(links.map((link) => link.getAttribute("href"))).toEqual([
-      "/",
+      "/dashboard",
       "/jobs",
       "/candidates",
       "/interviews",
@@ -128,7 +128,7 @@ describe("application shell", () => {
     const primaryNavigation = screen.getByRole("navigation", { name: "Primary" });
     expect(within(primaryNavigation).getByRole("link", { name: "Dashboard" })).toHaveAttribute(
       "href",
-      "/",
+      "/dashboard",
     );
     expect(within(primaryNavigation).getByRole("link", { name: "Search" })).toHaveAttribute(
       "href",
@@ -243,7 +243,7 @@ describe("application shell", () => {
 
   it("uses operational company routes for the product navigation", () => {
     expect(workspaceNavigationRoutes).toEqual([
-      "/",
+      "/dashboard",
       "/jobs",
       "/candidates",
       "/interviews",

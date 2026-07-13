@@ -83,7 +83,7 @@ describe("authentication forms", () => {
       }),
     );
     await waitFor(() => {
-      expect(locationAssign).toHaveBeenCalledWith("/");
+      expect(locationAssign).toHaveBeenCalledWith("/dashboard");
     });
     expect(window.sessionStorage.getItem(shellAudienceStorageKey)).toBe("company");
     expect(locationAssign).not.toHaveBeenCalledWith(missingWorkspaceRoute);

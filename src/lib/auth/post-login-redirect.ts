@@ -1,6 +1,6 @@
 import type { AuthenticatedSubject } from "@/lib/auth/session-client";
 
-export const companyPostLoginPath = "/";
+export const companyPostLoginPath = "/dashboard";
 export const platformPostLoginPath = "/settings/integrations";
 export const invalidPostLoginPath = "/auth-error";
 

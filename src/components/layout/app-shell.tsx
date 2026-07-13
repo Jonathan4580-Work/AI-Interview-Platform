@@ -18,7 +18,7 @@ import type { PermissionKey } from "@/modules/access-control";
 import type { ShellAudience } from "@/components/layout/workspace-navigation";
 import type { ReactNode } from "react";
 
-const defaultNavigation: readonly ShellNavigationItem[] = createWorkspaceNavigation("/");
+const defaultNavigation: readonly ShellNavigationItem[] = createWorkspaceNavigation("/dashboard");
 
 const defaultUser: ShellUser = {
   name: "Account",

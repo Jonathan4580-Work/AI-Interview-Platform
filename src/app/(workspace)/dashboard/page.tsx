@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { requireHrWorkspaceContext } from "@/server/hr-workspace/context";
 import { getDashboardData } from "@/server/hr-workspace/queries";
 
-import { EmptyPanel, formatDate, titleCase } from "./_components/hr-ui";
+import { EmptyPanel, formatDate, titleCase } from "../_components/hr-ui";
 
 const quickActions = [
   { label: "Create job", href: "/jobs/new", icon: BriefcaseBusiness },
