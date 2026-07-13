@@ -614,6 +614,86 @@ export async function recordHrVerificationAction(formData: FormData): Promise<vo
   revalidatePath(`/candidates/${application.candidateId}`);
 }
 
+export async function recordHrInterviewOutcomeAction(formData: FormData): Promise<void> {
+  const context = await requireHrWorkspaceContext("applications:manage");
+  const applicationId = requiredText(formData, "applicationId", 1, 200);
+  const outcome = enumValue(formData, "outcome", ["HIRE", "REJECT", "HOLD"]);
+  const note = requiredText(formData, "outcomeNote", 5, 2_000);
+  const score = parseHrInterviewScore(formData);
+  const onboardingDate = optionalDateText(formData, "onboardingDate");
+  const now = new Date();
+  const decision = hrOutcomeDecision(outcome);
+  const nextStatus = hrOutcomeStatus(outcome);
+
+  const application = await prisma.$transaction(async (tx) => {
+    const existing = await tx.candidateApplication.findUnique({
+      where: { companyId_id: { companyId: context.tenant.companyId, id: applicationId } },
+    });
+    if (existing === null) {
+      throw new Error("Application was not found.");
+    }
+    if (!["INTERVIEW", "OFFER", "HIRED", "REJECTED"].includes(existing.status)) {
+      throw new Error("Record HR verification before final interview outcome.");
+    }
+    if (!isHrOutcomeAllowed(outcome, existing.status)) {
+      throw new Error("This HR interview outcome cannot be recorded for the current status.");
+    }
+    const metadata = readJsonObject(existing.metadataJson);
+    const updated = await tx.candidateApplication.update({
+      where: { companyId_id: { companyId: context.tenant.companyId, id: applicationId } },
+      data: {
+        status: nextStatus,
+        hiredAt: nextStatus === "HIRED" ? now : existing.hiredAt,
+        rejectedAt: nextStatus === "REJECTED" ? now : existing.rejectedAt,
+        metadataJson: {
+          ...metadata,
+          hrInterviewOutcome: {
+            schemaVersion: 1,
+            decision,
+            score,
+            note,
+            onboardingDate,
+            recordedAt: now.toISOString(),
+            recordedByUserId: context.actor.id,
+          },
+        } satisfies Prisma.InputJsonObject,
+      },
+    });
+    await tx.applicationDecisionHistory.create({
+      data: {
+        companyId: context.tenant.companyId,
+        applicationId: updated.id,
+        candidateId: updated.candidateId,
+        jobId: updated.jobId,
+        decision,
+        note,
+        createdByUserId: context.actor.id,
+      },
+    });
+    return updated;
+  });
+
+  await audit(
+    context,
+    "application.hr_interview_outcome_recorded",
+    "candidate_application",
+    application.id,
+    {
+      after: {
+        id: application.id,
+        decision,
+        status: application.status,
+        score,
+        onboardingDateSet: onboardingDate !== null,
+        noteAdded: true,
+      },
+    },
+  );
+  revalidatePath(`/applications/${application.id}/verification`);
+  revalidatePath(`/jobs/${application.jobId}`);
+  revalidatePath(`/candidates/${application.candidateId}`);
+}
+
 export async function createAvailabilitySlotAction(formData: FormData): Promise<void> {
   const context = await requireHrWorkspaceContext("applications:manage");
   const jobId = requiredText(formData, "jobId", 1, 200);
@@ -1301,6 +1381,68 @@ function hrVerificationStatus(
     case "HOLD":
       return "IN_REVIEW";
   }
+}
+
+function hrOutcomeDecision(outcome: "HIRE" | "REJECT" | "HOLD"): "HIRED" | "REJECTED" | "HOLD" {
+  switch (outcome) {
+    case "HIRE":
+      return "HIRED";
+    case "REJECT":
+      return "REJECTED";
+    case "HOLD":
+      return "HOLD";
+  }
+}
+
+function hrOutcomeStatus(outcome: "HIRE" | "REJECT" | "HOLD"): "HIRED" | "REJECTED" | "INTERVIEW" {
+  switch (outcome) {
+    case "HIRE":
+      return "HIRED";
+    case "REJECT":
+      return "REJECTED";
+    case "HOLD":
+      return "INTERVIEW";
+  }
+}
+
+function isHrOutcomeAllowed(outcome: "HIRE" | "REJECT" | "HOLD", status: string): boolean {
+  if (outcome === "HIRE") {
+    return status === "INTERVIEW" || status === "HIRED";
+  }
+  if (outcome === "REJECT") {
+    return status === "INTERVIEW" || status === "REJECTED";
+  }
+  return status === "INTERVIEW";
+}
+
+function parseHrInterviewScore(formData: FormData): number | null {
+  const raw = readFormText(formData, "interviewScore").trim();
+  if (raw.length === 0) {
+    return null;
+  }
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1 || value > 5) {
+    throw new Error("Interview score must be between 1 and 5.");
+  }
+  return value;
+}
+
+function optionalDateText(formData: FormData, key: string): string | null {
+  const value = readFormText(formData, key).trim();
+  if (value.length === 0) {
+    return null;
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(value)) {
+    throw new Error(`${key} must use YYYY-MM-DD format.`);
+  }
+  return value;
+}
+
+function readJsonObject(value: Prisma.JsonValue): Prisma.InputJsonObject {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return {};
+  }
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonObject;
 }
 
 async function recordApplicationDecision(

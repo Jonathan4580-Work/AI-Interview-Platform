@@ -21,7 +21,11 @@ describe("HR verification workspace", () => {
     expect(actions).toContain("recordHrVerificationAction");
     expect(actions).toContain("verificationNote");
     expect(actions).toContain("application.hr_verification_recorded");
-    expect(actions).not.toContain('status: "HIRED"');
+    const verificationAction = actions.slice(
+      actions.indexOf("export async function recordHrVerificationAction"),
+      actions.indexOf("export async function recordHrInterviewOutcomeAction"),
+    );
+    expect(verificationAction).not.toContain('status: "HIRED"');
   });
 
   it("builds a tenant-scoped HR verification packet from existing evidence", () => {

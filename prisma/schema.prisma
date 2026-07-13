@@ -420,6 +420,8 @@ enum ApplicationDecisionType {
   HR_REJECTED
   HOLD
   REQUEST_ANOTHER_AI_INTERVIEW
+  HIRED
+  REJECTED
 
   @@map("application_decision_type")
 }

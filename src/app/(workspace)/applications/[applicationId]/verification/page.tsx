@@ -12,6 +12,7 @@ import {
 } from "@/modules/availability/tokens";
 import {
   createHrInterviewSlotAction,
+  recordHrInterviewOutcomeAction,
   recordHrVerificationAction,
   sendHrInterviewAvailabilityRequestAction,
 } from "@/server/hr-workspace/actions";
@@ -46,6 +47,7 @@ export default async function ApplicationVerificationPage({
     (request) => request.purpose === "HR_INTERVIEW",
   );
   const latestHrRequest = hrRequests.at(0) ?? null;
+  const hrInterviewOutcome = readHrInterviewOutcome(application.metadataJson);
 
   return (
     <div className="grid gap-6">
@@ -277,6 +279,125 @@ export default async function ApplicationVerificationPage({
               </div>
             )}
           </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title="HR interview result"
+        description="Record the human-owned outcome after the live HR interview."
+      >
+        <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+          <div className="rounded-xl border border-border bg-surface p-4 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-semibold text-foreground">Current result</p>
+              <StatusBadge value={application.status} />
+            </div>
+            {hrInterviewOutcome === null ? (
+              <p className="mt-3 text-muted-foreground">
+                No HR interview result has been recorded yet. Confirm the HR interview first, then
+                record the outcome here.
+              </p>
+            ) : (
+              <div className="mt-3 grid gap-2 text-muted-foreground">
+                <p>
+                  <span className="font-medium text-foreground">Decision:</span>{" "}
+                  {hrInterviewOutcome.decision}
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">Score:</span>{" "}
+                  {hrInterviewOutcome.score === null
+                    ? "Not scored"
+                    : `${String(hrInterviewOutcome.score)} / 5`}
+                </p>
+                {hrInterviewOutcome.onboardingDate === null ? null : (
+                  <p>
+                    <span className="font-medium text-foreground">Onboarding target:</span>{" "}
+                    {hrInterviewOutcome.onboardingDate}
+                  </p>
+                )}
+                <p>
+                  <span className="font-medium text-foreground">Recorded:</span>{" "}
+                  {hrInterviewOutcome.recordedAt}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <form
+            action={recordHrInterviewOutcomeAction}
+            className="grid gap-3 rounded-xl border border-border bg-surface p-4"
+          >
+            <input type="hidden" name="applicationId" value={application.id} />
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="grid gap-1.5 text-sm font-medium text-foreground">
+                Interview score
+                <select
+                  name="interviewScore"
+                  defaultValue={hrInterviewOutcome?.score?.toString() ?? ""}
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">No score</option>
+                  <option value="1">1 - Not aligned</option>
+                  <option value="2">2 - Some concerns</option>
+                  <option value="3">3 - Meets bar</option>
+                  <option value="4">4 - Strong</option>
+                  <option value="5">5 - Exceptional</option>
+                </select>
+              </label>
+              <label className="grid gap-1.5 text-sm font-medium text-foreground">
+                Onboarding target date
+                <input
+                  name="onboardingDate"
+                  type="date"
+                  defaultValue={hrInterviewOutcome?.onboardingDate ?? ""}
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                />
+              </label>
+            </div>
+            <label className="grid gap-1.5 text-sm font-medium text-foreground">
+              Feedback / reason
+              <textarea
+                required
+                name="outcomeNote"
+                minLength={5}
+                maxLength={2000}
+                placeholder="Summarize the HR interview outcome, strengths, risks, or rejection reason. This is HR-owned and separate from AI scoring."
+                className="min-h-28 rounded-xl border border-input bg-background px-3 py-2 text-sm"
+              />
+            </label>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <PendingSubmitButton
+                name="outcome"
+                value="HIRE"
+                pendingLabel="Recording..."
+                disabled={application.status !== "INTERVIEW" && application.status !== "HIRED"}
+              >
+                Hire candidate
+              </PendingSubmitButton>
+              <PendingSubmitButton
+                name="outcome"
+                value="REJECT"
+                variant="secondary"
+                pendingLabel="Recording..."
+                disabled={application.status !== "INTERVIEW" && application.status !== "REJECTED"}
+              >
+                Not selected
+              </PendingSubmitButton>
+              <PendingSubmitButton
+                name="outcome"
+                value="HOLD"
+                variant="secondary"
+                pendingLabel="Recording..."
+                disabled={application.status !== "INTERVIEW"}
+              >
+                Keep in interview
+              </PendingSubmitButton>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              This updates the application status only from a human HR action. AI scores and
+              monitoring warnings do not make hiring decisions.
+            </p>
+          </form>
         </div>
       </SectionCard>
 
@@ -600,6 +721,35 @@ function jsonStringList(value: unknown): readonly string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
     : [];
+}
+
+function readHrInterviewOutcome(value: unknown): {
+  readonly decision: string;
+  readonly score: number | null;
+  readonly onboardingDate: string | null;
+  readonly recordedAt: string;
+} | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+  const metadata = value as Record<string, unknown>;
+  const outcome = metadata.hrInterviewOutcome;
+  if (typeof outcome !== "object" || outcome === null || Array.isArray(outcome)) {
+    return null;
+  }
+  const record = outcome as Record<string, unknown>;
+  const decision = typeof record.decision === "string" ? record.decision : null;
+  const score =
+    typeof record.score === "number" && Number.isFinite(record.score) ? record.score : null;
+  const onboardingDate =
+    typeof record.onboardingDate === "string" && record.onboardingDate.length > 0
+      ? record.onboardingDate
+      : null;
+  const recordedAt = typeof record.recordedAt === "string" ? record.recordedAt : null;
+  if (decision === null || recordedAt === null) {
+    return null;
+  }
+  return { decision, score, onboardingDate, recordedAt };
 }
 
 function availabilityRequestUrl(request: VerificationAvailabilityRequest): string {
