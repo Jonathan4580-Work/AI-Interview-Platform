@@ -61,6 +61,13 @@ export default async function InterviewsPage() {
                         <Link href={`/interviews/${interview.id}`}>View Progress</Link>
                       </Button>
                     )}
+                    {interview.applicationId === null ? null : (
+                      <Button asChild size="sm" variant="secondary">
+                        <Link href={`/applications/${interview.applicationId}/verification`}>
+                          HR verification
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>

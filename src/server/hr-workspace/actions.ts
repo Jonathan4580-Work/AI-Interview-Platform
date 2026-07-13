@@ -554,6 +554,66 @@ export async function returnApplicationToReviewAction(formData: FormData): Promi
   await recordApplicationDecision(formData, "RETURNED_TO_REVIEW", "IN_REVIEW");
 }
 
+export async function recordHrVerificationAction(formData: FormData): Promise<void> {
+  const context = await requireHrWorkspaceContext("applications:manage");
+  const applicationId = requiredText(formData, "applicationId", 1, 200);
+  const decision = enumValue(formData, "decision", [
+    "HR_VERIFIED",
+    "HR_REJECTED",
+    "HOLD",
+    "REQUEST_ANOTHER_AI_INTERVIEW",
+  ]);
+  const note = requiredText(formData, "verificationNote", 5, 2_000);
+  const nextStatus = hrVerificationStatus(decision);
+  const now = new Date();
+
+  const application = await prisma.$transaction(async (tx) => {
+    const existing = await tx.candidateApplication.findUnique({
+      where: { companyId_id: { companyId: context.tenant.companyId, id: applicationId } },
+    });
+    if (existing === null) {
+      throw new Error("Application was not found.");
+    }
+    const updated = await tx.candidateApplication.update({
+      where: { companyId_id: { companyId: context.tenant.companyId, id: applicationId } },
+      data: {
+        status: nextStatus,
+        rejectedAt: nextStatus === "NOT_SELECTED" ? now : null,
+      },
+    });
+    await tx.applicationDecisionHistory.create({
+      data: {
+        companyId: context.tenant.companyId,
+        applicationId: updated.id,
+        candidateId: updated.candidateId,
+        jobId: updated.jobId,
+        decision,
+        note,
+        createdByUserId: context.actor.id,
+      },
+    });
+    return updated;
+  });
+
+  await audit(
+    context,
+    "application.hr_verification_recorded",
+    "candidate_application",
+    application.id,
+    {
+      after: {
+        id: application.id,
+        decision,
+        status: application.status,
+        noteAdded: true,
+      },
+    },
+  );
+  revalidatePath(`/applications/${application.id}/verification`);
+  revalidatePath(`/jobs/${application.jobId}`);
+  revalidatePath(`/candidates/${application.candidateId}`);
+}
+
 export async function createAvailabilitySlotAction(formData: FormData): Promise<void> {
   const context = await requireHrWorkspaceContext("applications:manage");
   const jobId = requiredText(formData, "jobId", 1, 200);
@@ -1097,6 +1157,21 @@ function enumValue<const T extends readonly [string, ...string[]]>(
 function readFormText(formData: FormData, key: string): string {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
+}
+
+function hrVerificationStatus(
+  decision: "HR_VERIFIED" | "HR_REJECTED" | "HOLD" | "REQUEST_ANOTHER_AI_INTERVIEW",
+): "INTERVIEW" | "NOT_SELECTED" | "IN_REVIEW" | "AVAILABILITY_CONFIRMED" {
+  switch (decision) {
+    case "HR_VERIFIED":
+      return "INTERVIEW";
+    case "HR_REJECTED":
+      return "NOT_SELECTED";
+    case "REQUEST_ANOTHER_AI_INTERVIEW":
+      return "AVAILABILITY_CONFIRMED";
+    case "HOLD":
+      return "IN_REVIEW";
+  }
 }
 
 async function recordApplicationDecision(

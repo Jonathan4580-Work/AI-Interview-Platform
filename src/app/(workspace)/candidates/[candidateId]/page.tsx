@@ -100,6 +100,13 @@ export default async function CandidateDetailPage({
                       >
                         {application.job.title}
                       </Link>
+                      <div className="mt-3">
+                        <Button asChild size="sm" variant="secondary">
+                          <Link href={`/applications/${application.id}/verification`}>
+                            Open HR verification
+                          </Link>
+                        </Button>
+                      </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <StatusBadge value={application.status} />
                         <StatusBadge value={application.currentStage?.name ?? "No stage"} />

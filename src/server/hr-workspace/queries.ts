@@ -275,6 +275,76 @@ export async function getCandidateDetail(context: HrWorkspaceContext, candidateI
   });
 }
 
+export async function getApplicationVerificationDetail(
+  context: HrWorkspaceContext,
+  applicationId: string,
+) {
+  return prisma.candidateApplication.findUnique({
+    where: { companyId_id: { companyId: context.tenant.companyId, id: applicationId } },
+    include: {
+      candidate: {
+        include: {
+          documents: {
+            where: { status: "ACTIVE", type: "RESUME", deletedAt: null },
+            orderBy: { createdAt: "desc" },
+            take: 1,
+          },
+        },
+      },
+      job: { include: { intelligenceProfile: true } },
+      currentStage: true,
+      cvScreenings: { orderBy: { updatedAt: "desc" }, take: 1 },
+      personalizedInterviewPlans: {
+        orderBy: { updatedAt: "desc" },
+        take: 1,
+        include: { personalizedVersion: true },
+      },
+      decisionHistory: {
+        orderBy: { createdAt: "desc" },
+        take: 12,
+        include: { createdBy: { select: { name: true, email: true } } },
+      },
+      availabilityRequests: {
+        orderBy: { createdAt: "desc" },
+        take: 3,
+        include: { selectedSlot: true },
+      },
+      invitations: { orderBy: { createdAt: "desc" }, take: 5 },
+      interviewSessions: {
+        orderBy: { updatedAt: "desc" },
+        take: 3,
+        include: {
+          transcripts: {
+            take: 1,
+            orderBy: { updatedAt: "desc" },
+            include: {
+              activeVersion: {
+                include: { segments: { orderBy: { sequence: "asc" }, take: 5 } },
+              },
+            },
+          },
+          evaluationVersions: {
+            where: { status: "READY" },
+            orderBy: { versionNumber: "desc" },
+            take: 1,
+            include: {
+              scores: { include: { evidenceCitations: true }, orderBy: { competencyKey: "asc" } },
+              observations: true,
+              limitations: true,
+            },
+          },
+          hrReports: {
+            take: 1,
+            orderBy: { updatedAt: "desc" },
+            include: { activeVersion: true },
+          },
+          monitoringEvents: { orderBy: { occurredAt: "desc" }, take: 10 },
+        },
+      },
+    },
+  });
+}
+
 export async function listInterviews(context: HrWorkspaceContext) {
   return prisma.interviewSession.findMany({
     where: { companyId: context.tenant.companyId },

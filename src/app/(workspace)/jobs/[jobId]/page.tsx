@@ -380,6 +380,9 @@ function ApplicationCard({
                   </Link>
                 </Button>
               )}
+              <Button asChild size="sm" variant="secondary">
+                <Link href={`/applications/${application.id}/verification`}>HR verification</Link>
+              </Button>
             </div>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">

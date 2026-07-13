@@ -416,6 +416,10 @@ enum ApplicationDecisionType {
   SHORTLISTED
   NOT_SELECTED
   RETURNED_TO_REVIEW
+  HR_VERIFIED
+  HR_REJECTED
+  HOLD
+  REQUEST_ANOTHER_AI_INTERVIEW
 
   @@map("application_decision_type")
 }
