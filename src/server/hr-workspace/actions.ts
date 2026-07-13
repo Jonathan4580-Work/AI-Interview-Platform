@@ -16,6 +16,7 @@ import { hashJobDescriptionText } from "@/modules/jobs/jd-analysis";
 import { parseJobDescriptionAutofill } from "@/modules/jobs/jd-local-autofill";
 import { slugify } from "@/modules/organization";
 import { generatePersonalizedInterviewPlan } from "@/modules/personalized-interviews/service";
+import { CompanySettingsService, PrismaCompanySettingsRepository } from "@/modules/tenant";
 import { WorkflowService } from "@/modules/workflows";
 import { PrismaWorkflowRepository } from "@/modules/workflows/prisma-workflow-repository";
 
@@ -496,6 +497,59 @@ export async function updateCandidateAction(formData: FormData): Promise<void> {
   });
   revalidatePath("/candidates");
   redirect(`/candidates/${candidate.id}`);
+}
+
+export async function updateCompanySettingsAction(formData: FormData): Promise<void> {
+  const context = await requireHrWorkspaceContext("tenant:manage");
+  const displayName = optionalText(formData, "displayName", 160);
+  const logoUrl = optionalText(formData, "logoUrl", 500);
+  const primaryColor = readFormText(formData, "primaryColor").trim() || "#2563EB";
+  const duplicateCandidateMode = readFormText(formData, "duplicateCandidateMode") === "on";
+  const allowEmailLessCandidates = readFormText(formData, "allowEmailLessCandidates") === "on";
+  const defaultExpirationDays = boundedInteger(formData, "defaultExpirationDays", 1, 30);
+  const minimumExpirationHours = boundedInteger(formData, "minimumExpirationHours", 1, 168);
+  const maximumExpirationDays = boundedInteger(formData, "maximumExpirationDays", 1, 90);
+  const defaultTimeZone = requiredText(formData, "defaultTimeZone", 1, 120);
+
+  const service = new CompanySettingsService(
+    new PrismaCompanySettingsRepository(),
+    new AuditWriter(new PrismaAuditEventStore()),
+  );
+
+  await service.updateBranding({
+    tenant: context.tenant,
+    actor: context.actor,
+    request: context.request,
+    displayName,
+    logoUrl,
+    primaryColor,
+  });
+  await service.updateCandidatePolicy({
+    tenant: context.tenant,
+    actor: context.actor,
+    request: context.request,
+    duplicateCandidateMode,
+    allowEmailLessCandidates,
+  });
+  await service.updateInvitationPolicy({
+    tenant: context.tenant,
+    actor: context.actor,
+    request: context.request,
+    defaultExpirationDays,
+    minimumExpirationHours,
+    maximumExpirationDays,
+  });
+  await service.updateSchedulingPolicy({
+    tenant: context.tenant,
+    actor: context.actor,
+    request: context.request,
+    defaultTimeZone,
+    allowExternalCalendarSync: false,
+  });
+
+  revalidatePath("/settings/company");
+  revalidatePath("/dashboard");
+  revalidatePath("/jobs");
 }
 
 export async function createApplicationAction(formData: FormData): Promise<void> {
@@ -1379,6 +1433,14 @@ function enumValue<const T extends readonly [string, ...string[]]>(
 function readFormText(formData: FormData, key: string): string {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
+}
+
+function boundedInteger(formData: FormData, key: string, min: number, max: number): number {
+  const value = Number(readFormText(formData, key).trim());
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new Error(`${key} must be between ${String(min)} and ${String(max)}.`);
+  }
+  return value;
 }
 
 function hrVerificationStatus(

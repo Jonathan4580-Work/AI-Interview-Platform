@@ -35,7 +35,14 @@ export async function getPublicCareersPage(companySlug: string): Promise<{
 } | null> {
   const company = await prisma.company.findUnique({
     where: { slug: companySlug },
-    select: { id: true, name: true, slug: true, status: true, deletedAt: true },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      status: true,
+      deletedAt: true,
+      settings: { select: { brandingJson: true } },
+    },
   });
   if (company?.deletedAt !== null || company.status === "ARCHIVED") {
     return null;
@@ -49,7 +56,7 @@ export async function getPublicCareersPage(companySlug: string): Promise<{
   });
 
   return {
-    company: { id: company.id, name: company.name, slug: company.slug },
+    company: { id: company.id, name: publicCompanyName(company), slug: company.slug },
     jobs: jobs.map((job) => ({
       id: job.id,
       title: job.title,
@@ -70,7 +77,14 @@ export async function getPublicCareerJobDetail(
 ): Promise<PublicCareerJobDetail | null> {
   const company = await prisma.company.findUnique({
     where: { slug: companySlug },
-    select: { id: true, name: true, slug: true, status: true, deletedAt: true },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      status: true,
+      deletedAt: true,
+      settings: { select: { brandingJson: true } },
+    },
   });
   if (company?.deletedAt !== null || company.status === "ARCHIVED") {
     return null;
@@ -87,7 +101,7 @@ export async function getPublicCareerJobDetail(
   const requirements = readStringList(job.requirementsJson, "items");
   return {
     id: job.id,
-    company: { id: company.id, name: company.name, slug: company.slug },
+    company: { id: company.id, name: publicCompanyName(company), slug: company.slug },
     title: job.title,
     slug: job.slug,
     location: job.intelligenceProfile.locationText,
@@ -169,4 +183,18 @@ function labelEnum(value: string): string {
     .split("_")
     .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
     .join(" ");
+}
+
+function publicCompanyName(company: {
+  readonly name: string;
+  readonly settings: { readonly brandingJson: unknown } | null;
+}): string {
+  const branding = company.settings?.brandingJson;
+  if (typeof branding !== "object" || branding === null || Array.isArray(branding)) {
+    return company.name;
+  }
+  const displayName = (branding as { displayName?: unknown }).displayName;
+  return typeof displayName === "string" && displayName.trim().length > 0
+    ? displayName.trim()
+    : company.name;
 }
