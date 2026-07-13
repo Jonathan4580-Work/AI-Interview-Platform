@@ -272,22 +272,15 @@ export class PrismaInterviewRepository implements InterviewRepository {
     if (invitation === null) {
       throw new InterviewDomainError("Invitation was not found.", "not_found");
     }
-    const plan = await prisma.interviewPlan.findFirst({
-      where: {
-        companyId: input.session.companyId,
-        jobId: invitation.jobId,
-        status: "ACTIVE",
-        activeVersionId: { not: null },
-        deletedAt: null,
-      },
-      orderBy: { updatedAt: "desc" },
-    });
-    if (plan?.activeVersionId == null) {
+    const planVersionId =
+      invitation.interviewPlanVersionId ??
+      (await findActiveJobPlanVersionId(input.session.companyId, invitation.jobId));
+    if (planVersionId === null) {
       throw new InterviewDomainError("Published interview plan is missing.", "invalid_state");
     }
     const version = await prisma.interviewPlanVersion.findUnique({
       where: {
-        companyId_id: { companyId: input.session.companyId, id: plan.activeVersionId },
+        companyId_id: { companyId: input.session.companyId, id: planVersionId },
       },
     });
     if (version?.status !== "PUBLISHED" || version.publishedAt === null) {
@@ -648,6 +641,23 @@ function projectQuestions(value: Prisma.JsonValue): readonly CandidateSafeQuesti
       required: record.required !== false,
     };
   });
+}
+
+async function findActiveJobPlanVersionId(
+  companyId: string,
+  jobId: string,
+): Promise<string | null> {
+  const plan = await prisma.interviewPlan.findFirst({
+    where: {
+      companyId,
+      jobId,
+      status: "ACTIVE",
+      activeVersionId: { not: null },
+      deletedAt: null,
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+  return plan?.activeVersionId ?? null;
 }
 
 function normalizeQuestionKind(value: string | null): InterviewQuestionKind {

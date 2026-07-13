@@ -29,6 +29,7 @@
     "local:application-diagnostic": "dotenv -e .env.local -- tsx scripts/local-application-diagnostic.ts",
     "local:availability-diagnostic": "dotenv -e .env.local -- tsx scripts/local-availability-diagnostic.ts",
     "local:cv-screening-diagnostic": "dotenv -e .env.local -- tsx scripts/local-cv-screening-diagnostic.ts",
+    "local:personalized-interview-diagnostic": "dotenv -e .env.local -- tsx scripts/local-personalized-interview-diagnostic.ts",
     "local:full-flow-status": "dotenv -e .env.local -- tsx scripts/local-full-flow-status.ts",
     "local:repair-workflow-attempts": "dotenv -e .env.local -- tsx scripts/local-repair-workflow-attempts.ts",
     "local:retry-workflow": "dotenv -e .env.local -- tsx scripts/local-repair-workflow-attempts.ts",

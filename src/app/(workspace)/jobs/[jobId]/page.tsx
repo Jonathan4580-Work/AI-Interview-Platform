@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   createAvailabilitySlotAction,
+  generatePersonalizedInterviewAction,
   markApplicationNotSelectedAction,
+  regeneratePersonalizedInterviewAction,
   returnApplicationToReviewAction,
   sendAvailabilityRequestAction,
   sendInvitationAction,
@@ -259,6 +261,10 @@ function ApplicationCard({
   const confirmedAvailability = application.availabilityRequests.find(
     (request) => request.status === "CONFIRMED",
   );
+  const personalizedPlan = application.personalizedInterviewPlans.at(0) ?? null;
+  const personalizedReady =
+    personalizedPlan?.status === "READY" &&
+    personalizedPlan.personalizedInterviewPlanVersionId !== null;
   return (
     <div className="rounded-2xl border border-border/80 bg-gradient-to-br from-surface to-primary-soft/30 p-5 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -293,6 +299,7 @@ function ApplicationCard({
             {recommendation === null || recommendation === undefined ? null : (
               <StatusBadge value={`AI: ${recommendation}`} />
             )}
+            <StatusBadge value={personalizedPlanLabel(personalizedPlan?.status ?? null)} />
           </div>
           <div className="mt-3 grid gap-1 text-sm text-muted-foreground">
             <p>
@@ -331,6 +338,50 @@ function ApplicationCard({
               </p>
             </div>
           )}
+          <div className="mt-3 rounded-md border border-border bg-background/70 p-3 text-sm">
+            <p className="font-medium text-foreground">Personalized interview</p>
+            <p className="mt-1 text-muted-foreground">
+              {personalizedPlanDescription(personalizedPlan?.status ?? null)}
+            </p>
+            {personalizedPlan?.failureMessageSafe === null ||
+            personalizedPlan?.failureMessageSafe === undefined ? null : (
+              <p className="mt-2 text-warning">{personalizedPlan.failureMessageSafe}</p>
+            )}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <form action={generatePersonalizedInterviewAction}>
+                <input type="hidden" name="applicationId" value={application.id} />
+                <PendingSubmitButton
+                  size="sm"
+                  pendingLabel="Generating..."
+                  disabled={application.status !== "AVAILABILITY_CONFIRMED"}
+                >
+                  Generate personalized interview
+                </PendingSubmitButton>
+              </form>
+              {personalizedPlan === null ? null : (
+                <form action={regeneratePersonalizedInterviewAction}>
+                  <input type="hidden" name="applicationId" value={application.id} />
+                  <PendingSubmitButton
+                    size="sm"
+                    variant="secondary"
+                    pendingLabel="Regenerating..."
+                    disabled={application.status !== "AVAILABILITY_CONFIRMED"}
+                  >
+                    Regenerate
+                  </PendingSubmitButton>
+                </form>
+              )}
+              {personalizedPlan === null ? null : (
+                <Button asChild size="sm" variant="secondary">
+                  <Link
+                    href={`/jobs/${application.jobId}/applications/${application.id}/interview-plan`}
+                  >
+                    View questions
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </div>
           <p className="mt-2 text-xs text-muted-foreground">
             Applied {formatDate(application.appliedAt)}
           </p>
@@ -407,7 +458,8 @@ function ApplicationCard({
               type="submit"
               disabled={
                 application.candidate.primaryEmail === null ||
-                application.status !== "AVAILABILITY_CONFIRMED"
+                application.status !== "AVAILABILITY_CONFIRMED" ||
+                !personalizedReady
               }
             >
               <Mail aria-hidden="true" />
@@ -551,6 +603,21 @@ function screeningLabel(screening: CvScreening | null): string {
   if (screening.screeningStatus === "COMPLETE") return "Screening complete";
   if (screening.screeningStatus === "FAILED") return "Screening failed";
   return "Screening pending";
+}
+
+function personalizedPlanLabel(status: string | null): string {
+  if (status === "READY") return "Personalized interview ready";
+  if (status === "PENDING") return "Personalized interview generating";
+  if (status === "FAILED") return "Personalized interview failed";
+  return "Personalized interview not generated";
+}
+
+function personalizedPlanDescription(status: string | null): string {
+  if (status === "READY")
+    return "Review the candidate-specific questions before sending an invite.";
+  if (status === "PENDING") return "Question generation is in progress.";
+  if (status === "FAILED") return "Generation failed. You can retry safely.";
+  return "Generate candidate-specific questions after availability is confirmed.";
 }
 
 function decisionLabel(status: string): string {

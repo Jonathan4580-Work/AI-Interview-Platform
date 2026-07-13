@@ -135,6 +135,13 @@ export async function getJobDetail(context: HrWorkspaceContext, jobId: string) {
           },
           currentStage: true,
           cvScreenings: { orderBy: { updatedAt: "desc" }, take: 1 },
+          personalizedInterviewPlans: {
+            orderBy: { updatedAt: "desc" },
+            take: 1,
+            include: {
+              personalizedVersion: true,
+            },
+          },
           decisionHistory: { orderBy: { createdAt: "desc" }, take: 3 },
           availabilityRequests: {
             orderBy: { createdAt: "desc" },

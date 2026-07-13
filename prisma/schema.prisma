@@ -502,6 +502,14 @@ enum CvScreeningConfidence {
   @@map("cv_screening_confidence")
 }
 
+enum PersonalizedInterviewPlanStatus {
+  PENDING
+  READY
+  FAILED
+
+  @@map("personalized_interview_plan_status")
+}
+
 enum CandidateTagStatus {
   ACTIVE
   ARCHIVED
@@ -1307,6 +1315,7 @@ model Company {
   candidateAccounts       CandidateAccount[]
   candidateDocuments      CandidateDocument[]
   applicationCvScreenings ApplicationCvScreening[]
+  applicationInterviewPlans ApplicationInterviewPlan[]
   candidateTags           CandidateTag[]
   candidateTagAssignments CandidateTagAssignment[]
   candidateNotes          CandidateNote[]
@@ -1428,6 +1437,7 @@ model User {
   applicationDecisionHistory ApplicationDecisionHistory[]
   availabilitySlotsCreated InterviewAvailabilitySlot[]
   availabilityRequestsCreated ApplicationAvailabilityRequest[]
+  applicationInterviewPlansCreated ApplicationInterviewPlan[]
   credentials             AuthCredential[]
   sessions                AuthSession[]
   passwordResetTokens     PasswordResetToken[]
@@ -2141,6 +2151,7 @@ model Job {
   intelligenceProfile JobIntelligenceProfile?
   interviewQuestions JobInterviewQuestion[]
   cvScreenings ApplicationCvScreening[]
+  applicationInterviewPlans ApplicationInterviewPlan[]
   availabilitySlots InterviewAvailabilitySlot[]
   availabilityRequests ApplicationAvailabilityRequest[]
   applicationDecisionHistory ApplicationDecisionHistory[]
@@ -2291,6 +2302,7 @@ model InterviewPlan {
   job         Job?                   @relation(fields: [companyId, jobId], references: [companyId, id], onDelete: Cascade)
   jobTemplate JobTemplate?           @relation(fields: [companyId, jobTemplateId], references: [companyId, id], onDelete: Cascade)
   versions    InterviewPlanVersion[]
+  applicationInterviewPlans ApplicationInterviewPlan[]
 
   @@unique([companyId, id])
   @@index([companyId, jobId])
@@ -2315,6 +2327,9 @@ model InterviewPlanVersion {
   company           Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
   interviewPlan     InterviewPlan      @relation(fields: [companyId, interviewPlanId], references: [companyId, id], onDelete: Cascade)
   interviewSessions InterviewSession[]
+  sourceApplicationInterviewPlans ApplicationInterviewPlan[] @relation("SourceApplicationInterviewPlanVersion")
+  personalizedApplicationInterviewPlans ApplicationInterviewPlan[] @relation("PersonalizedApplicationInterviewPlanVersion")
+  candidateInvitations CandidateInvitation[]
 
   @@unique([companyId, id])
   @@unique([companyId, interviewPlanId, versionNumber])
@@ -2343,6 +2358,7 @@ model Candidate {
   mergedCandidates  Candidate[]              @relation("CandidateMergeTarget")
   applications      CandidateApplication[]
   cvScreenings      ApplicationCvScreening[]
+  applicationInterviewPlans ApplicationInterviewPlan[]
   documents         CandidateDocument[]
   applicationDecisionHistory ApplicationDecisionHistory[]
   availabilityRequests ApplicationAvailabilityRequest[]
@@ -2395,6 +2411,7 @@ model CandidateApplication {
   invitations       CandidateInvitation[]
   interviewSessions InterviewSession[]
   cvScreenings      ApplicationCvScreening[]
+  personalizedInterviewPlans ApplicationInterviewPlan[]
   decisionHistory   ApplicationDecisionHistory[]
   availabilityRequests ApplicationAvailabilityRequest[]
   selectedAvailabilitySlots InterviewAvailabilitySlot[] @relation("SelectedApplicationAvailabilitySlot")
@@ -2616,6 +2633,46 @@ model ApplicationCvScreening {
   @@map("application_cv_screenings")
 }
 
+model ApplicationInterviewPlan {
+  id                                  String                         @id @default(cuid())
+  companyId                           String                         @map("company_id")
+  applicationId                       String                         @map("application_id")
+  candidateId                         String                         @map("candidate_id")
+  jobId                               String                         @map("job_id")
+  sourceInterviewPlanVersionId        String?                        @map("source_interview_plan_version_id")
+  personalizedInterviewPlanId         String?                        @map("personalized_interview_plan_id")
+  personalizedInterviewPlanVersionId  String?                        @map("personalized_interview_plan_version_id")
+  status                              PersonalizedInterviewPlanStatus @default(PENDING)
+  provider                            String?
+  model                               String?
+  basisSummary                        String?                        @db.Text @map("basis_summary")
+  questionCount                       Int                            @default(0) @map("question_count")
+  inputLength                         Int?                           @map("input_length")
+  failureCode                         String?                        @map("failure_code")
+  failureMessageSafe                  String?                        @db.Text @map("failure_message_safe")
+  safeDiagnosticsJson                 Json                           @map("safe_diagnostics_json")
+  generatedAt                         DateTime?                      @map("generated_at")
+  createdByUserId                     String?                        @map("created_by_user_id")
+  createdAt                           DateTime                       @default(now()) @map("created_at")
+  updatedAt                           DateTime                       @updatedAt @map("updated_at")
+
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  application         CandidateApplication @relation(fields: [companyId, applicationId], references: [companyId, id], onDelete: Cascade)
+  candidate           Candidate            @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
+  job                 Job                  @relation(fields: [companyId, jobId], references: [companyId, id], onDelete: Restrict)
+  sourceVersion       InterviewPlanVersion? @relation("SourceApplicationInterviewPlanVersion", fields: [companyId, sourceInterviewPlanVersionId], references: [companyId, id], onDelete: Restrict, map: "aip_source_version_fk")
+  personalizedPlan    InterviewPlan?        @relation(fields: [companyId, personalizedInterviewPlanId], references: [companyId, id], onDelete: Restrict, map: "aip_plan_fk")
+  personalizedVersion InterviewPlanVersion? @relation("PersonalizedApplicationInterviewPlanVersion", fields: [companyId, personalizedInterviewPlanVersionId], references: [companyId, id], onDelete: Restrict, map: "aip_personal_version_fk")
+  createdBy           User?                 @relation(fields: [companyId, createdByUserId], references: [companyId, id], onDelete: Restrict, map: "aip_created_by_fk")
+
+  @@unique([companyId, id], map: "app_int_plan_company_id_key")
+  @@unique([companyId, applicationId], map: "app_int_plan_app_key")
+  @@index([companyId, jobId, status], map: "app_int_plan_job_status_idx")
+  @@index([companyId, candidateId], map: "app_int_plan_candidate_idx")
+  @@index([companyId, personalizedInterviewPlanVersionId], map: "app_int_plan_version_idx")
+  @@map("application_interview_plans")
+}
+
 model CandidateTag {
   id        String             @id @default(cuid())
   companyId String             @map("company_id")
@@ -2702,6 +2759,7 @@ model CandidateInvitation {
   candidateId   String           @map("candidate_id")
   applicationId String?          @map("application_id")
   jobId         String           @map("job_id")
+  interviewPlanVersionId String? @map("interview_plan_version_id")
   tokenHash     String           @unique @map("token_hash")
   email         String
   status        InvitationStatus @default(DRAFT)
@@ -2721,6 +2779,7 @@ model CandidateInvitation {
   candidate   Candidate             @relation(fields: [companyId, candidateId], references: [companyId, id], onDelete: Cascade)
   application CandidateApplication? @relation(fields: [companyId, applicationId], references: [companyId, id], onDelete: Cascade)
   job         Job                   @relation(fields: [companyId, jobId], references: [companyId, id], onDelete: Restrict)
+  interviewPlanVersion InterviewPlanVersion? @relation(fields: [companyId, interviewPlanVersionId], references: [companyId, id], onDelete: Restrict, map: "ci_plan_version_fk")
   sessions    InterviewSession[]
   candidateSessions CandidateSession[]
   tokenAttempts CandidateTokenAttempt[]
@@ -2735,6 +2794,7 @@ model CandidateInvitation {
   @@unique([companyId, id])
   @@index([companyId, candidateId])
   @@index([companyId, applicationId])
+  @@index([companyId, interviewPlanVersionId], map: "ci_plan_version_idx")
   @@index([companyId, status])
   @@index([companyId, tokenConsumedAt])
   @@index([expiresAt])

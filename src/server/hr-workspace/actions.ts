@@ -15,6 +15,7 @@ import { CandidatePortalService } from "@/modules/candidate-portal";
 import { hashJobDescriptionText } from "@/modules/jobs/jd-analysis";
 import { parseJobDescriptionAutofill } from "@/modules/jobs/jd-local-autofill";
 import { slugify } from "@/modules/organization";
+import { generatePersonalizedInterviewPlan } from "@/modules/personalized-interviews/service";
 import { WorkflowService } from "@/modules/workflows";
 import { PrismaWorkflowRepository } from "@/modules/workflows/prisma-workflow-repository";
 
@@ -686,12 +687,66 @@ export async function sendAvailabilityRequestAction(formData: FormData): Promise
   revalidatePath(`/candidates/${result.application.candidateId}`);
 }
 
+export async function generatePersonalizedInterviewAction(formData: FormData): Promise<void> {
+  const context = await requireHrWorkspaceContext("applications:manage");
+  const applicationId = requiredText(formData, "applicationId", 1, 200);
+  const plan = await generatePersonalizedInterviewPlan({ context, applicationId });
+  await audit(
+    context,
+    "application.personalized_interview_generated",
+    "candidate_application",
+    applicationId,
+    {
+      after: {
+        applicationId,
+        status: plan.status,
+        questionCount: plan.questionCount,
+        provider: plan.provider,
+        model: plan.model,
+      },
+    },
+  );
+  revalidatePath("/jobs");
+  revalidatePath("/candidates");
+}
+
+export async function regeneratePersonalizedInterviewAction(formData: FormData): Promise<void> {
+  const context = await requireHrWorkspaceContext("applications:manage");
+  const applicationId = requiredText(formData, "applicationId", 1, 200);
+  const plan = await generatePersonalizedInterviewPlan({
+    context,
+    applicationId,
+    forceRegenerate: true,
+  });
+  await audit(
+    context,
+    "application.personalized_interview_regenerated",
+    "candidate_application",
+    applicationId,
+    {
+      after: {
+        applicationId,
+        status: plan.status,
+        questionCount: plan.questionCount,
+        provider: plan.provider,
+        model: plan.model,
+      },
+    },
+  );
+  revalidatePath("/jobs");
+  revalidatePath("/candidates");
+}
+
 export async function sendInvitationAction(formData: FormData): Promise<void> {
   const context = await requireHrWorkspaceContext("invitations:manage");
   const applicationId = requiredText(formData, "applicationId", 1, 200);
   const application = await prisma.candidateApplication.findUnique({
     where: { companyId_id: { companyId: context.tenant.companyId, id: applicationId } },
-    include: { candidate: true, job: true },
+    include: {
+      candidate: true,
+      job: true,
+      personalizedInterviewPlans: { orderBy: { updatedAt: "desc" }, take: 1 },
+    },
   });
   if (
     application?.candidate.primaryEmail === null ||
@@ -704,6 +759,13 @@ export async function sendInvitationAction(formData: FormData): Promise<void> {
   if (!Number.isInteger(expiresInHours) || expiresInHours < 1 || expiresInHours > 336) {
     throw new Error("Invitation expiry must be between 1 and 336 hours.");
   }
+  const personalizedPlan = application.personalizedInterviewPlans.at(0) ?? null;
+  if (
+    personalizedPlan?.status !== "READY" ||
+    personalizedPlan.personalizedInterviewPlanVersionId === null
+  ) {
+    throw new Error("Generate and review a personalized interview before sending the invite.");
+  }
 
   const invitation = await prisma.candidateInvitation.create({
     data: {
@@ -711,6 +773,7 @@ export async function sendInvitationAction(formData: FormData): Promise<void> {
       candidateId: application.candidateId,
       applicationId: application.id,
       jobId: application.jobId,
+      interviewPlanVersionId: personalizedPlan.personalizedInterviewPlanVersionId,
       tokenHash: `draft:${randomBytes(24).toString("base64url")}`,
       email: application.candidate.primaryEmail,
       expiresAt: new Date(Date.now() + expiresInHours * 60 * 60 * 1000),
@@ -732,7 +795,11 @@ export async function sendInvitationAction(formData: FormData): Promise<void> {
   });
 
   await audit(context, "hr_mvp.invitation_sent", "candidate_invitation", invitation.id, {
-    after: { id: invitation.id, applicationId: application.id },
+    after: {
+      id: invitation.id,
+      applicationId: application.id,
+      interviewPlanVersionId: personalizedPlan.personalizedInterviewPlanVersionId,
+    },
   });
   revalidatePath("/");
   revalidatePath("/jobs");
