@@ -787,6 +787,7 @@ enum NotificationIntentType {
   CANDIDATE_SUPPORT_REQUESTED
   CANDIDATE_WITHDRAWN
   RESULTS_READY
+  APPLICATION_DECISION
 
   @@map("notification_intent_type")
 }

@@ -43,6 +43,7 @@ export async function listCandidateApplications() {
     session,
     applications: applications.map((application) => {
       const availabilityRequest = application.availabilityRequests.at(0);
+      const finalOutcome = readFinalOutcome(application.metadataJson, application.status);
       return {
         id: application.id,
         jobTitle: application.job.title,
@@ -52,6 +53,7 @@ export async function listCandidateApplications() {
         appliedAt: application.appliedAt,
         status: normalizeCandidateStatus(application.status),
         nextStep: candidateNextStep(application.status),
+        finalOutcome,
         availability:
           availabilityRequest === undefined
             ? null
@@ -76,6 +78,36 @@ export async function listCandidateApplications() {
   };
 }
 
+function readFinalOutcome(
+  value: unknown,
+  status: string,
+): {
+  readonly decision: "HIRED" | "REJECTED";
+  readonly onboardingDate: string | null;
+  readonly recordedAt: string | null;
+} | null {
+  if (status !== "HIRED" && status !== "REJECTED") {
+    return null;
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return { decision: status, onboardingDate: null, recordedAt: null };
+  }
+  const metadata = value as Record<string, unknown>;
+  const outcome = metadata.hrInterviewOutcome;
+  if (typeof outcome !== "object" || outcome === null || Array.isArray(outcome)) {
+    return { decision: status, onboardingDate: null, recordedAt: null };
+  }
+  const record = outcome as Record<string, unknown>;
+  return {
+    decision: status,
+    onboardingDate:
+      typeof record.onboardingDate === "string" && record.onboardingDate.length > 0
+        ? record.onboardingDate
+        : null,
+    recordedAt: typeof record.recordedAt === "string" ? record.recordedAt : null,
+  };
+}
+
 function candidateNextStep(status: string): string {
   switch (status) {
     case "NEW":
@@ -89,6 +121,8 @@ function candidateNextStep(status: string): string {
     case "NOT_SELECTED":
     case "REJECTED":
       return "The hiring team has completed its review for this role.";
+    case "HIRED":
+      return "Congratulations. The hiring team will contact you with next steps.";
     default:
       return "The hiring team will share the next step when it is ready.";
   }

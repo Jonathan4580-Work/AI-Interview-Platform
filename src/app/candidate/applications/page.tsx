@@ -109,6 +109,31 @@ export default async function CandidateApplicationsPage({
                         Applied {formatDate(application.appliedAt)}
                       </p>
                       <p className="mt-2 text-sm text-muted-foreground">{application.nextStep}</p>
+                      {application.finalOutcome === null ? null : (
+                        <div
+                          className={
+                            application.finalOutcome.decision === "HIRED"
+                              ? "mt-3 rounded-xl border border-success/30 bg-success/10 p-3 text-sm"
+                              : "mt-3 rounded-xl border border-border bg-muted/30 p-3 text-sm"
+                          }
+                        >
+                          <p className="font-medium text-foreground">
+                            {application.finalOutcome.decision === "HIRED"
+                              ? "Offer outcome recorded"
+                              : "Application review completed"}
+                          </p>
+                          <p className="mt-1 text-muted-foreground">
+                            {application.finalOutcome.decision === "HIRED"
+                              ? "Congratulations. The hiring team has marked your application as hired."
+                              : "Thank you for your time. The hiring team has completed this application review."}
+                          </p>
+                          {application.finalOutcome.onboardingDate === null ? null : (
+                            <p className="mt-2 font-medium text-foreground">
+                              Target onboarding date: {application.finalOutcome.onboardingDate}
+                            </p>
+                          )}
+                        </div>
+                      )}
                       {application.availability === null ? null : (
                         <div className="mt-3 rounded-xl border border-primary/15 bg-primary-soft/60 p-3 text-sm">
                           <p className="flex items-center gap-2 font-medium text-foreground">

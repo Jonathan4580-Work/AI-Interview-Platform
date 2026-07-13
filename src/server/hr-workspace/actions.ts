@@ -628,6 +628,7 @@ export async function recordHrInterviewOutcomeAction(formData: FormData): Promis
   const application = await prisma.$transaction(async (tx) => {
     const existing = await tx.candidateApplication.findUnique({
       where: { companyId_id: { companyId: context.tenant.companyId, id: applicationId } },
+      include: { candidate: { select: { fullName: true, primaryEmail: true } }, job: true },
     });
     if (existing === null) {
       throw new Error("Application was not found.");
@@ -670,6 +671,18 @@ export async function recordHrInterviewOutcomeAction(formData: FormData): Promis
         createdByUserId: context.actor.id,
       },
     });
+    if (nextStatus === "HIRED" || nextStatus === "REJECTED") {
+      await createCandidateDecisionNotificationIntent(tx, {
+        companyId: context.tenant.companyId,
+        applicationId: updated.id,
+        candidateEmail: existing.candidate.primaryEmail,
+        candidateName: existing.candidate.fullName,
+        jobTitle: existing.job.title,
+        decision,
+        status: nextStatus,
+        onboardingDate,
+      });
+    }
     return updated;
   });
 
@@ -1413,6 +1426,61 @@ function isHrOutcomeAllowed(outcome: "HIRE" | "REJECT" | "HOLD", status: string)
     return status === "INTERVIEW" || status === "REJECTED";
   }
   return status === "INTERVIEW";
+}
+
+async function createCandidateDecisionNotificationIntent(
+  tx: Prisma.TransactionClient,
+  input: {
+    readonly companyId: string;
+    readonly applicationId: string;
+    readonly candidateEmail: string | null;
+    readonly candidateName: string;
+    readonly jobTitle: string;
+    readonly decision: "HIRED" | "REJECTED" | "HOLD";
+    readonly status: "HIRED" | "REJECTED";
+    readonly onboardingDate: string | null;
+  },
+): Promise<void> {
+  if (input.candidateEmail === null) {
+    return;
+  }
+  const recipientEmail = input.candidateEmail.trim().toLowerCase();
+  if (recipientEmail.length === 0) {
+    return;
+  }
+  const existing = await tx.notificationIntent.findFirst({
+    where: {
+      companyId: input.companyId,
+      type: "APPLICATION_DECISION",
+      recipientEmail,
+      targetResourceType: "candidate_application",
+      targetResourceId: input.applicationId,
+      status: { in: ["PENDING", "DISPATCHED"] },
+    },
+    select: { id: true },
+  });
+  if (existing !== null) {
+    return;
+  }
+  await tx.notificationIntent.create({
+    data: {
+      companyId: input.companyId,
+      type: "APPLICATION_DECISION",
+      channel: "EMAIL",
+      recipientEmail,
+      recipientName: input.candidateName,
+      targetResourceType: "candidate_application",
+      targetResourceId: input.applicationId,
+      payloadJson: {
+        schemaVersion: 1,
+        applicationId: input.applicationId,
+        jobTitle: input.jobTitle,
+        decision: input.decision,
+        status: input.status,
+        onboardingDate: input.onboardingDate,
+      } satisfies Prisma.InputJsonObject,
+    },
+  });
 }
 
 function parseHrInterviewScore(formData: FormData): number | null {

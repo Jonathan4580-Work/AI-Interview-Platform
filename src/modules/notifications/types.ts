@@ -8,7 +8,8 @@ export type NotificationIntentType =
   | "invitation_reminder"
   | "schedule_created"
   | "schedule_updated"
-  | "results_ready";
+  | "results_ready"
+  | "application_decision";
 export type NotificationChannel = "email";
 export type NotificationIntentStatus = "pending" | "cancelled" | "dispatched" | "failed";
 
