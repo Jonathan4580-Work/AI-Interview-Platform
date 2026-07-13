@@ -557,14 +557,51 @@ export async function createApplicationAction(formData: FormData): Promise<void>
   const candidateId = requiredText(formData, "candidateId", 1, 200);
   const jobId = requiredText(formData, "jobId", 1, 200);
   const stageId = optionalText(formData, "stageId", 200);
-  const application = await prisma.candidateApplication.create({
-    data: {
-      companyId: context.tenant.companyId,
-      candidateId,
-      jobId,
-      currentStageId: stageId,
-      metadataJson: {},
-    },
+  const application = await prisma.$transaction(async (tx) => {
+    const [candidate, job, duplicate] = await Promise.all([
+      tx.candidate.findUnique({
+        where: { companyId_id: { companyId: context.tenant.companyId, id: candidateId } },
+        select: { id: true, status: true, deletedAt: true },
+      }),
+      tx.job.findUnique({
+        where: { companyId_id: { companyId: context.tenant.companyId, id: jobId } },
+        select: { id: true, pipelineId: true, status: true, deletedAt: true },
+      }),
+      tx.candidateApplication.findFirst({
+        where: {
+          companyId: context.tenant.companyId,
+          candidateId,
+          jobId,
+          deletedAt: null,
+          status: { notIn: ["HIRED", "REJECTED", "WITHDRAWN", "ARCHIVED"] },
+        },
+        select: { id: true },
+      }),
+    ]);
+    if (candidate?.deletedAt !== null || candidate.status !== "ACTIVE") {
+      throw new Error("Candidate is not available for a new application.");
+    }
+    if (job?.deletedAt !== null || !["OPEN", "DRAFT", "PAUSED"].includes(job.status)) {
+      throw new Error("Job is not available for a new application.");
+    }
+    if (duplicate !== null) {
+      throw new Error("This candidate already has an active application for this job.");
+    }
+    const safeStageId = await validateStageForJob(
+      tx,
+      context.tenant.companyId,
+      job.pipelineId,
+      stageId,
+    );
+    return tx.candidateApplication.create({
+      data: {
+        companyId: context.tenant.companyId,
+        candidateId,
+        jobId,
+        currentStageId: safeStageId,
+        metadataJson: {},
+      },
+    });
   });
   await audit(context, "hr_mvp.application_created", "candidate_application", application.id, {
     after: { id: application.id, candidateId, jobId },
@@ -579,9 +616,24 @@ export async function updateApplicationStageAction(formData: FormData): Promise<
   const context = await requireHrWorkspaceContext("applications:manage");
   const applicationId = requiredText(formData, "applicationId", 1, 200);
   const stageId = optionalText(formData, "stageId", 200);
-  const application = await prisma.candidateApplication.update({
-    where: { companyId_id: { companyId: context.tenant.companyId, id: applicationId } },
-    data: { currentStageId: stageId },
+  const application = await prisma.$transaction(async (tx) => {
+    const existing = await tx.candidateApplication.findUnique({
+      where: { companyId_id: { companyId: context.tenant.companyId, id: applicationId } },
+      include: { job: { select: { pipelineId: true } } },
+    });
+    if (existing?.deletedAt !== null) {
+      throw new Error("Application was not found.");
+    }
+    const safeStageId = await validateStageForJob(
+      tx,
+      context.tenant.companyId,
+      existing.job.pipelineId,
+      stageId,
+    );
+    return tx.candidateApplication.update({
+      where: { companyId_id: { companyId: context.tenant.companyId, id: applicationId } },
+      data: { currentStageId: safeStageId },
+    });
   });
   await audit(
     context,
@@ -1441,6 +1493,25 @@ function boundedInteger(formData: FormData, key: string, min: number, max: numbe
     throw new Error(`${key} must be between ${String(min)} and ${String(max)}.`);
   }
   return value;
+}
+
+async function validateStageForJob(
+  tx: Prisma.TransactionClient,
+  companyId: string,
+  pipelineId: string,
+  stageId: string | null,
+): Promise<string | null> {
+  if (stageId === null) {
+    return null;
+  }
+  const stage = await tx.pipelineStage.findUnique({
+    where: { companyId_id: { companyId, id: stageId } },
+    select: { id: true, pipelineId: true, status: true },
+  });
+  if (stage?.pipelineId !== pipelineId || stage.status !== "ACTIVE") {
+    throw new Error("Selected pipeline stage does not belong to this job.");
+  }
+  return stage.id;
 }
 
 function hrVerificationStatus(

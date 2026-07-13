@@ -211,8 +211,22 @@ export async function listCandidates(context: HrWorkspaceContext, query: string 
     include: {
       applications: {
         where: { deletedAt: null },
-        include: { job: true },
+        include: {
+          job: true,
+          currentStage: true,
+          cvScreenings: { orderBy: { updatedAt: "desc" }, take: 1 },
+          interviewSessions: {
+            orderBy: { updatedAt: "desc" },
+            take: 1,
+            include: { hrReports: true },
+          },
+        },
         orderBy: { updatedAt: "desc" },
+      },
+      documents: {
+        where: { status: "ACTIVE", type: "RESUME", deletedAt: null },
+        select: { id: true },
+        take: 1,
       },
       invitations: { orderBy: { createdAt: "desc" }, take: 3 },
       interviewSessions: { orderBy: { updatedAt: "desc" }, take: 3, include: { hrReports: true } },

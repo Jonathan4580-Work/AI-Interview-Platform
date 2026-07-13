@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/layout/page-header";
-import { Button } from "@/components/ui/button";
+import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createCandidateAction } from "@/server/hr-workspace/actions";
 import { requireHrWorkspaceContext } from "@/server/hr-workspace/context";
@@ -31,7 +31,9 @@ export default async function NewCandidatePage() {
               <TextField name="phone" type="tel" maxLength={40} />
             </Field>
             <div className="flex justify-end">
-              <Button type="submit">Add candidate</Button>
+              <PendingSubmitButton pendingLabel="Adding candidate...">
+                Add candidate
+              </PendingSubmitButton>
             </div>
           </CardContent>
         </Card>

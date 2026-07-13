@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/layout/page-header";
-import { Button } from "@/components/ui/button";
+import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { updateCandidateAction } from "@/server/hr-workspace/actions";
 import { requireHrWorkspaceContext } from "@/server/hr-workspace/context";
@@ -44,7 +44,9 @@ export default async function EditCandidatePage({
               <TextField name="phone" type="tel" defaultValue={candidate.phone ?? ""} />
             </Field>
             <div className="flex justify-end">
-              <Button type="submit">Save changes</Button>
+              <PendingSubmitButton pendingLabel="Saving changes...">
+                Save changes
+              </PendingSubmitButton>
             </div>
           </CardContent>
         </Card>
