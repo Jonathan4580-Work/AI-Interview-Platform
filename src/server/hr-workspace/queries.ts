@@ -25,6 +25,8 @@ export async function getDashboardData(context: HrWorkspaceContext) {
     interviewsAwaitingCompletion,
     interviewsCompleted,
     resultsReady,
+    hiredCandidates,
+    notSelectedCandidates,
     recentActivity,
   ] = await Promise.all([
     prisma.job.count({ where: { companyId, status: "OPEN", deletedAt: null } }),
@@ -56,6 +58,12 @@ export async function getDashboardData(context: HrWorkspaceContext) {
     prisma.hrReport.count({
       where: { companyId, status: "READY", activeVersionId: { not: null } },
     }),
+    prisma.candidateApplication.count({
+      where: { companyId, status: "HIRED", deletedAt: null },
+    }),
+    prisma.candidateApplication.count({
+      where: { companyId, status: { in: ["NOT_SELECTED", "REJECTED"] }, deletedAt: null },
+    }),
     prisma.auditEvent.findMany({
       where: { companyId },
       orderBy: { createdAt: "desc" },
@@ -82,6 +90,8 @@ export async function getDashboardData(context: HrWorkspaceContext) {
     interviewsAwaitingCompletion,
     interviewsCompleted,
     resultsReady,
+    hiredCandidates,
+    notSelectedCandidates,
     recentActivity,
   };
 }

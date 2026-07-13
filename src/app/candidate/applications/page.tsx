@@ -195,6 +195,7 @@ function formatDate(value: Date): string {
 }
 
 function timelineCurrent(status: string): string {
+  if (status.includes("Hired") || status.includes("Selected")) return "Completed";
   if (status.includes("Completed")) return "Completed";
   if (status.includes("Interview")) return "Interview";
   if (status.includes("Availability")) return "Availability";

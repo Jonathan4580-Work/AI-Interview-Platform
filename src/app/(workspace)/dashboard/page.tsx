@@ -9,7 +9,9 @@ import {
   Search,
   Sparkles,
   Star,
+  Trophy,
   UserRound,
+  XCircle,
 } from "lucide-react";
 
 import { MetricCard, PremiumHero, SectionCard } from "@/components/recruiting/recruiting-ui";
@@ -64,6 +66,13 @@ export default async function WorkspaceOverviewPage() {
       icon: CalendarCheck,
     },
     { label: "Reports ready", value: dashboard.resultsReady, href: "/reports", icon: Sparkles },
+    { label: "Hired", value: dashboard.hiredCandidates, href: "/jobs", icon: Trophy },
+    {
+      label: "Not selected",
+      value: dashboard.notSelectedCandidates,
+      href: "/jobs",
+      icon: XCircle,
+    },
   ];
   const recentActivityDescription = `${String(
     dashboard.invitationsSent,

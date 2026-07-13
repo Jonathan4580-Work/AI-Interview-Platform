@@ -265,6 +265,7 @@ function ApplicationCard({
   const personalizedReady =
     personalizedPlan?.status === "READY" &&
     personalizedPlan.personalizedInterviewPlanVersionId !== null;
+  const finalOutcome = readFinalOutcome(application.metadataJson, application.status);
   return (
     <div className="rounded-2xl border border-border/80 bg-gradient-to-br from-surface to-primary-soft/30 p-5 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -315,6 +316,32 @@ function ApplicationCard({
               {applicationStatusLabel(application.status)}
             </p>
           </div>
+          {finalOutcome === null ? null : (
+            <div
+              className={
+                finalOutcome.decision === "HIRED"
+                  ? "mt-3 rounded-md border border-success/30 bg-success/10 p-3 text-sm text-success"
+                  : "mt-3 rounded-md border border-border bg-muted/30 p-3 text-sm text-muted-foreground"
+              }
+            >
+              <p className="font-medium text-foreground">
+                {finalOutcome.decision === "HIRED" ? "Candidate hired" : "Candidate not selected"}
+              </p>
+              <p className="mt-1">
+                {finalOutcome.decision === "HIRED"
+                  ? "Final HR outcome is recorded. Keep onboarding details outside AI scoring and review history."
+                  : "Final HR outcome is recorded. Candidate-facing messaging remains neutral and does not expose internal notes."}
+              </p>
+              {finalOutcome.onboardingDate === null ? null : (
+                <p className="mt-2 font-medium text-foreground">
+                  Target onboarding date: {finalOutcome.onboardingDate}
+                </p>
+              )}
+              {finalOutcome.recordedAt === null ? null : (
+                <p className="mt-2 text-xs">Recorded {finalOutcome.recordedAt}</p>
+              )}
+            </div>
+          )}
           {activeAvailability === undefined ? null : (
             <div className="mt-3 rounded-md border border-info/25 bg-info-soft p-3 text-sm text-info">
               <p className="font-medium">Availability request sent</p>
@@ -625,6 +652,8 @@ function personalizedPlanDescription(status: string | null): string {
 
 function decisionLabel(status: string): string {
   switch (status) {
+    case "HIRED":
+      return "Hired";
     case "SHORTLISTED":
       return "Shortlisted";
     case "NOT_SELECTED":
@@ -637,6 +666,36 @@ function decisionLabel(status: string): string {
     default:
       return "Under review";
   }
+}
+
+function readFinalOutcome(
+  value: unknown,
+  status: string,
+): {
+  readonly decision: "HIRED" | "REJECTED";
+  readonly onboardingDate: string | null;
+  readonly recordedAt: string | null;
+} | null {
+  if (status !== "HIRED" && status !== "REJECTED" && status !== "NOT_SELECTED") {
+    return null;
+  }
+  const decision = status === "HIRED" ? "HIRED" : "REJECTED";
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return { decision, onboardingDate: null, recordedAt: null };
+  }
+  const outcome = (value as Record<string, unknown>).hrInterviewOutcome;
+  if (typeof outcome !== "object" || outcome === null || Array.isArray(outcome)) {
+    return { decision, onboardingDate: null, recordedAt: null };
+  }
+  const record = outcome as Record<string, unknown>;
+  return {
+    decision,
+    onboardingDate:
+      typeof record.onboardingDate === "string" && record.onboardingDate.length > 0
+        ? record.onboardingDate
+        : null,
+    recordedAt: typeof record.recordedAt === "string" ? record.recordedAt : null,
+  };
 }
 
 function applicationStatusLabel(status: string): string {
