@@ -61,16 +61,126 @@ await runLoop();
 async function runLoop(): Promise<void> {
   while (!shutdownRequested) {
     await recoverStaleJobs();
+    const notificationProcessed = await dispatchPendingNotificationIntent();
     await queuePendingWorkflowSteps();
     const localJobProcessed = await processNextLocalJob();
     const workflowStepProcessed = await processNextWorkflowStep();
-    if (!localJobProcessed && !workflowStepProcessed) {
+    if (!notificationProcessed && !localJobProcessed && !workflowStepProcessed) {
       await sleep(pollMs);
     }
   }
 
   logger.info("Local MySQL worker stopped.");
   await prisma.$disconnect();
+}
+
+async function dispatchPendingNotificationIntent(): Promise<boolean> {
+  const intent = await prisma.notificationIntent.findFirst({
+    where: {
+      status: "PENDING",
+      type: "APPLICATION_DECISION",
+      OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }],
+    },
+    orderBy: [{ scheduledFor: "asc" }, { createdAt: "asc" }],
+  });
+  if (intent === null) {
+    return false;
+  }
+
+  logger.info(
+    {
+      notificationIntentId: intent.id,
+      type: intent.type,
+      targetResourceId: intent.targetResourceId,
+    },
+    "Local notification intent claimed.",
+  );
+
+  try {
+    const payload = readApplicationDecisionPayload(intent.payloadJson);
+    const delivery = await emailService.createDelivery({
+      context: {
+        tenant: createTenantContext(intent.companyId),
+        actor: { type: "system", id: null },
+        request: {
+          requestId: `notification-${intent.id}`,
+          correlationId: `notification-${intent.id}`,
+          sessionId: null,
+          ipAddress: null,
+          userAgent: "aptly-local-worker",
+        },
+      },
+      templateKey: "application_decision",
+      templateVariables: {
+        companyName: await companyName(intent.companyId),
+        recipientName: intent.recipientName ?? "Candidate",
+        supportEmail: env.SMTP_REPLY_TO_EMAIL ?? env.SMTP_FROM_EMAIL ?? "support@aptly.local",
+        actionUrl: env.CANDIDATE_APP_URL ?? env.APP_URL,
+        expirationDate: "Not applicable",
+        jobTitle: payload.jobTitle,
+        decisionLabel:
+          payload.status === "HIRED"
+            ? "Application outcome: hired"
+            : "Application outcome: not selected",
+        decisionMessage:
+          payload.status === "HIRED"
+            ? "Congratulations. The hiring team has marked your application as hired."
+            : "Thank you for your time. The hiring team has completed its review and will not move forward for this role.",
+        nextStep:
+          payload.status === "HIRED" && payload.onboardingDate !== null
+            ? `Target onboarding date: ${payload.onboardingDate}. The hiring team will contact you with next steps.`
+            : "You can view the latest status in your Aptly candidate dashboard.",
+      },
+      recipientEmail: intent.recipientEmail,
+      recipientName: intent.recipientName,
+      notificationIntentId: intent.id,
+      provider: env.EMAIL_DELIVERY_MODE === "preview" ? "preview" : "smtp",
+      idempotencyKey: `notification:${intent.id}:application_decision`,
+    });
+    await emailService.enqueueDelivery({
+      context: {
+        tenant: createTenantContext(intent.companyId),
+        actor: { type: "system", id: null },
+        request: {
+          requestId: `notification-${intent.id}`,
+          correlationId: `notification-${intent.id}`,
+          sessionId: null,
+          ipAddress: null,
+          userAgent: "aptly-local-worker",
+        },
+      },
+      deliveryId: delivery.id,
+    });
+    await prisma.notificationIntent.update({
+      where: { companyId_id: { companyId: intent.companyId, id: intent.id } },
+      data: { status: "DISPATCHED", dispatchedAt: new Date(), failureReason: null },
+    });
+    logger.info(
+      { notificationIntentId: intent.id, deliveryId: delivery.id },
+      "Local notification intent dispatched to email.",
+    );
+  } catch (error) {
+    await prisma.notificationIntent.update({
+      where: { companyId_id: { companyId: intent.companyId, id: intent.id } },
+      data: {
+        status: "FAILED",
+        failureReason: redactError(
+          error instanceof Error ? error.message : "Unknown notification failure.",
+        ),
+      },
+    });
+    logger.error(
+      {
+        notificationIntentId: intent.id,
+        errorCode: "LOCAL_NOTIFICATION_FAILED",
+        message: redactError(
+          error instanceof Error ? error.message : "Unknown notification failure.",
+        ),
+      },
+      "Local notification intent failed.",
+    );
+  }
+  return true;
 }
 
 async function queuePendingWorkflowSteps(): Promise<void> {
@@ -297,6 +407,38 @@ function readEmailDeliveryPayload(value: Prisma.JsonValue): EmailDeliveryJob {
     throw new Error("Local job payload must be an object.");
   }
   return value as unknown as EmailDeliveryJob;
+}
+
+function readApplicationDecisionPayload(value: Prisma.JsonValue): {
+  readonly jobTitle: string;
+  readonly status: "HIRED" | "REJECTED";
+  readonly onboardingDate: string | null;
+} {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("Notification payload must be an object.");
+  }
+  const payload = value as Record<string, unknown>;
+  const jobTitle = typeof payload.jobTitle === "string" ? payload.jobTitle.trim() : "";
+  const status = payload.status;
+  if (jobTitle.length === 0 || (status !== "HIRED" && status !== "REJECTED")) {
+    throw new Error("Application decision notification payload is invalid.");
+  }
+  return {
+    jobTitle,
+    status,
+    onboardingDate:
+      typeof payload.onboardingDate === "string" && payload.onboardingDate.length > 0
+        ? payload.onboardingDate
+        : null,
+  };
+}
+
+async function companyName(companyId: string): Promise<string> {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { name: true },
+  });
+  return company?.name ?? "the hiring team";
 }
 
 function redactError(message: string): string {

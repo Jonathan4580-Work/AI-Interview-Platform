@@ -21,7 +21,8 @@ export type EmailTemplateKey =
   | "interview_reminder"
   | "invitation_expired"
   | "email_verification"
-  | "password_reset";
+  | "password_reset"
+  | "application_decision";
 
 export type EmailDeliveryStatus =
   | "pending"

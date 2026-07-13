@@ -134,6 +134,32 @@ export const defaultEmailTemplates: readonly EmailTemplateDefinition[] = [
       "If you did not request this, contact {{supportEmail}}.",
     ].join("\n"),
   },
+  {
+    key: "application_decision",
+    name: "Application decision",
+    schemaVersion: 1,
+    variables: [...sharedVariables, "jobTitle", "decisionLabel", "decisionMessage", "nextStep"],
+    subject: "Application update from {{companyName}} for {{jobTitle}}",
+    htmlBody: baseHtml(`
+      <p>Hello {{recipientName}},</p>
+      <p>{{companyName}} has shared an update for your application to {{jobTitle}}.</p>
+      <p><strong>{{decisionLabel}}</strong></p>
+      <p>{{decisionMessage}}</p>
+      <p>{{nextStep}}</p>
+      <p>For questions, contact {{supportEmail}}.</p>
+    `),
+    textBody: [
+      "Hello {{recipientName}},",
+      "",
+      "{{companyName}} has shared an update for your application to {{jobTitle}}.",
+      "",
+      "{{decisionLabel}}",
+      "{{decisionMessage}}",
+      "{{nextStep}}",
+      "",
+      "For questions, contact {{supportEmail}}.",
+    ].join("\n"),
+  },
 ];
 
 export function getDefaultEmailTemplate(key: EmailTemplateKey): EmailTemplateDefinition {

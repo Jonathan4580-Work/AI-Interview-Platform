@@ -837,6 +837,7 @@ enum EmailTemplateKey {
   INVITATION_EXPIRED
   EMAIL_VERIFICATION
   PASSWORD_RESET
+  APPLICATION_DECISION
 
   @@map("email_template_key")
 }

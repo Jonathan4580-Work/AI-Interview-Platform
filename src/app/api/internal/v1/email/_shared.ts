@@ -36,6 +36,7 @@ export const emailTemplateKeySchema = z.enum([
   "INVITATION_EXPIRED",
   "EMAIL_VERIFICATION",
   "PASSWORD_RESET",
+  "APPLICATION_DECISION",
 ]);
 
 export async function requireEmailTenant(
