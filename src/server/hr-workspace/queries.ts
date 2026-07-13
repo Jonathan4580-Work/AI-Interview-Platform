@@ -1,6 +1,7 @@
 import { prisma } from "@/infra/database";
 
 import type { HrWorkspaceContext } from "./context";
+import type { ApplicationStatus, Prisma } from "@prisma/client";
 
 const ACTIVE_INTERVIEW_STATUSES = [
   "NOT_STARTED",
@@ -232,6 +233,70 @@ export async function listCandidates(context: HrWorkspaceContext, query: string 
       interviewSessions: { orderBy: { updatedAt: "desc" }, take: 3, include: { hrReports: true } },
     },
     orderBy: { updatedAt: "desc" },
+    take: 100,
+  });
+}
+
+export async function listApplicationsInbox(
+  context: HrWorkspaceContext,
+  filters: {
+    readonly status?: ApplicationStatus | null;
+    readonly q?: string | null;
+  },
+) {
+  const search = filters.q?.trim();
+  const status = filters.status ?? null;
+  const where: Prisma.CandidateApplicationWhereInput = {
+    companyId: context.tenant.companyId,
+    deletedAt: null,
+    ...(status === null ? {} : { status }),
+    ...(search === undefined || search.length === 0
+      ? {}
+      : {
+          OR: [
+            { candidate: { fullName: { contains: search } } },
+            { candidate: { primaryEmail: { contains: search.toLowerCase() } } },
+            { job: { title: { contains: search } } },
+          ],
+        }),
+  };
+  return prisma.candidateApplication.findMany({
+    where,
+    include: {
+      candidate: {
+        include: {
+          documents: {
+            where: { status: "ACTIVE", type: "RESUME", deletedAt: null },
+            select: { id: true },
+            take: 1,
+          },
+        },
+      },
+      job: true,
+      currentStage: true,
+      cvScreenings: { orderBy: { updatedAt: "desc" }, take: 1 },
+      personalizedInterviewPlans: { orderBy: { updatedAt: "desc" }, take: 1 },
+      availabilityRequests: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        include: { selectedSlot: true },
+      },
+      invitations: { orderBy: { createdAt: "desc" }, take: 1 },
+      interviewSessions: {
+        orderBy: { updatedAt: "desc" },
+        take: 1,
+        include: {
+          transcripts: { orderBy: { updatedAt: "desc" }, take: 1 },
+          evaluationVersions: {
+            select: { id: true, status: true, overallConfidence: true },
+            orderBy: { versionNumber: "desc" },
+            take: 1,
+          },
+          hrReports: { orderBy: { updatedAt: "desc" }, take: 1 },
+        },
+      },
+    },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     take: 100,
   });
 }

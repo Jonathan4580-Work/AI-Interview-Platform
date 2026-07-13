@@ -3,6 +3,7 @@ import {
   BriefcaseBusiness,
   Building2,
   CalendarCheck,
+  ClipboardList,
   Database,
   Download,
   Globe2,
@@ -20,6 +21,7 @@ import type { PermissionKey } from "@/modules/access-control";
 
 export const workspaceNavigationRoutes = [
   "/dashboard",
+  "/applications",
   "/jobs",
   "/candidates",
   "/interviews",
@@ -53,6 +55,12 @@ export type ShellAudience = "company" | "platform";
 
 const companyNavigationDefinitions = [
   { label: "Dashboard", href: "/dashboard", icon: BarChart3, permission: undefined },
+  {
+    label: "Applications",
+    href: "/applications",
+    icon: ClipboardList,
+    permission: "applications:read",
+  },
   { label: "Jobs", href: "/jobs", icon: BriefcaseBusiness, permission: "jobs:read" },
   { label: "Candidates", href: "/candidates", icon: UserRound, permission: "candidates:read" },
   { label: "Interviews", href: "/interviews", icon: CalendarCheck, permission: "interviews:read" },

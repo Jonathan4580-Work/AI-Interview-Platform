@@ -24,7 +24,7 @@ import { EmptyPanel, formatDate, titleCase } from "../_components/hr-ui";
 const quickActions = [
   { label: "Create job", href: "/jobs/new", icon: BriefcaseBusiness },
   { label: "Add candidate", href: "/candidates/new", icon: UserRound },
-  { label: "Send invitation", href: "/candidates", icon: Mail },
+  { label: "Review applications", href: "/applications", icon: Mail },
   { label: "View interviews", href: "/interviews", icon: CalendarCheck },
 ] as const;
 
@@ -34,11 +34,16 @@ export default async function WorkspaceOverviewPage() {
 
   const stats = [
     { label: "Open jobs", value: dashboard.activeJobs, href: "/jobs", icon: BriefcaseBusiness },
-    { label: "New applications", value: dashboard.newApplications, href: "/jobs", icon: UserRound },
+    {
+      label: "New applications",
+      value: dashboard.newApplications,
+      href: "/applications?status=NEW",
+      icon: UserRound,
+    },
     {
       label: "Screening pending",
       value: dashboard.screeningPending,
-      href: "/jobs",
+      href: "/applications",
       icon: FileSearch,
     },
     {
@@ -50,13 +55,13 @@ export default async function WorkspaceOverviewPage() {
     {
       label: "Shortlisted",
       value: dashboard.shortlistedCandidates,
-      href: "/jobs",
+      href: "/applications?status=SHORTLISTED",
       icon: ClipboardCheck,
     },
     {
       label: "Availability requested",
       value: dashboard.availabilityRequested,
-      href: "/jobs",
+      href: "/applications?status=AVAILABILITY_REQUESTED",
       icon: CalendarCheck,
     },
     {
@@ -66,11 +71,16 @@ export default async function WorkspaceOverviewPage() {
       icon: CalendarCheck,
     },
     { label: "Reports ready", value: dashboard.resultsReady, href: "/reports", icon: Sparkles },
-    { label: "Hired", value: dashboard.hiredCandidates, href: "/jobs", icon: Trophy },
+    {
+      label: "Hired",
+      value: dashboard.hiredCandidates,
+      href: "/applications?status=HIRED",
+      icon: Trophy,
+    },
     {
       label: "Not selected",
       value: dashboard.notSelectedCandidates,
-      href: "/jobs",
+      href: "/applications?status=NOT_SELECTED",
       icon: XCircle,
     },
   ];

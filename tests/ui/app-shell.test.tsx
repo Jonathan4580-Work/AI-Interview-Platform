@@ -71,6 +71,7 @@ describe("application shell", () => {
     const links = within(primaryNavigation).getAllByRole("link");
     expect(links.map((link) => link.getAttribute("href"))).toEqual([
       "/dashboard",
+      "/applications",
       "/jobs",
       "/candidates",
       "/interviews",
@@ -244,6 +245,7 @@ describe("application shell", () => {
   it("uses operational company routes for the product navigation", () => {
     expect(workspaceNavigationRoutes).toEqual([
       "/dashboard",
+      "/applications",
       "/jobs",
       "/candidates",
       "/interviews",
