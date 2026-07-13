@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, MapPin } from "lucide-react";
 
 import { PremiumHero, SectionCard } from "@/components/recruiting/recruiting-ui";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,12 +37,15 @@ export default async function PublicCareerJobPage({
   return (
     <main className="min-h-screen bg-background">
       <section className="mx-auto grid w-full max-w-5xl gap-5 px-4 pt-8 sm:px-6 lg:px-8">
-        <Button asChild variant="quiet" className="w-fit">
-          <Link href={`/careers/${job.company.slug}`}>
-            <ArrowLeft aria-hidden="true" />
-            All roles
-          </Link>
-        </Button>
+        <div className="flex items-center justify-between gap-3">
+          <Button asChild variant="quiet" className="w-fit">
+            <Link href={`/careers/${job.company.slug}`}>
+              <ArrowLeft aria-hidden="true" />
+              All roles
+            </Link>
+          </Button>
+          <ThemeToggle />
+        </div>
         <PremiumHero
           eyebrow={job.company.name}
           title={job.title}

@@ -19,9 +19,15 @@ function Sidebar({ navigation, workspace, className }: SidebarProps) {
       )}
     >
       <div className="px-2 pb-4">
-        <AptlyLogo />
+        <AptlyLogo
+          wordmarkClassName="text-white"
+          markClassName="border-white/15 bg-white text-primary"
+        />
       </div>
-      <WorkspaceSwitcher workspace={workspace} className="mb-4 w-full" />
+      <WorkspaceSwitcher
+        workspace={workspace}
+        className="mb-4 w-full border-white/10 bg-white/10 text-white hover:bg-white/15"
+      />
       <nav className="space-y-1.5" aria-label="Primary">
         {navigation.map((item) =>
           item.disabled || item.href === undefined ? (
@@ -41,8 +47,9 @@ function Sidebar({ navigation, workspace, className }: SidebarProps) {
               href={item.href}
               aria-current={item.current ? "page" : undefined}
               className={cn(
-                "flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-slate-300 transition-colors duration-base hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
-                item.current && "bg-white text-slate-950 shadow-sm",
+                "flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium text-slate-200 transition-colors duration-base hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
+                item.current &&
+                  "bg-gradient-to-r from-primary to-indigo-500 text-white shadow-sm shadow-primary/25",
               )}
             >
               <item.icon className="size-4" aria-hidden="true" />

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowRight, BriefcaseBusiness, MapPin } from "lucide-react";
 
 import { PremiumHero } from "@/components/recruiting/recruiting-ui";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,7 +41,12 @@ export default async function PublicCareersPage({
           eyebrow={`${String(data.jobs.length)} open roles`}
           title={`Join ${data.company.name}`}
           description="Explore open roles, understand the interview process, and apply with a CV when a role feels right."
-          actions={<Badge variant="neutral">Candidate applications</Badge>}
+          actions={
+            <>
+              <Badge variant="neutral">Candidate applications</Badge>
+              <ThemeToggle className="text-white hover:bg-white/15 hover:text-white" />
+            </>
+          }
         />
       </section>
 

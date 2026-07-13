@@ -260,7 +260,7 @@ function ApplicationCard({
     (request) => request.status === "CONFIRMED",
   );
   return (
-    <div className="rounded-2xl border border-border/80 bg-gradient-to-br from-white to-slate-50 p-5 shadow-sm">
+    <div className="rounded-2xl border border-border/80 bg-gradient-to-br from-surface to-primary-soft/30 p-5 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <Link
@@ -466,7 +466,7 @@ function ScreeningDetails({ screening }: { readonly screening: CvScreening | nul
   const isLowQuality =
     screening.extractionQualityScore !== null && screening.extractionQualityScore < 45;
   return (
-    <details className="mt-5 rounded-2xl border border-primary/15 bg-white/90 p-4 shadow-xs">
+    <details className="mt-5 rounded-2xl border border-primary/15 bg-surface/90 p-4 shadow-xs">
       <summary className="cursor-pointer text-sm font-semibold text-foreground">
         AI screening result
       </summary>

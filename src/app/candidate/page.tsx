@@ -3,6 +3,7 @@ import { BriefcaseBusiness, CalendarClock, CheckCircle2, LogOut, Sparkles } from
 
 import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 import { MetricCard, PremiumHero, SectionCard } from "@/components/recruiting/recruiting-ui";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { signOutCandidateAccountAction } from "@/server/public-careers/actions";
@@ -18,6 +19,7 @@ export default async function CandidateHomePage() {
             eyebrow="Candidate portal"
             title="Track applications with Aptly"
             description="Sign in from a public job posting to view your applications, availability requests, and interview next steps."
+            actions={<ThemeToggle className="text-white hover:bg-white/15 hover:text-white" />}
           />
           <Card>
             <CardContent className="p-6 text-sm text-muted-foreground">
@@ -44,12 +46,15 @@ export default async function CandidateHomePage() {
           title={`Welcome, ${data.session.fullName}`}
           description="Review application progress, respond to availability requests, and prepare for upcoming interviews."
           actions={
-            <form action={signOutCandidateAccountAction}>
-              <PendingSubmitButton variant="secondary" pendingLabel="Signing out...">
-                <LogOut aria-hidden="true" />
-                Sign out
-              </PendingSubmitButton>
-            </form>
+            <>
+              <ThemeToggle className="text-white hover:bg-white/15 hover:text-white" />
+              <form action={signOutCandidateAccountAction}>
+                <PendingSubmitButton variant="secondary" pendingLabel="Signing out...">
+                  <LogOut aria-hidden="true" />
+                  Sign out
+                </PendingSubmitButton>
+              </form>
+            </>
           }
         />
 
@@ -92,7 +97,7 @@ export default async function CandidateHomePage() {
             {data.applications.slice(0, 3).map((application) => (
               <article
                 key={application.id}
-                className="rounded-2xl border border-border/80 bg-white/80 p-4 shadow-xs"
+                className="rounded-2xl border border-border/80 bg-surface/80 p-4 shadow-xs"
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>

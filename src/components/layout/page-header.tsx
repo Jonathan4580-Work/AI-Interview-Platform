@@ -14,7 +14,7 @@ function PageHeader({ eyebrow, title, description, actions, className }: PageHea
   return (
     <header
       className={cn(
-        "relative grid gap-4 overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-white via-white to-blue-50/70 p-5 shadow-sm sm:flex sm:items-end sm:justify-between",
+        "relative grid gap-4 overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-surface via-surface to-primary-soft/70 p-5 shadow-sm sm:flex sm:items-end sm:justify-between",
         className,
       )}
     >

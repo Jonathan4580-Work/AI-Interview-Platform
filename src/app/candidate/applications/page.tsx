@@ -3,6 +3,7 @@ import { BriefcaseBusiness, CalendarClock, FileText, LogOut } from "lucide-react
 
 import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 import { Timeline } from "@/components/recruiting/recruiting-ui";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,12 +52,15 @@ export default async function CandidateApplicationsPage({
               Signed in as {data.session.fullName} · {data.session.email}
             </p>
           </div>
-          <form action={signOutCandidateAccountAction}>
-            <PendingSubmitButton variant="secondary" pendingLabel="Signing out...">
-              <LogOut aria-hidden="true" />
-              Sign out
-            </PendingSubmitButton>
-          </form>
+          <div className="flex flex-wrap items-center gap-2">
+            <ThemeToggle />
+            <form action={signOutCandidateAccountAction}>
+              <PendingSubmitButton variant="secondary" pendingLabel="Signing out...">
+                <LogOut aria-hidden="true" />
+                Sign out
+              </PendingSubmitButton>
+            </form>
+          </div>
         </div>
 
         {query.submitted === "1" ? (
@@ -92,7 +96,7 @@ export default async function CandidateApplicationsPage({
               data.applications.map((application) => (
                 <article
                   key={application.id}
-                  className="rounded-2xl border border-border/80 bg-gradient-to-br from-white to-blue-50/40 p-5 shadow-xs"
+                  className="rounded-2xl border border-border/80 bg-gradient-to-br from-surface to-primary-soft/40 p-5 shadow-xs"
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">

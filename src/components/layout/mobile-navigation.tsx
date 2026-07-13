@@ -43,7 +43,7 @@ function MobileNavigation({ open, onOpenChange, navigation, workspace }: MobileN
                   href={item.href}
                   aria-current={item.current ? "page" : undefined}
                   className={cn(
-                    "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-slate hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     item.current && "bg-primary-soft text-primary",
                   )}
                   onClick={() => {

@@ -28,11 +28,11 @@ function WorkspaceSwitcher({ workspace, workspaces = [], className }: WorkspaceS
         <Button
           variant="secondary"
           className={cn(
-            "min-h-14 justify-start gap-3 rounded-xl border-white/10 bg-white/10 px-3 py-2.5 text-left leading-tight text-white shadow-none hover:bg-white/15",
+            "min-h-14 justify-start gap-3 rounded-xl border-border/80 bg-muted/70 px-3 py-2.5 text-left leading-tight text-foreground shadow-none hover:bg-muted",
             className,
           )}
         >
-          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white text-xs font-bold text-primary shadow-sm">
+          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-surface text-xs font-bold text-primary shadow-sm">
             {workspace.name.slice(0, 1).toUpperCase()}
           </span>
           <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 text-left">

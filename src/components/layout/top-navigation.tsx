@@ -3,6 +3,7 @@ import { Menu, Search } from "lucide-react";
 import { AccountMenu } from "@/components/layout/account-menu";
 import { NotificationButton } from "@/components/layout/notification-button";
 import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -17,7 +18,7 @@ interface TopNavigationProps {
 
 function TopNavigation({ user, workspace, onSignOut, onOpenMobileNavigation }: TopNavigationProps) {
   return (
-    <header className="sticky top-0 z-header flex min-h-16 items-center gap-3 border-b border-border/70 bg-white/80 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-header flex min-h-16 items-center gap-3 border-b border-border/70 bg-surface/85 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
       <Button
         variant="quiet"
         size="icon"
@@ -37,7 +38,7 @@ function TopNavigation({ user, workspace, onSignOut, onOpenMobileNavigation }: T
         <form
           role="search"
           action="/search"
-          className="flex h-11 max-w-xl items-center gap-2 rounded-xl border border-border/80 bg-muted/70 px-3 text-sm text-muted-foreground shadow-xs focus-within:bg-white focus-within:ring-2 focus-within:ring-ring/30"
+          className="flex h-11 max-w-xl items-center gap-2 rounded-xl border border-border/80 bg-muted/70 px-3 text-sm text-muted-foreground shadow-xs focus-within:bg-surface focus-within:ring-2 focus-within:ring-ring/30"
         >
           <label className="sr-only" htmlFor="global-workspace-search">
             Search workspace
@@ -54,6 +55,7 @@ function TopNavigation({ user, workspace, onSignOut, onOpenMobileNavigation }: T
           </button>
         </form>
       </div>
+      <ThemeToggle />
       <NotificationButton />
       <AccountMenu user={user} onSignOut={onSignOut} />
     </header>

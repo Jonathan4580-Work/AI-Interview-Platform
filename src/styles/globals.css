@@ -98,7 +98,7 @@
     @apply bg-canvas font-sans text-foreground antialiased;
     background:
       radial-gradient(circle at 18% 0%, hsl(var(--primary) / 0.08), transparent 30rem),
-      linear-gradient(180deg, hsl(216 60% 99%), hsl(var(--canvas)) 24rem);
+      linear-gradient(180deg, hsl(var(--background)), hsl(var(--canvas)) 24rem);
   }
 
   ::selection {

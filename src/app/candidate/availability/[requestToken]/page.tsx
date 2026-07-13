@@ -3,6 +3,7 @@ import { CalendarClock, CheckCircle2 } from "lucide-react";
 
 import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 import { PremiumHero } from "@/components/recruiting/recruiting-ui";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +35,7 @@ export default async function CandidateAvailabilityPage({
           eyebrow={request.company.name}
           title="Confirm interview availability"
           description="Select the interview time that works best for you. The hiring team will send the interview invitation after your availability is confirmed."
+          actions={<ThemeToggle className="text-white hover:bg-white/15 hover:text-white" />}
         />
 
         {confirmed ? (
@@ -93,7 +95,7 @@ export default async function CandidateAvailabilityPage({
                     {slots.map((slot) => (
                       <label
                         key={slot.id}
-                        className="flex cursor-pointer gap-3 rounded-2xl border border-border/80 bg-white/80 p-4 shadow-xs transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-primary-soft/40"
+                        className="flex cursor-pointer gap-3 rounded-2xl border border-border/80 bg-surface/80 p-4 shadow-xs transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-primary-soft/40"
                       >
                         <input
                           required

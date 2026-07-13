@@ -61,10 +61,10 @@ export function MetricCard({
   readonly tone?: "blue" | "green" | "amber" | "violet";
 }) {
   const toneClass = {
-    blue: "from-blue-500/16 to-indigo-500/8 text-blue-700",
-    green: "from-emerald-500/16 to-teal-500/8 text-emerald-700",
-    amber: "from-amber-500/18 to-orange-500/8 text-amber-700",
-    violet: "from-violet-500/16 to-blue-500/8 text-violet-700",
+    blue: "from-blue-500/16 to-indigo-500/8 text-blue-700 dark:text-blue-200",
+    green: "from-emerald-500/16 to-teal-500/8 text-emerald-700 dark:text-emerald-200",
+    amber: "from-amber-500/18 to-orange-500/8 text-amber-700 dark:text-amber-200",
+    violet: "from-violet-500/16 to-blue-500/8 text-violet-700 dark:text-violet-200",
   }[tone];
   return (
     <Card className="overflow-hidden">
@@ -166,7 +166,7 @@ export function AIInsightCard({
   return (
     <div
       className={cn(
-        "rounded-xl border border-primary/15 bg-gradient-to-br from-primary-soft via-white to-indigo-50 p-4",
+        "rounded-xl border border-primary/15 bg-gradient-to-br from-primary-soft via-surface to-primary-soft/60 p-4",
         className,
       )}
     >
@@ -189,7 +189,7 @@ export function EmptyState({
   readonly action?: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-dashed border-border bg-white/70 p-8 text-center">
+    <div className="rounded-2xl border border-dashed border-border bg-surface/70 p-8 text-center">
       <div className="mx-auto grid size-11 place-items-center rounded-xl bg-primary-soft text-primary">
         <ArrowRight className="size-5" aria-hidden="true" />
       </div>

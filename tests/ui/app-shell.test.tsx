@@ -6,11 +6,14 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, vi } from "vitest";
 
 import { AppShell } from "@/components/layout/app-shell";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 import {
   platformNavigationRoutes,
   workspaceNavigationRoutes,
 } from "@/components/layout/workspace-navigation";
 import { permissionKeys } from "@/modules/access-control";
+
+import type { ReactElement } from "react";
 
 const navigationState = vi.hoisted(() => ({ pathname: "/" }));
 
@@ -20,12 +23,19 @@ vi.mock("next/navigation", () => ({
 
 afterEach(() => {
   navigationState.pathname = "/";
+  window.localStorage.clear();
+  document.documentElement.classList.remove("dark");
+  delete document.documentElement.dataset.theme;
   vi.restoreAllMocks();
 });
 
+function renderWithTheme(ui: ReactElement) {
+  return render(<ThemeProvider>{ui}</ThemeProvider>);
+}
+
 describe("application shell", () => {
   it("renders workspace, account, notification, and primary navigation shells", () => {
-    render(
+    renderWithTheme(
       <AppShell
         workspace={{ name: "Acme Hiring", planLabel: "Enterprise" }}
         user={{
@@ -51,7 +61,7 @@ describe("application shell", () => {
 
   it("links the sidebar only to implemented authenticated routes", () => {
     navigationState.pathname = "/interviews";
-    render(
+    renderWithTheme(
       <AppShell workspace={{ name: "Acme Hiring" }} permissions={permissionKeys}>
         <p>Content</p>
       </AppShell>,
@@ -73,6 +83,9 @@ describe("application shell", () => {
       "aria-current",
       "page",
     );
+    expect(within(primaryNavigation).getByRole("link", { name: "Interviews" })).toHaveClass(
+      "from-primary",
+    );
 
     expect(within(primaryNavigation).queryByText("Roles")).toBeNull();
     expect(within(primaryNavigation).queryByText("Webhooks")).toBeNull();
@@ -85,7 +98,7 @@ describe("application shell", () => {
   it("limits Platform Admin navigation to platform settings routes", () => {
     navigationState.pathname = "/settings/integrations";
 
-    render(
+    renderWithTheme(
       <AppShell
         audience="platform"
         workspace={{ name: "Aptly Platform", planLabel: "Platform administration" }}
@@ -106,7 +119,7 @@ describe("application shell", () => {
   });
 
   it("filters company navigation by the authenticated user's permissions", () => {
-    render(
+    renderWithTheme(
       <AppShell workspace={{ name: "Acme Hiring" }} permissions={["search:workspace"]}>
         <p>Content</p>
       </AppShell>,
@@ -126,7 +139,7 @@ describe("application shell", () => {
 
   it("keeps the global workspace search keyboard-accessible and routed to search", async () => {
     const user = userEvent.setup();
-    render(
+    renderWithTheme(
       <AppShell workspace={{ name: "Acme Hiring" }} permissions={permissionKeys}>
         <p>Content</p>
       </AppShell>,
@@ -143,7 +156,7 @@ describe("application shell", () => {
 
   it("opens and closes mobile navigation from the top bar", async () => {
     const user = userEvent.setup();
-    render(
+    renderWithTheme(
       <AppShell workspace={{ name: "Acme Hiring" }} permissions={permissionKeys}>
         <p>Content</p>
       </AppShell>,
@@ -165,7 +178,7 @@ describe("application shell", () => {
   it("submits sign out through the account menu", async () => {
     const user = userEvent.setup();
     const signOut = vi.fn();
-    render(
+    renderWithTheme(
       <AppShell
         workspace={{ name: "A very long company name that should never collide with dividers" }}
         user={{
@@ -191,7 +204,7 @@ describe("application shell", () => {
   });
 
   it("does not expose internal phase language to company users", () => {
-    render(
+    renderWithTheme(
       <AppShell workspace={{ name: "Acme Hiring" }} permissions={permissionKeys}>
         <p>Operational hiring workspace</p>
       </AppShell>,
@@ -209,6 +222,23 @@ describe("application shell", () => {
 
     expect(source).not.toMatch(/Phase\s+\d+/iu);
     expect(source).not.toMatch(/foundation ready|development foundation/iu);
+  });
+
+  it("cycles and persists the shell theme preference", async () => {
+    const user = userEvent.setup();
+    renderWithTheme(
+      <AppShell workspace={{ name: "Acme Hiring" }} permissions={permissionKeys}>
+        <p>Content</p>
+      </AppShell>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Use light theme" }));
+    expect(window.localStorage.getItem("aptly-theme")).toBe("light");
+    expect(document.documentElement).not.toHaveClass("dark");
+
+    await user.click(screen.getByRole("button", { name: "Use dark theme" }));
+    expect(window.localStorage.getItem("aptly-theme")).toBe("dark");
+    expect(document.documentElement).toHaveClass("dark");
   });
 
   it("uses operational company routes for the product navigation", () => {

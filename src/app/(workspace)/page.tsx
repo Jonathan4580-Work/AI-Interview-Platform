@@ -148,7 +148,7 @@ export default async function WorkspaceOverviewPage() {
               {dashboard.recentActivity.map((event) => (
                 <li
                   key={event.id}
-                  className="rounded-xl border border-border/80 bg-white/80 p-4 text-sm shadow-xs"
+                  className="rounded-xl border border-border/80 bg-surface/80 p-4 text-sm shadow-xs"
                 >
                   <p className="font-medium text-foreground">
                     {titleCase(event.action.replaceAll(".", " "))}
