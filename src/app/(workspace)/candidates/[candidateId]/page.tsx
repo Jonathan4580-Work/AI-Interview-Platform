@@ -101,11 +101,16 @@ export default async function CandidateDetailPage({
                         {application.job.title}
                       </Link>
                       <div className="mt-3">
-                        <Button asChild size="sm" variant="secondary">
-                          <Link href={`/applications/${application.id}/verification`}>
-                            Open HR verification
-                          </Link>
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                          <Button asChild size="sm" variant="secondary">
+                            <Link href={`/applications/${application.id}`}>Open application</Link>
+                          </Button>
+                          <Button asChild size="sm" variant="secondary">
+                            <Link href={`/applications/${application.id}/verification`}>
+                              Open HR verification
+                            </Link>
+                          </Button>
+                        </div>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <StatusBadge value={application.status} />

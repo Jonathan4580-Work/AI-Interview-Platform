@@ -408,6 +408,9 @@ function ApplicationCard({
                 </Button>
               )}
               <Button asChild size="sm" variant="secondary">
+                <Link href={`/applications/${application.id}`}>Open application</Link>
+              </Button>
+              <Button asChild size="sm" variant="secondary">
                 <Link href={`/applications/${application.id}/verification`}>HR verification</Link>
               </Button>
             </div>
