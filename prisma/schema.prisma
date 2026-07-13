@@ -2457,6 +2457,7 @@ model InterviewAvailabilitySlot {
   id                    String                          @id @default(cuid())
   companyId             String                          @map("company_id")
   jobId                 String                          @map("job_id")
+  purpose               String                          @default("AI_INTERVIEW")
   startAt               DateTime                        @map("start_at")
   endAt                 DateTime                        @map("end_at")
   timezone              String
@@ -2489,6 +2490,7 @@ model ApplicationAvailabilityRequest {
   applicationId      String                    @map("application_id")
   candidateId        String                    @map("candidate_id")
   candidateAccountId String?                   @map("candidate_account_id")
+  purpose            String                    @default("AI_INTERVIEW")
   tokenHash          String                    @unique(map: "aar_token_hash_key") @map("token_hash")
   tokenSalt          String                    @map("token_salt")
   status             AvailabilityRequestStatus @default(ACTIVE)

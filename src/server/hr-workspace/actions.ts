@@ -747,6 +747,135 @@ export async function sendAvailabilityRequestAction(formData: FormData): Promise
   revalidatePath(`/candidates/${result.application.candidateId}`);
 }
 
+export async function createHrInterviewSlotAction(formData: FormData): Promise<void> {
+  const context = await requireHrWorkspaceContext("applications:manage");
+  const applicationId = requiredText(formData, "applicationId", 1, 200);
+  const date = requiredText(formData, "slotDate", 8, 20);
+  const start = requiredText(formData, "startTime", 4, 20);
+  const end = requiredText(formData, "endTime", 4, 20);
+  const timezone = readFormText(formData, "timezone").trim() || "Asia/Colombo";
+  const startAt = new Date(`${date}T${start}:00`);
+  const endAt = new Date(`${date}T${end}:00`);
+  if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || endAt <= startAt) {
+    throw new Error("HR interview slot start and end times are invalid.");
+  }
+  const application = await prisma.candidateApplication.findUnique({
+    where: { companyId_id: { companyId: context.tenant.companyId, id: applicationId } },
+    select: { id: true, jobId: true },
+  });
+  if (application === null) {
+    throw new Error("Application was not found.");
+  }
+  const slot = await prisma.interviewAvailabilitySlot.create({
+    data: {
+      companyId: context.tenant.companyId,
+      jobId: application.jobId,
+      purpose: "HR_INTERVIEW",
+      startAt,
+      endAt,
+      timezone,
+      locationNote: optionalText(formData, "locationNote", 1_000),
+      isOnline: formData.get("isOnline") !== "false",
+      status: "OPEN",
+      createdByUserId: context.actor.id,
+    },
+  });
+  await audit(context, "hr_interview.slot_created", "interview_availability_slot", slot.id, {
+    after: { id: slot.id, applicationId, jobId: application.jobId, startAt, endAt },
+  });
+  revalidatePath(`/applications/${applicationId}/verification`);
+}
+
+export async function sendHrInterviewAvailabilityRequestAction(formData: FormData): Promise<void> {
+  const context = await requireHrWorkspaceContext("applications:manage");
+  const applicationId = requiredText(formData, "applicationId", 1, 200);
+  const now = new Date();
+  const tokenSalt = randomBytes(16).toString("base64url");
+
+  const result = await prisma.$transaction(async (tx) => {
+    const application = await tx.candidateApplication.findUnique({
+      where: { companyId_id: { companyId: context.tenant.companyId, id: applicationId } },
+      include: { job: true, candidate: true },
+    });
+    if (application === null) {
+      throw new Error("Application was not found.");
+    }
+    if (application.status !== "INTERVIEW") {
+      throw new Error("Approve this candidate for HR interview before sending scheduling.");
+    }
+    if (application.job.status !== "OPEN") {
+      throw new Error("HR interview scheduling is only available for open jobs.");
+    }
+    const openSlotCount = await tx.interviewAvailabilitySlot.count({
+      where: {
+        companyId: context.tenant.companyId,
+        jobId: application.jobId,
+        purpose: "HR_INTERVIEW",
+        status: "OPEN",
+        startAt: { gt: now },
+      },
+    });
+    if (openSlotCount === 0) {
+      throw new Error("Create at least one upcoming HR interview slot first.");
+    }
+    await tx.applicationAvailabilityRequest.updateMany({
+      where: {
+        companyId: context.tenant.companyId,
+        applicationId,
+        purpose: "HR_INTERVIEW",
+        status: "ACTIVE",
+      },
+      data: { status: "CANCELLED", cancelledAt: now },
+    });
+    const request = await tx.applicationAvailabilityRequest.create({
+      data: {
+        companyId: context.tenant.companyId,
+        jobId: application.jobId,
+        applicationId: application.id,
+        candidateId: application.candidateId,
+        candidateAccountId: application.candidateAccountId,
+        purpose: "HR_INTERVIEW",
+        tokenHash: `pending:${randomBytes(16).toString("base64url")}`,
+        tokenSalt,
+        status: "ACTIVE",
+        expiresAt: new Date(now.getTime() + DEFAULT_AVAILABILITY_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
+        sentAt: now,
+        emailStatus: "LINK_GENERATED",
+        createdByUserId: context.actor.id,
+      },
+    });
+    const token = createAvailabilityRequestToken({
+      requestId: request.id,
+      companyId: request.companyId,
+      applicationId: request.applicationId,
+      tokenSalt,
+    });
+    const updated = await tx.applicationAvailabilityRequest.update({
+      where: { companyId_id: { companyId: context.tenant.companyId, id: request.id } },
+      data: { tokenHash: hashAvailabilityRequestToken(token) },
+    });
+    return { request: updated, application };
+  });
+
+  await audit(
+    context,
+    "hr_interview.scheduling_request_sent",
+    "application_availability_request",
+    result.request.id,
+    {
+      after: {
+        id: result.request.id,
+        applicationId: result.application.id,
+        purpose: result.request.purpose,
+        status: result.request.status,
+      },
+    },
+  );
+  revalidatePath(`/applications/${result.application.id}/verification`);
+  revalidatePath(`/jobs/${result.application.jobId}`);
+  revalidatePath(`/candidates/${result.application.candidateId}`);
+}
+
 export async function generatePersonalizedInterviewAction(formData: FormData): Promise<void> {
   const context = await requireHrWorkspaceContext("applications:manage");
   const applicationId = requiredText(formData, "applicationId", 1, 200);

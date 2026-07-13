@@ -6,11 +6,24 @@ import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 import { PageHeader } from "@/components/layout/page-header";
 import { AIInsightCard, ChipList, SectionCard } from "@/components/recruiting/recruiting-ui";
 import { Button } from "@/components/ui/button";
-import { recordHrVerificationAction } from "@/server/hr-workspace/actions";
+import {
+  createAvailabilityRequestToken,
+  createAvailabilityRequestUrl,
+} from "@/modules/availability/tokens";
+import {
+  createHrInterviewSlotAction,
+  recordHrVerificationAction,
+  sendHrInterviewAvailabilityRequestAction,
+} from "@/server/hr-workspace/actions";
 import { requireHrWorkspaceContext } from "@/server/hr-workspace/context";
 import { getApplicationVerificationDetail } from "@/server/hr-workspace/queries";
 
 import { EmptyPanel, StatusBadge, formatDate } from "../../../_components/hr-ui";
+
+type VerificationApplication = NonNullable<
+  Awaited<ReturnType<typeof getApplicationVerificationDetail>>
+>;
+type VerificationAvailabilityRequest = VerificationApplication["availabilityRequests"][number];
 
 export default async function ApplicationVerificationPage({
   params,
@@ -29,6 +42,10 @@ export default async function ApplicationVerificationPage({
   const evaluation = latestInterview?.evaluationVersions.at(0) ?? null;
   const report = latestInterview?.hrReports.at(0) ?? null;
   const reportVersion = report?.activeVersion ?? null;
+  const hrRequests = application.availabilityRequests.filter(
+    (request) => request.purpose === "HR_INTERVIEW",
+  );
+  const latestHrRequest = hrRequests.at(0) ?? null;
 
   return (
     <div className="grid gap-6">
@@ -140,6 +157,128 @@ export default async function ApplicationVerificationPage({
           reportReady={reportVersion !== null}
         />
       </div>
+
+      <SectionCard
+        title="HR interview scheduling"
+        description="Create manual HR interview slots and send a secure candidate booking link."
+      >
+        <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+          <form
+            action={createHrInterviewSlotAction}
+            className="grid gap-3 rounded-xl border border-border bg-surface p-4 md:grid-cols-2"
+          >
+            <input type="hidden" name="applicationId" value={application.id} />
+            <label className="grid gap-1.5 text-sm font-medium text-foreground">
+              Date
+              <input
+                required
+                name="slotDate"
+                type="date"
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium text-foreground">
+              Start
+              <input
+                required
+                name="startTime"
+                type="time"
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium text-foreground">
+              End
+              <input
+                required
+                name="endTime"
+                type="time"
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium text-foreground">
+              Meeting link or location
+              <input
+                name="locationNote"
+                placeholder="Google Meet, Zoom, office room, or phone"
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              />
+            </label>
+            <PendingSubmitButton pendingLabel="Adding slot..." className="md:col-span-2">
+              Add HR interview slot
+            </PendingSubmitButton>
+          </form>
+
+          <div className="grid gap-3">
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-foreground">Available HR slots</p>
+                <StatusBadge value={`${String(application.job.availabilitySlots.length)} slots`} />
+              </div>
+              {application.job.availabilitySlots.length === 0 ? (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Add at least one HR interview slot before sending the candidate booking link.
+                </p>
+              ) : (
+                <div className="mt-3 grid gap-2">
+                  {application.job.availabilitySlots.map((slot) => (
+                    <div key={slot.id} className="rounded-lg border border-border p-3 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium text-foreground">
+                          {formatDate(slot.startAt)} - {formatDate(slot.endAt)}
+                        </span>
+                        <StatusBadge value={slot.status} />
+                      </div>
+                      <p className="mt-1 text-muted-foreground">
+                        {slot.locationNote ?? "Online HR interview"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <form action={sendHrInterviewAvailabilityRequestAction} className="grid gap-3">
+              <input type="hidden" name="applicationId" value={application.id} />
+              <PendingSubmitButton
+                pendingLabel="Sending booking link..."
+                disabled={
+                  application.status !== "INTERVIEW" ||
+                  application.job.availabilitySlots.length === 0
+                }
+              >
+                Send HR interview booking link
+              </PendingSubmitButton>
+            </form>
+
+            {latestHrRequest === null ? null : (
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold text-foreground">Latest HR interview request</p>
+                  <StatusBadge value={latestHrRequest.status} />
+                </div>
+                {latestHrRequest.selectedSlot === null ? (
+                  <p className="mt-2 break-all text-muted-foreground">
+                    Candidate link: {availabilityRequestUrl(latestHrRequest)}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-muted-foreground">
+                    Confirmed for {formatDate(latestHrRequest.selectedSlot.startAt)}.
+                  </p>
+                )}
+                <Button asChild size="sm" variant="secondary" className="mt-3">
+                  <a
+                    href={availabilityRequestUrl(latestHrRequest)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open candidate booking
+                  </a>
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </SectionCard>
 
       <SectionCard
         title="Transcript and evaluation"
@@ -461,4 +600,15 @@ function jsonStringList(value: unknown): readonly string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
     : [];
+}
+
+function availabilityRequestUrl(request: VerificationAvailabilityRequest): string {
+  return createAvailabilityRequestUrl(
+    createAvailabilityRequestToken({
+      requestId: request.id,
+      companyId: request.companyId,
+      applicationId: request.applicationId,
+      tokenSalt: request.tokenSalt,
+    }),
+  );
 }

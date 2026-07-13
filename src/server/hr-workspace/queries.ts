@@ -291,7 +291,6 @@ export async function getApplicationVerificationDetail(
           },
         },
       },
-      job: { include: { intelligenceProfile: true } },
       currentStage: true,
       cvScreenings: { orderBy: { updatedAt: "desc" }, take: 1 },
       personalizedInterviewPlans: {
@@ -308,6 +307,16 @@ export async function getApplicationVerificationDetail(
         orderBy: { createdAt: "desc" },
         take: 3,
         include: { selectedSlot: true },
+      },
+      job: {
+        include: {
+          intelligenceProfile: true,
+          availabilitySlots: {
+            where: { purpose: "HR_INTERVIEW", startAt: { gt: new Date() } },
+            orderBy: { startAt: "asc" },
+            take: 10,
+          },
+        },
       },
       invitations: { orderBy: { createdAt: "desc" }, take: 5 },
       interviewSessions: {

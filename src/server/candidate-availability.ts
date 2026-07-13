@@ -40,6 +40,7 @@ export async function getCandidateAvailabilityRequest(token: string) {
     where: {
       companyId: request.companyId,
       jobId: request.jobId,
+      purpose: request.purpose,
       status: "OPEN",
       startAt: { gt: now },
     },
@@ -72,6 +73,9 @@ export async function confirmCandidateAvailabilityAction(formData: FormData): Pr
     if (slot?.jobId !== request.jobId || slot.status !== "OPEN" || slot.startAt <= new Date()) {
       throw new Error("This availability slot is no longer available.");
     }
+    if (slot.purpose !== request.purpose) {
+      throw new Error("This availability slot is no longer available.");
+    }
     await tx.interviewAvailabilitySlot.update({
       where: { companyId_id: { companyId: request.companyId, id: slot.id } },
       data: {
@@ -88,10 +92,17 @@ export async function confirmCandidateAvailabilityAction(formData: FormData): Pr
         selectedSlotId: slot.id,
       },
     });
-    await tx.candidateApplication.update({
-      where: { companyId_id: { companyId: request.companyId, id: request.applicationId } },
-      data: { status: "AVAILABILITY_CONFIRMED" },
-    });
+    if (request.purpose === "HR_INTERVIEW") {
+      await tx.candidateApplication.update({
+        where: { companyId_id: { companyId: request.companyId, id: request.applicationId } },
+        data: { status: "INTERVIEW" },
+      });
+    } else {
+      await tx.candidateApplication.update({
+        where: { companyId_id: { companyId: request.companyId, id: request.applicationId } },
+        data: { status: "AVAILABILITY_CONFIRMED" },
+      });
+    }
   });
 
   revalidatePath("/candidate/applications");

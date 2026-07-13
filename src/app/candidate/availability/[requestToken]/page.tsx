@@ -27,14 +27,19 @@ export default async function CandidateAvailabilityPage({
   const { request, slots } = data;
   const expired = request.expiresAt <= new Date();
   const confirmed = request.status === "CONFIRMED" || query.confirmed === "1";
+  const isHrInterview = request.purpose === "HR_INTERVIEW";
 
   return (
     <main className="min-h-screen bg-background">
       <section className="mx-auto grid w-full max-w-4xl gap-5 px-4 py-10 sm:px-6 lg:px-8">
         <PremiumHero
           eyebrow={request.company.name}
-          title="Confirm interview availability"
-          description="Select the interview time that works best for you. The hiring team will send the interview invitation after your availability is confirmed."
+          title={isHrInterview ? "Book your HR interview" : "Confirm interview availability"}
+          description={
+            isHrInterview
+              ? "Select the HR interview time that works best for you. The hiring team will use this slot for the next conversation."
+              : "Select the interview time that works best for you. The hiring team will send the interview invitation after your availability is confirmed."
+          }
           actions={<ThemeToggle className="text-white hover:bg-white/15 hover:text-white" />}
         />
 
@@ -109,7 +114,11 @@ export default async function CandidateAvailabilityPage({
                             {formatDateTime(slot.startAt)} - {formatTime(slot.endAt)}
                           </span>
                           <span className="text-muted-foreground">
-                            {slot.isOnline ? "Online interview" : "In-person interview"}
+                            {slot.isOnline
+                              ? isHrInterview
+                                ? "Online HR interview"
+                                : "Online interview"
+                              : "In-person interview"}
                             {slot.locationNote === null ? "" : ` · ${slot.locationNote}`}
                           </span>
                         </span>
@@ -118,7 +127,7 @@ export default async function CandidateAvailabilityPage({
                   </fieldset>
                 )}
                 <PendingSubmitButton disabled={slots.length === 0} pendingLabel="Confirming...">
-                  Confirm availability
+                  {isHrInterview ? "Confirm HR interview" : "Confirm availability"}
                 </PendingSubmitButton>
               </form>
             )}
