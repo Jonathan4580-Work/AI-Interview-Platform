@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, MapPin } from "lucide-react";
 
-import { PremiumHero, SectionCard } from "@/components/recruiting/recruiting-ui";
+import { PublicHero, SectionCard } from "@/components/recruiting/recruiting-ui";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,7 +46,7 @@ export default async function PublicCareerJobPage({
           </Button>
           <ThemeToggle />
         </div>
-        <PremiumHero
+        <PublicHero
           eyebrow={job.company.name}
           title={job.title}
           description={job.summary}

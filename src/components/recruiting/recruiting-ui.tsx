@@ -47,6 +47,48 @@ export function PremiumHero({
   );
 }
 
+export function PublicHero({
+  eyebrow,
+  title,
+  description,
+  actions,
+  className,
+}: {
+  readonly eyebrow?: string;
+  readonly title: string;
+  readonly description?: string;
+  readonly actions?: ReactNode;
+  readonly className?: string;
+}) {
+  return (
+    <section
+      className={cn(
+        "relative overflow-hidden rounded-3xl border border-border bg-card p-6 text-card-foreground shadow-md sm:p-8",
+        "before:absolute before:inset-x-0 before:top-0 before:h-1 before:bg-gradient-to-r before:from-primary before:via-indigo-500 before:to-violet-500",
+        "after:absolute after:right-0 after:top-0 after:size-72 after:translate-x-1/3 after:-translate-y-1/3 after:rounded-full after:bg-primary/10 after:blur-3xl",
+        className,
+      )}
+    >
+      <div className="relative z-10 grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
+        <div className="max-w-3xl">
+          {eyebrow === undefined ? null : (
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">{eyebrow}</p>
+          )}
+          <h1 className="mt-2 text-3xl font-semibold tracking-normal text-foreground sm:text-4xl">
+            {title}
+          </h1>
+          {description === undefined ? null : (
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+              {description}
+            </p>
+          )}
+        </div>
+        {actions === undefined ? null : <div className="flex flex-wrap gap-2">{actions}</div>}
+      </div>
+    </section>
+  );
+}
+
 export function MetricCard({
   label,
   value,

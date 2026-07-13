@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, FileText, LockKeyhole, UserRound } from "lucide-react";
 
-import { PremiumHero, SectionCard } from "@/components/recruiting/recruiting-ui";
+import { PublicHero, SectionCard } from "@/components/recruiting/recruiting-ui";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,7 @@ export default async function PublicApplyPage({
           <ThemeToggle />
         </div>
 
-        <PremiumHero
+        <PublicHero
           eyebrow={job.company.name}
           title={`Apply for ${job.title}`}
           description="Create a candidate account or sign in, upload your CV, and submit your application securely."

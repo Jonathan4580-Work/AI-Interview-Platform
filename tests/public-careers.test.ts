@@ -22,6 +22,21 @@ describe("public careers marketplace foundation", () => {
     expect(applyPage).toContain("Submit application");
   });
 
+  it("uses a theme-safe public hero for careers surfaces", () => {
+    const careersPage = source("src/app/careers/[companySlug]/page.tsx");
+    const jobPage = source("src/app/careers/[companySlug]/jobs/[jobSlug]/page.tsx");
+    const applyPage = source("src/app/careers/[companySlug]/jobs/[jobSlug]/apply/page.tsx");
+    const recruitingUi = source("src/components/recruiting/recruiting-ui.tsx");
+
+    expect(careersPage).toContain("PublicHero");
+    expect(jobPage).toContain("PublicHero");
+    expect(applyPage).toContain("PublicHero");
+    expect(careersPage).not.toContain("text-white hover:bg-white/15");
+    expect(recruitingUi).toContain("text-card-foreground");
+    expect(recruitingUi).toContain("text-foreground");
+    expect(recruitingUi).toContain("text-muted-foreground");
+  });
+
   it("keeps public listings limited to published open jobs", () => {
     const queries = source("src/server/public-careers/queries.ts");
 
@@ -50,5 +65,23 @@ describe("public careers marketplace foundation", () => {
     expect(page).toContain('job.intelligenceProfile?.status === "PUBLISHED"');
     expect(page).toContain("View public job posting");
     expect(queries).toContain("company: { select: { name: true, slug: true } }");
+  });
+
+  it("keeps the aptly-demo URL while removing demo display branding from core pages", () => {
+    const landingPage = source("src/app/page.tsx");
+    const localSeed = source("scripts/local-seed.ts");
+    const careersPage = source("src/app/careers/[companySlug]/page.tsx");
+    const candidateHome = source("src/app/candidate/page.tsx");
+    const dashboardPage = source("src/app/(workspace)/dashboard/page.tsx");
+
+    expect(landingPage).toContain('href="/careers/aptly-demo"');
+    expect(landingPage).toContain("View careers page");
+    expect(landingPage).not.toContain("View demo careers page");
+    expect(landingPage).not.toContain("Demo careers");
+    expect(localSeed).toContain('required("LOCAL_DEMO_COMPANY_NAME", "Aptly")');
+    for (const page of [landingPage, careersPage, candidateHome, dashboardPage]) {
+      expect(page).not.toContain("Aptly Demo Workspace");
+      expect(page).not.toContain("Demo Workspace");
+    }
   });
 });

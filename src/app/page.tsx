@@ -111,7 +111,7 @@ export default function PublicLandingPage() {
                 </Link>
               </Button>
               <Button asChild variant="secondary" size="lg">
-                <Link href="/careers/aptly-demo">View demo careers page</Link>
+                <Link href="/careers/aptly-demo">View careers page</Link>
               </Button>
             </div>
           </div>
@@ -247,7 +247,7 @@ export default function PublicLandingPage() {
               Candidate portal
             </Link>
             <Link href="/careers/aptly-demo" className="hover:text-foreground">
-              Demo careers
+              Careers
             </Link>
           </div>
         </div>

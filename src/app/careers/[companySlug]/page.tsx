@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, BriefcaseBusiness, MapPin } from "lucide-react";
 
-import { PremiumHero } from "@/components/recruiting/recruiting-ui";
+import { PublicHero } from "@/components/recruiting/recruiting-ui";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,14 +37,14 @@ export default async function PublicCareersPage({
   return (
     <main className="min-h-screen bg-background">
       <section className="mx-auto w-full max-w-6xl px-4 pt-8 sm:px-6 lg:px-8">
-        <PremiumHero
+        <PublicHero
           eyebrow={`${String(data.jobs.length)} open roles`}
           title={`Join ${data.company.name}`}
           description="Explore open roles, understand the interview process, and apply with a CV when a role feels right."
           actions={
             <>
               <Badge variant="neutral">Candidate applications</Badge>
-              <ThemeToggle className="text-white hover:bg-white/15 hover:text-white" />
+              <ThemeToggle />
             </>
           }
         />

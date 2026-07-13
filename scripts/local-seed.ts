@@ -21,7 +21,7 @@ async function main(): Promise<void> {
   try {
     const result = await createStagingDemoData(
       {
-        companyName: required("LOCAL_DEMO_COMPANY_NAME", "Aptly Demo Workspace"),
+        companyName: required("LOCAL_DEMO_COMPANY_NAME", "Aptly"),
         companySlug: required("LOCAL_DEMO_COMPANY_SLUG", "aptly-demo"),
         companyAdminEmail: required("LOCAL_DEMO_COMPANY_ADMIN_EMAIL"),
         companyAdminName: required("LOCAL_DEMO_COMPANY_ADMIN_NAME", "Demo Company Admin"),
