@@ -1,8 +1,20 @@
 import Link from "next/link";
-import { BriefcaseBusiness, CalendarClock, FileText, LogOut } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  CalendarClock,
+  CheckCircle2,
+  FileText,
+  LogOut,
+  Sparkles,
+} from "lucide-react";
 
 import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
-import { Timeline } from "@/components/recruiting/recruiting-ui";
+import {
+  EmptyState,
+  MetricCard,
+  SectionCard,
+  Timeline,
+} from "@/components/recruiting/recruiting-ui";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -76,22 +88,57 @@ export default async function CandidateApplicationsPage({
           </Alert>
         )}
 
-        <Card className="overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BriefcaseBusiness aria-hidden="true" className="size-4" />
-              Applications
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            label="Applications"
+            value={data.applications.length}
+            icon={<BriefcaseBusiness className="size-5" aria-hidden="true" />}
+          />
+          <MetricCard
+            label="Pending actions"
+            value={
+              data.applications.filter(
+                (application) => application.availability?.status === "ACTIVE",
+              ).length
+            }
+            tone="amber"
+            icon={<CalendarClock className="size-5" aria-hidden="true" />}
+          />
+          <MetricCard
+            label="Confirmed"
+            value={
+              data.applications.filter(
+                (application) => application.availability?.status === "CONFIRMED",
+              ).length
+            }
+            tone="green"
+            icon={<CheckCircle2 className="size-5" aria-hidden="true" />}
+          />
+          <MetricCard
+            label="Completed"
+            value={
+              data.applications.filter(
+                (application) =>
+                  application.rawStatus === "HIRED" ||
+                  application.rawStatus === "REJECTED" ||
+                  application.rawStatus === "NOT_SELECTED",
+              ).length
+            }
+            tone="violet"
+            icon={<Sparkles className="size-5" aria-hidden="true" />}
+          />
+        </div>
+
+        <SectionCard
+          title="Applications"
+          description="Track submitted roles, requested actions, interview progress, and final outcomes."
+        >
+          <div className="grid gap-3">
             {data.applications.length === 0 ? (
-              <div className="rounded-md border border-dashed border-border bg-muted/20 p-6 text-sm text-muted-foreground">
-                <p className="font-medium text-foreground">No applications yet</p>
-                <p className="mt-1">
-                  Return to a company job posting to upload your CV and submit your first
-                  application.
-                </p>
-              </div>
+              <EmptyState
+                title="No applications yet"
+                description="Return to a company job posting to upload your CV and submit your first application."
+              />
             ) : (
               data.applications.map((application) => (
                 <article
@@ -109,6 +156,17 @@ export default async function CandidateApplicationsPage({
                         Applied {formatDate(application.appliedAt)}
                       </p>
                       <p className="mt-2 text-sm text-muted-foreground">{application.nextStep}</p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                        <StatusTile label="Application" value={application.status} />
+                        <StatusTile
+                          label="Interview"
+                          value={application.interview?.status ?? "Not invited"}
+                        />
+                        <StatusTile
+                          label="Results"
+                          value={application.interview?.reportStatus ?? "Not ready"}
+                        />
+                      </div>
                       {application.finalOutcome === null ? null : (
                         <div
                           className={
@@ -158,6 +216,12 @@ export default async function CandidateApplicationsPage({
                       <span className="rounded-md border border-border bg-muted px-2 py-1 text-xs font-medium text-foreground">
                         {application.status}
                       </span>
+                      {application.availability?.url === null ||
+                      application.availability?.url === undefined ? null : (
+                        <Button asChild size="sm">
+                          <Link href={application.availability.url}>Choose time</Link>
+                        </Button>
+                      )}
                       <Button asChild variant="secondary" size="sm">
                         <Link
                           href={`/careers/${application.companySlug}/jobs/${application.jobSlug}`}
@@ -176,17 +240,26 @@ export default async function CandidateApplicationsPage({
                         "Shortlisted",
                         "Availability",
                         "Interview",
-                        "Completed",
+                        "Decision",
                       ]}
                     />
                   </div>
                 </article>
               ))
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
       </section>
     </main>
+  );
+}
+
+function StatusTile({ label, value }: { readonly label: string; readonly value: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-background/70 p-3">
+      <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-foreground">{value.replaceAll("_", " ")}</p>
+    </div>
   );
 }
 
@@ -195,8 +268,8 @@ function formatDate(value: Date): string {
 }
 
 function timelineCurrent(status: string): string {
-  if (status.includes("Hired") || status.includes("Selected")) return "Completed";
-  if (status.includes("Completed")) return "Completed";
+  if (status.includes("Hired") || status.includes("Selected")) return "Decision";
+  if (status.includes("Completed")) return "Decision";
   if (status.includes("Interview")) return "Interview";
   if (status.includes("Availability")) return "Availability";
   if (status.includes("Shortlisted")) return "Shortlisted";

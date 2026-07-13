@@ -27,7 +27,11 @@ export async function listCandidateApplications() {
       interviewSessions: {
         orderBy: { updatedAt: "desc" },
         take: 1,
-        include: { hrReports: { select: { id: true, status: true }, take: 1 } },
+        include: {
+          transcripts: { select: { id: true, status: true }, take: 1 },
+          evaluationVersions: { select: { id: true, status: true }, take: 1 },
+          hrReports: { select: { id: true, status: true }, take: 1 },
+        },
       },
       availabilityRequests: {
         orderBy: { createdAt: "desc" },
@@ -43,6 +47,7 @@ export async function listCandidateApplications() {
     session,
     applications: applications.map((application) => {
       const availabilityRequest = application.availabilityRequests.at(0);
+      const latestInterview = application.interviewSessions.at(0);
       const finalOutcome = readFinalOutcome(application.metadataJson, application.status);
       return {
         id: application.id,
@@ -51,9 +56,20 @@ export async function listCandidateApplications() {
         companyName: application.job.company.name,
         companySlug: application.job.company.slug,
         appliedAt: application.appliedAt,
+        rawStatus: application.status,
         status: normalizeCandidateStatus(application.status),
         nextStep: candidateNextStep(application.status),
         finalOutcome,
+        interview:
+          latestInterview === undefined
+            ? null
+            : {
+                status: latestInterview.status,
+                updatedAt: latestInterview.updatedAt,
+                transcriptStatus: latestInterview.transcripts.at(0)?.status ?? null,
+                evaluationStatus: latestInterview.evaluationVersions.at(0)?.status ?? null,
+                reportStatus: latestInterview.hrReports.at(0)?.status ?? null,
+              },
         availability:
           availabilityRequest === undefined
             ? null

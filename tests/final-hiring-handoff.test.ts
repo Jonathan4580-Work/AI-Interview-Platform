@@ -36,6 +36,6 @@ describe("final hiring handoff", () => {
 
     expect(page).toContain('status.includes("Hired")');
     expect(page).toContain('status.includes("Selected")');
-    expect(page).toContain('return "Completed"');
+    expect(page).toContain('return "Decision"');
   });
 });

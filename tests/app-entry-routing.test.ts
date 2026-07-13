@@ -61,8 +61,8 @@ describe("application entry routing", () => {
     const candidateHome = source("src/app/candidate/page.tsx");
     const candidateApplications = source("src/app/candidate/applications/page.tsx");
 
-    expect(candidateHome).toContain("Track applications with Aptly");
-    expect(candidateHome).toContain("Open the job posting you applied from");
+    expect(candidateHome).toContain("Track your Aptly applications");
+    expect(candidateHome).toContain("Open the role you applied");
     expect(candidateApplications).toContain("Candidate sign in required");
     expect(candidateApplications).toContain("Return to the public job posting");
   });
