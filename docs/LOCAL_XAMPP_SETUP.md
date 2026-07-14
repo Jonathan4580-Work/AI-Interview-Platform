@@ -100,10 +100,11 @@ npm run local:storage-smoke
 $env:LOCAL_SMTP_TEST_RECIPIENT="your-email@example.com"
 npm run local:smtp-smoke
 npm run local:openai-smoke
+npm run local:demo-readiness
 npm run local:full-flow-status
 ```
 
-The full-flow status command prints `PASSED`, `BLOCKED`, or `FAILED` for each step. It does not print passwords, API keys, invitation tokens, candidate URLs, transcripts, or email bodies.
+The demo readiness command prints `READY`, `ACTION`, or `BLOCKED` for local setup and demo prerequisites. The full-flow status command prints `PASSED`, `BLOCKED`, or `FAILED` for each interview step. Neither command prints passwords, API keys, invitation tokens, candidate URLs, transcripts, or email bodies.
 
 ## 7. Stop Aptly
 

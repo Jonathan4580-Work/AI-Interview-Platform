@@ -23,6 +23,25 @@ npm run db:local:seed
 
 Save the printed Company Workspace ID.
 
+## Readiness Check
+
+Before showing the product, run:
+
+```powershell
+npm run local:demo-readiness
+```
+
+The command prints `READY`, `ACTION`, or `BLOCKED` for XAMPP MySQL, local storage, Gmail SMTP, OpenAI, seeded company data, worker queue state, and post-interview artifacts. It does not print passwords, API keys, invitation tokens, candidate URLs, transcripts, or email bodies.
+
+Run provider smoke checks when credentials are configured:
+
+```powershell
+npm run local:storage-smoke
+$env:LOCAL_SMTP_TEST_RECIPIENT="your-email@example.com"
+npm run local:smtp-smoke
+npm run local:openai-smoke
+```
+
 ## Demo Flow
 
 1. Open `http://localhost:3000/login`.
@@ -51,8 +70,25 @@ npm run local:full-flow-status
 
 The demo is complete only when the flow status reaches `PASSED` for recording, transcript, OpenAI evaluation, and report.
 
+## Demo Reset
+
+Rerun `npm run db:local:seed` after changing the local demo password environment variables. The seed is idempotent and refreshes existing synthetic Company Admin and HR credentials without printing passwords or hashes.
+
+If a workflow is stuck after a local interruption, run:
+
+```powershell
+npm run local:repair-workflow-attempts -- <workflowId>
+```
+
+Then restart:
+
+```powershell
+npm run worker:local
+```
+
 ## Honest Blockers
 
 If Gmail SMTP is not configured, invitation email delivery is blocked.
 If OpenAI is not configured, evaluation is blocked.
 If camera/microphone permissions are denied, the candidate readiness and interview recording flow is blocked.
+If `npm run worker:local` is not running, transcript, evaluation, and report processing will not complete.
