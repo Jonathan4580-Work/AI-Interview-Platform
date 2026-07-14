@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireHrWorkspaceContext } from "@/server/hr-workspace/context";
 import { getInterviewDetail } from "@/server/hr-workspace/queries";
 
-import { EmptyPanel, StatusBadge, formatDate } from "../../_components/hr-ui";
+import { EmptyPanel, StatusBadge, formatDate, normalizeLabel } from "../../_components/hr-ui";
 
 export default async function InterviewDetailPage({
   params,
@@ -63,7 +63,7 @@ export default async function InterviewDetailPage({
                     key={check.id}
                     className="flex items-center justify-between rounded-md border border-border p-3"
                   >
-                    <span>{check.type.replaceAll("_", " ").toLowerCase()}</span>
+                    <span>{normalizeLabel(check.type)}</span>
                     <StatusBadge value={check.status} />
                   </div>
                 ))
@@ -87,9 +87,7 @@ export default async function InterviewDetailPage({
                 <StatusBadge value={interview.processingWorkflow.status} />
                 {interview.processingWorkflow.steps.map((step) => (
                   <div key={step.id} className="rounded-md border border-border p-3">
-                    <p className="font-medium text-foreground">
-                      {step.stepKey.replaceAll("_", " ")}
-                    </p>
+                    <p className="font-medium text-foreground">{normalizeLabel(step.stepKey)}</p>
                     <p className="mt-1 text-muted-foreground">
                       <StatusBadge value={step.status} /> Attempts {step.attemptCount}
                     </p>
@@ -120,7 +118,7 @@ export default async function InterviewDetailPage({
               {transcript.activeVersion.segments.map((segment) => (
                 <div key={segment.id} className="rounded-md border border-border p-3 text-sm">
                   <p className="font-medium text-foreground">
-                    {segment.speaker.toLowerCase()} · Segment {segment.sequence}
+                    {normalizeLabel(segment.speaker)} · Segment {segment.sequence}
                   </p>
                   <p className="mt-1 text-muted-foreground">{segment.text}</p>
                 </div>
@@ -201,7 +199,7 @@ export default async function InterviewDetailPage({
           ) : (
             interview.monitoringEvents.map((event) => (
               <div key={event.id} className="rounded-md border border-border p-3 text-sm">
-                <p className="font-medium text-foreground">{event.type.replaceAll("_", " ")}</p>
+                <p className="font-medium text-foreground">{normalizeLabel(event.type)}</p>
                 <p className="mt-1 text-muted-foreground">
                   <StatusBadge value={event.severity} /> Occurrences {event.occurrenceCount} ·{" "}
                   {formatDate(event.occurredAt)}

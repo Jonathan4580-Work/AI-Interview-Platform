@@ -42,26 +42,34 @@ export function NativeSelect(props: ComponentPropsWithoutRef<"select">) {
 }
 
 export function StatusBadge({ value }: { readonly value: string | null | undefined }) {
-  const normalized = (value ?? "unknown").replaceAll("_", " ").toLowerCase();
+  const normalized = normalizeLabel(value ?? "unknown");
+  const normalizedForTone = normalized.toLowerCase();
   const variant =
-    normalized.includes("ready") ||
-    normalized.includes("open") ||
-    normalized.includes("sent") ||
-    normalized.includes("completed") ||
-    normalized.includes("active")
-      ? "success"
-      : normalized.includes("failed") ||
-          normalized.includes("cancelled") ||
-          normalized.includes("rejected") ||
-          normalized.includes("expired")
-        ? "danger"
-        : normalized.includes("pending") ||
-            normalized.includes("draft") ||
-            normalized.includes("recovery") ||
-            normalized.includes("interrupted")
+    normalizedForTone.includes("failed") ||
+    normalizedForTone.includes("cancelled") ||
+    normalizedForTone.includes("rejected") ||
+    normalizedForTone.includes("expired") ||
+    normalizedForTone.includes("not selected") ||
+    normalizedForTone.includes("not recommended")
+      ? "danger"
+      : normalizedForTone.includes("ready") ||
+          normalizedForTone.includes("open") ||
+          normalizedForTone.includes("sent") ||
+          normalizedForTone.includes("completed") ||
+          normalizedForTone.includes("active") ||
+          normalizedForTone.includes("recommended") ||
+          normalizedForTone.includes("confirmed") ||
+          normalizedForTone.includes("hired")
+        ? "success"
+        : normalizedForTone.includes("pending") ||
+            normalizedForTone.includes("draft") ||
+            normalizedForTone.includes("recovery") ||
+            normalizedForTone.includes("interrupted") ||
+            normalizedForTone.includes("review") ||
+            normalizedForTone.includes("requested")
           ? "warning"
           : "neutral";
-  return <Badge variant={variant}>{titleCase(normalized)}</Badge>;
+  return <Badge variant={variant}>{normalized}</Badge>;
 }
 
 export function EmptyPanel({
@@ -93,9 +101,26 @@ export function formatDate(value: Date | string | null | undefined): string {
 }
 
 export function titleCase(value: string): string {
-  return value
+  return normalizeLabel(value);
+}
+
+export function normalizeLabel(value: string | null | undefined): string {
+  const cleaned = (value ?? "unknown")
+    .replace(/([a-z])([A-Z])/gu, "$1 $2")
+    .replace(/[.:_-]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .toLowerCase();
+
+  if (cleaned.length === 0) return "Unknown";
+
+  return cleaned
     .split(/\s+/u)
     .filter(Boolean)
-    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .map((part) => {
+      const upper = part.toUpperCase();
+      if (["AI", "CV", "HR", "JD", "PDF", "DOCX", "SMTP", "URL"].includes(upper)) return upper;
+      return `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`;
+    })
     .join(" ");
 }

@@ -110,7 +110,7 @@ export function DeviceReadiness() {
             key={check.type}
             className="flex items-center justify-between rounded-md border border-border p-3 text-sm"
           >
-            <span>{check.type.replaceAll("_", " ").toLowerCase()}</span>
+            <span>{formatCandidateLabel(check.type)}</span>
             <Badge
               variant={
                 check.status === "PASS"
@@ -135,4 +135,16 @@ export function DeviceReadiness() {
       ) : null}
     </CandidateShell>
   );
+}
+
+function formatCandidateLabel(value: string): string {
+  return value
+    .replace(/[._-]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .toLowerCase()
+    .split(/\s+/u)
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
 }

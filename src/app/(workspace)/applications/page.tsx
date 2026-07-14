@@ -21,6 +21,7 @@ import {
   StatusBadge,
   TextField,
   formatDate,
+  normalizeLabel,
 } from "../_components/hr-ui";
 
 type ApplicationInboxItem = Awaited<ReturnType<typeof listApplicationsInbox>>[number];
@@ -145,7 +146,7 @@ function ApplicationInboxCard({ application }: { readonly application: Applicati
               {application.candidate.fullName}
             </Link>
             <StatusBadge value={application.status} />
-            <StatusBadge value={application.currentStage?.name ?? "No stage"} />
+            <StatusBadge value={application.currentStage?.name ?? "Stage not assigned"} />
           </div>
           <p className="mt-1 break-all text-sm text-muted-foreground">
             {application.candidate.primaryEmail ?? "No email"} · {application.job.title} · Applied{" "}
@@ -166,7 +167,10 @@ function ApplicationInboxCard({ application }: { readonly application: Applicati
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <Signal label="AI match" value={matchLabel(screening)} />
-            <Signal label="Recommendation" value={screening?.recommendation ?? "Not ready"} />
+            <Signal
+              label="Recommendation"
+              value={normalizeLabel(screening?.recommendation ?? "Not ready")}
+            />
             <Signal label="Next step" value={nextStepLabel(application.status, report?.status)} />
           </div>
         </div>

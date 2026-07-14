@@ -230,7 +230,7 @@ export default async function CandidateApplicationsPage({
                         <div className="mt-3 rounded-xl border border-primary/15 bg-primary-soft/60 p-3 text-sm">
                           <p className="flex items-center gap-2 font-medium text-foreground">
                             <CalendarClock className="size-4" aria-hidden="true" />
-                            Availability {application.availability.status.toLowerCase()}
+                            Availability {formatCandidateLabel(application.availability.status)}
                           </p>
                           {application.availability.selectedSlotStartAt === null ? null : (
                             <p className="mt-1 text-muted-foreground">
@@ -292,9 +292,21 @@ function StatusTile({ label, value }: { readonly label: string; readonly value: 
   return (
     <div className="rounded-xl border border-border bg-background/70 p-3">
       <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-foreground">{value.replaceAll("_", " ")}</p>
+      <p className="mt-1 text-sm font-semibold text-foreground">{formatCandidateLabel(value)}</p>
     </div>
   );
+}
+
+function formatCandidateLabel(value: string): string {
+  return value
+    .replace(/[._-]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .toLowerCase()
+    .split(/\s+/u)
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
 }
 
 function formatDate(value: Date): string {

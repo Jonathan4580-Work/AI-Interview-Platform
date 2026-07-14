@@ -19,7 +19,7 @@ import {
 import { requireHrWorkspaceContext } from "@/server/hr-workspace/context";
 import { getApplicationVerificationDetail } from "@/server/hr-workspace/queries";
 
-import { EmptyPanel, StatusBadge, formatDate } from "../../../_components/hr-ui";
+import { EmptyPanel, StatusBadge, formatDate, normalizeLabel } from "../../../_components/hr-ui";
 
 type VerificationApplication = NonNullable<
   Awaited<ReturnType<typeof getApplicationVerificationDetail>>
@@ -89,7 +89,7 @@ export default async function ApplicationVerificationPage({
             </div>
             <div className="flex flex-wrap gap-2">
               <StatusBadge value={application.status} />
-              <StatusBadge value={application.currentStage?.name ?? "No stage"} />
+              <StatusBadge value={application.currentStage?.name ?? "Stage not assigned"} />
               <StatusBadge
                 value={application.candidate.documents.length > 0 ? "CV uploaded" : "No CV"}
               />
@@ -565,7 +565,7 @@ export default async function ApplicationVerificationPage({
                 <div key={event.id} className="rounded-lg border border-border p-3 text-sm">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium text-foreground">
-                      {event.type.replaceAll("_", " ")}
+                      {normalizeLabel(event.type)}
                     </span>
                     <StatusBadge value={event.severity} />
                   </div>

@@ -169,12 +169,9 @@ export default async function WorkspaceOverviewPage() {
                   key={event.id}
                   className="rounded-xl border border-border/80 bg-surface/80 p-4 text-sm shadow-xs"
                 >
-                  <p className="font-medium text-foreground">
-                    {titleCase(event.action.replaceAll(".", " "))}
-                  </p>
+                  <p className="font-medium text-foreground">{titleCase(event.action)}</p>
                   <p className="mt-1 text-muted-foreground">
-                    {titleCase(event.resourceType.replaceAll("_", " "))} ·{" "}
-                    {formatDate(event.createdAt)}
+                    {titleCase(event.resourceType)} · {formatDate(event.createdAt)}
                   </p>
                 </li>
               ))}

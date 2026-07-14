@@ -65,7 +65,7 @@ export function CandidateRequestForm({ mode }: { readonly mode: "support" | "acc
               : ["WEBCAM_ALTERNATIVE", "TIME_EXTENSION", "ACCESSIBILITY_SUPPORT", "OTHER"]
             ).map((item) => (
               <SelectItem key={item} value={item}>
-                {item.replaceAll("_", " ").toLowerCase()}
+                {formatCandidateLabel(item)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -82,4 +82,16 @@ export function CandidateRequestForm({ mode }: { readonly mode: "support" | "acc
       </FormField>
     </CandidateShell>
   );
+}
+
+function formatCandidateLabel(value: string): string {
+  return value
+    .replace(/[._-]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .toLowerCase()
+    .split(/\s+/u)
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
 }

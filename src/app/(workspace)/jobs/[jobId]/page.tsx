@@ -289,7 +289,7 @@ function ApplicationCard({
               <StatusBadge value="Public application" />
             )}
             <StatusBadge value={application.status} />
-            <StatusBadge value={application.currentStage?.name ?? "No stage"} />
+            <StatusBadge value={application.currentStage?.name ?? "Stage not assigned"} />
             <StatusBadge
               value={application.candidate.documents.length > 0 ? "CV uploaded" : "CV not uploaded"}
             />
@@ -298,7 +298,7 @@ function ApplicationCard({
               <StatusBadge value={`${String(matchScore)} match score`} />
             )}
             {recommendation === null || recommendation === undefined ? null : (
-              <StatusBadge value={`AI: ${recommendation}`} />
+              <StatusBadge value={`AI recommendation ${recommendation}`} />
             )}
             <StatusBadge value={personalizedPlanLabel(personalizedPlan?.status ?? null)} />
           </div>
@@ -424,7 +424,7 @@ function ApplicationCard({
             <input type="hidden" name="applicationId" value={application.id} />
             <Field label="Pipeline stage">
               <NativeSelect name="stageId" defaultValue={application.currentStageId ?? ""}>
-                <option value="">No stage</option>
+                <option value="">Stage not assigned</option>
                 {stages.map((stage) => (
                   <option key={stage.id} value={stage.id}>
                     {stage.name}

@@ -114,7 +114,9 @@ export default async function CandidateDetailPage({
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <StatusBadge value={application.status} />
-                        <StatusBadge value={application.currentStage?.name ?? "No stage"} />
+                        <StatusBadge
+                          value={application.currentStage?.name ?? "Stage not assigned"}
+                        />
                       </div>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-2 lg:min-w-96">
@@ -125,7 +127,7 @@ export default async function CandidateDetailPage({
                             name="stageId"
                             defaultValue={application.currentStageId ?? ""}
                           >
-                            <option value="">No stage</option>
+                            <option value="">Stage not assigned</option>
                             {choices.jobs
                               .find((job) => job.id === application.jobId)
                               ?.pipeline.stages.map((stage) => (
@@ -223,7 +225,7 @@ export default async function CandidateDetailPage({
               </Field>
               <Field label="Initial stage">
                 <NativeSelect name="stageId">
-                  <option value="">No stage</option>
+                  <option value="">Stage not assigned</option>
                   {choices.jobs.flatMap((job) =>
                     job.pipeline.stages.map((stage) => (
                       <option key={`${job.id}:${stage.id}`} value={stage.id}>

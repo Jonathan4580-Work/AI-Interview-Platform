@@ -84,7 +84,7 @@ export default async function ApplicationCommandCenterPage({
             </div>
             <div className="flex flex-wrap gap-2">
               <StatusBadge value={application.status} />
-              <StatusBadge value={application.currentStage?.name ?? "No stage"} />
+              <StatusBadge value={application.currentStage?.name ?? "Stage not assigned"} />
               <StatusBadge
                 value={application.candidate.documents.length > 0 ? "CV uploaded" : "No CV"}
               />

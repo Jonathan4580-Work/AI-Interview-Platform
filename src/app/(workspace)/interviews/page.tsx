@@ -91,7 +91,7 @@ export default async function InterviewsPage() {
                       <StatusBadge value={transcript?.status ?? "Transcript pending"} />
                       <StatusBadge value={evaluation?.status ?? "Evaluation pending"} />
                       <StatusBadge
-                        value={interview.application?.currentStage?.name ?? "No stage"}
+                        value={interview.application?.currentStage?.name ?? "Stage not assigned"}
                       />
                     </div>
                   </div>
