@@ -130,6 +130,11 @@ export default async function CandidateHomePage() {
                 title="Review the role"
                 description="Open the job posting before your interview and refresh the key requirements."
               />
+              <PreparationItem
+                icon={<CheckCircle2 aria-hidden="true" />}
+                title="You stay in control"
+                description="Applications, availability, and interview steps are shown here with clear next actions."
+              />
             </div>
           </SectionCard>
         </div>
@@ -172,12 +177,17 @@ function CandidateSignedOutState() {
               Candidate accounts are created from public job postings. Open the role you applied
               from to sign in or continue your application.
             </p>
-            <Button asChild className="w-fit">
-              <Link href="/">
-                Explore Aptly
-                <ArrowRight aria-hidden="true" />
-              </Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild className="w-fit">
+                <Link href="/">
+                  Explore Aptly
+                  <ArrowRight aria-hidden="true" />
+                </Link>
+              </Button>
+              <Button asChild variant="secondary" className="w-fit">
+                <Link href="/careers/aptly-demo">View open roles</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </section>

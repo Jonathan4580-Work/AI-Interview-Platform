@@ -50,6 +50,12 @@ export default async function CandidateApplicationsPage({
       </main>
     );
   }
+  const nextApplication =
+    data.applications.find((application) => application.availability?.status === "ACTIVE") ??
+    data.applications.find((application) => application.rawStatus === "INTERVIEW_INVITED") ??
+    data.applications.find((application) => application.rawStatus === "AVAILABILITY_CONFIRMED") ??
+    data.applications.at(0) ??
+    null;
 
   return (
     <main className="min-h-screen bg-background">
@@ -128,6 +134,34 @@ export default async function CandidateApplicationsPage({
             icon={<Sparkles className="size-5" aria-hidden="true" />}
           />
         </div>
+
+        <Card className="overflow-hidden border-primary/15 bg-gradient-to-br from-primary-soft via-surface to-ai-accent/10">
+          <CardContent className="grid gap-4 p-5 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+                Candidate next step
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-foreground">
+                {nextApplication === null ? "No action needed right now" : nextApplication.jobTitle}
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+                {nextApplication === null
+                  ? "When a hiring team asks for availability, sends an interview invitation, or records a final decision, it will appear here."
+                  : nextApplication.nextStep}
+              </p>
+            </div>
+            {nextApplication?.availability?.url === null ||
+            nextApplication?.availability?.url === undefined ? (
+              <Button asChild variant="secondary">
+                <Link href="/candidate">Back to dashboard</Link>
+              </Button>
+            ) : (
+              <Button asChild>
+                <Link href={nextApplication.availability.url}>Choose interview time</Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
 
         <SectionCard
           title="Applications"

@@ -15,6 +15,8 @@ describe("candidate portal polish", () => {
     expect(page).toContain("Recent applications");
     expect(page).toContain("Preparation");
     expect(page).toContain("Choose time");
+    expect(page).toContain("You stay in control");
+    expect(page).toContain("View open roles");
     expect(page).toContain("Track your Aptly applications");
     expect(page).not.toContain("AI screening");
     expect(page).not.toContain("matchScore");
@@ -24,6 +26,8 @@ describe("candidate portal polish", () => {
     const page = source("src/app/candidate/applications/page.tsx");
 
     expect(page).toContain("Track submitted roles, requested actions, interview progress");
+    expect(page).toContain("Candidate next step");
+    expect(page).toContain("No action needed right now");
     expect(page).toContain("Pending actions");
     expect(page).toContain("StatusTile");
     expect(page).toContain("Choose interview time");
@@ -46,5 +50,17 @@ describe("candidate portal polish", () => {
     expect(queries).not.toContain("cvScreenings");
     expect(queries).not.toContain("hrSummary");
     expect(queries).not.toContain("decisionHistory");
+  });
+
+  it("makes the public apply page trustworthy without exposing HR screening internals", () => {
+    const page = source("src/app/careers/[companySlug]/jobs/[jobSlug]/apply/page.tsx");
+
+    expect(page).toContain("Before you submit");
+    expect(page).toContain("DOCX is recommended for best AI screening accuracy");
+    expect(page).toContain("Private by default");
+    expect(page).toContain("Candidates do not see internal HR screening notes or scores");
+    expect(page).toContain("ApplicationChecklistItem");
+    expect(page).not.toContain("matchScore");
+    expect(page).not.toContain("hrSummary");
   });
 });

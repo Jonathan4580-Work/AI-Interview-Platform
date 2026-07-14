@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, FileText, LockKeyhole, UserRound } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  FileText,
+  LockKeyhole,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 
 import { PublicHero, SectionCard } from "@/components/recruiting/recruiting-ui";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -80,10 +87,26 @@ export default async function PublicApplyPage({
               title="Before you submit"
               description="Your CV is used for HR review and advisory screening only."
             >
-              <div className="grid gap-3 text-sm text-muted-foreground">
-                <p>DOCX is recommended for best AI screening accuracy.</p>
-                <p>PDF is supported, but scanned or protected PDFs may not extract clearly.</p>
-                <p>After submission, you can track progress from your candidate dashboard.</p>
+              <div className="grid gap-3 text-sm">
+                <ApplicationChecklistItem>
+                  DOCX is recommended for best AI screening accuracy.
+                </ApplicationChecklistItem>
+                <ApplicationChecklistItem>
+                  PDF is supported, but scanned or protected PDFs may not extract clearly.
+                </ApplicationChecklistItem>
+                <ApplicationChecklistItem>
+                  After submission, you can track progress from your candidate dashboard.
+                </ApplicationChecklistItem>
+                <div className="rounded-2xl border border-primary/15 bg-primary-soft/60 p-4">
+                  <p className="flex items-center gap-2 font-semibold text-foreground">
+                    <ShieldCheck aria-hidden="true" className="size-4 text-primary" />
+                    Private by default
+                  </p>
+                  <p className="mt-2 text-muted-foreground">
+                    Your CV and application are visible only to the hiring team for this company.
+                    Candidates do not see internal HR screening notes or scores.
+                  </p>
+                </div>
               </div>
             </SectionCard>
             <Card>
@@ -234,6 +257,15 @@ function CandidateLoginCard({
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+function ApplicationChecklistItem({ children }: { readonly children: ReactNode }) {
+  return (
+    <p className="flex gap-2 rounded-xl border border-border bg-background/70 p-3 text-muted-foreground">
+      <CheckCircle2 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+      <span>{children}</span>
+    </p>
   );
 }
 
