@@ -21,13 +21,22 @@ describe("HR result visibility", () => {
     const page = source("src/app/(workspace)/reports/page.tsx");
     const queries = source("src/server/hr-workspace/queries.ts");
 
+    expect(page).toContain("Hiring reports");
+    expect(page).toContain("Ready reports");
+    expect(page).toContain("Needs HR review");
+    expect(page).toContain("Processing queue");
+    expect(page).toContain("Human decisions");
     expect(page).toContain("Recent candidate reports");
     expect(page).toContain("View report");
-    expect(page).toContain("Enterprise reports");
-    expect(page).toContain("Coming soon");
+    expect(page).toContain("HR review");
+    expect(page).toContain("Enterprise module");
+    expect(page).toContain("Controlled view");
     expect(queries).toContain("listRecentCandidateReports");
+    expect(queries).toContain("getReportsOverviewData");
     expect(queries).toContain('status: "READY"');
     expect(queries).toContain("activeVersionId");
+    expect(queries).toContain("unreviewedEvaluations");
+    expect(queries).toContain("completedWithoutReport");
   });
 
   it("shows transcript, evaluation, scores, recommendation, and report status on candidate detail", () => {

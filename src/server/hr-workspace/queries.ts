@@ -475,7 +475,14 @@ export async function listRecentCandidateReports(context: HrWorkspaceContext) {
           candidate: true,
           application: { include: { job: true } },
           evaluationVersions: {
-            select: { id: true, status: true, overallConfidence: true },
+            select: {
+              id: true,
+              status: true,
+              reviewStatus: true,
+              overallScore: true,
+              overallConfidence: true,
+              recommendation: true,
+            },
             where: { status: "READY" },
             orderBy: { versionNumber: "desc" },
             take: 1,
@@ -484,6 +491,28 @@ export async function listRecentCandidateReports(context: HrWorkspaceContext) {
       },
     },
   });
+}
+
+export async function getReportsOverviewData(context: HrWorkspaceContext) {
+  const companyId = context.tenant.companyId;
+  const [readyReports, unreviewedEvaluations, completedWithoutReport, humanDecisions] =
+    await Promise.all([
+      prisma.hrReport.count({
+        where: { companyId, status: "READY", activeVersionId: { not: null } },
+      }),
+      prisma.evaluationVersion.count({
+        where: { companyId, status: "READY", reviewStatus: "UNREVIEWED" },
+      }),
+      prisma.interviewSession.count({
+        where: {
+          companyId,
+          status: { in: ["COMPLETED", "PROCESSING"] },
+          hrReports: { none: { status: "READY", activeVersionId: { not: null } } },
+        },
+      }),
+      prisma.humanDecisionHistory.count({ where: { companyId } }),
+    ]);
+  return { readyReports, unreviewedEvaluations, completedWithoutReport, humanDecisions };
 }
 
 export async function getInterviewDetail(context: HrWorkspaceContext, interviewSessionId: string) {
