@@ -42,9 +42,12 @@ describe("HR interview scheduling", () => {
     const queries = source("src/server/hr-workspace/queries.ts");
 
     expect(page).toContain("HR interview scheduling");
+    expect(page).toContain("HR interview status");
+    expect(page).toContain("Candidate confirmed");
     expect(page).toContain("Add HR interview slot");
     expect(page).toContain("Send HR interview booking link");
     expect(page).toContain("Open candidate booking");
+    expect(page).toContain("Record outcome");
     expect(queries).toContain('where: { purpose: "HR_INTERVIEW", startAt: { gt: new Date() } }');
   });
 
@@ -59,5 +62,8 @@ describe("HR interview scheduling", () => {
     expect(server).toContain('status: "AVAILABILITY_CONFIRMED"');
     expect(page).toContain("Book your HR interview");
     expect(page).toContain("Confirm HR interview");
+    expect(page).toContain("Final-stage conversation");
+    expect(page).toContain("Confirmed slot");
+    expect(page).toContain("Candidate dashboard");
   });
 });

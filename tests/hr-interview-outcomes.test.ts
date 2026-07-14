@@ -40,9 +40,13 @@ describe("HR interview outcomes", () => {
     const page = source("src/app/(workspace)/applications/[applicationId]/verification/page.tsx");
 
     expect(page).toContain("HR interview result");
+    expect(page).toContain("Final decision handoff");
     expect(page).toContain("Hire candidate");
     expect(page).toContain("Not selected");
     expect(page).toContain("Keep in interview");
+    expect(page).toContain(
+      "Candidate notification is handled by the existing decision-notification pipeline",
+    );
     expect(page).toContain("AI scores and");
     expect(page).toContain("monitoring warnings do not make hiring decisions");
   });

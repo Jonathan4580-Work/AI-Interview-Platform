@@ -40,6 +40,9 @@ describe("candidate portal polish", () => {
     expect(queries).toContain("evaluationStatus");
     expect(queries).toContain("reportStatus");
     expect(queries).toContain("candidateNextStep");
+    expect(queries).toContain("Your HR interview is being coordinated");
+    expect(queries).toContain("Your interview is complete");
+    expect(queries).toContain("preparing final next steps");
     expect(queries).not.toContain("cvScreenings");
     expect(queries).not.toContain("hrSummary");
     expect(queries).not.toContain("decisionHistory");

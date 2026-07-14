@@ -134,6 +134,12 @@ function candidateNextStep(status: string): string {
       return "Choose an interview time to continue.";
     case "AVAILABILITY_CONFIRMED":
       return "Your availability is confirmed. The hiring team will send interview instructions next.";
+    case "INTERVIEW":
+      return "Your HR interview is being coordinated. Watch for the confirmed time and next instructions.";
+    case "INTERVIEW_COMPLETED":
+      return "Your interview is complete. The hiring team is reviewing the results and next step.";
+    case "OFFER":
+      return "The hiring team is preparing final next steps for this role.";
     case "NOT_SELECTED":
     case "REJECTED":
       return "The hiring team has completed its review for this role.";

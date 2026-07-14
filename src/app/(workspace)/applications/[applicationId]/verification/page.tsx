@@ -48,6 +48,11 @@ export default async function ApplicationVerificationPage({
   );
   const latestHrRequest = hrRequests.at(0) ?? null;
   const hrInterviewOutcome = readHrInterviewOutcome(application.metadataJson);
+  const hrInterviewState = getHrInterviewState({
+    applicationStatus: application.status,
+    latestHrRequest,
+    hrInterviewOutcome,
+  });
 
   return (
     <div className="grid gap-6">
@@ -164,6 +169,25 @@ export default async function ApplicationVerificationPage({
         title="HR interview scheduling"
         description="Create manual HR interview slots and send a secure candidate booking link."
       >
+        <div className="mb-4 grid gap-3 rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-surface to-ai-accent/10 p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-foreground">HR interview status</p>
+              <StatusBadge value={hrInterviewState.statusLabel} />
+            </div>
+            <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+              {hrInterviewState.description}
+            </p>
+          </div>
+          {latestHrRequest?.selectedSlot === null || latestHrRequest === null ? null : (
+            <div className="rounded-xl border border-success/25 bg-success/10 px-4 py-3 text-sm">
+              <p className="font-semibold text-success">Candidate confirmed</p>
+              <p className="mt-1 text-foreground">
+                {formatDate(latestHrRequest.selectedSlot.startAt)}
+              </p>
+            </div>
+          )}
+        </div>
         <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
           <form
             action={createHrInterviewSlotAction}
@@ -267,15 +291,22 @@ export default async function ApplicationVerificationPage({
                     Confirmed for {formatDate(latestHrRequest.selectedSlot.startAt)}.
                   </p>
                 )}
-                <Button asChild size="sm" variant="secondary" className="mt-3">
-                  <a
-                    href={availabilityRequestUrl(latestHrRequest)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open candidate booking
-                  </a>
-                </Button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button asChild size="sm" variant="secondary">
+                    <a
+                      href={availabilityRequestUrl(latestHrRequest)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open candidate booking
+                    </a>
+                  </Button>
+                  {latestHrRequest.selectedSlot === null ? null : (
+                    <Button asChild size="sm">
+                      <a href="#hr-interview-outcome">Record outcome</a>
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -286,7 +317,7 @@ export default async function ApplicationVerificationPage({
         title="HR interview result"
         description="Record the human-owned outcome after the live HR interview."
       >
-        <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+        <div id="hr-interview-outcome" className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
           <div className="rounded-xl border border-border bg-surface p-4 text-sm">
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-semibold text-foreground">Current result</p>
@@ -321,6 +352,10 @@ export default async function ApplicationVerificationPage({
                 </p>
               </div>
             )}
+            <div className="mt-4 rounded-xl border border-border bg-background/70 p-3">
+              <p className="font-semibold text-foreground">Final decision handoff</p>
+              <p className="mt-1 text-muted-foreground">{hrInterviewState.handoff}</p>
+            </div>
           </div>
 
           <form
@@ -750,6 +785,82 @@ function readHrInterviewOutcome(value: unknown): {
     return null;
   }
   return { decision, score, onboardingDate, recordedAt };
+}
+
+function getHrInterviewState({
+  applicationStatus,
+  latestHrRequest,
+  hrInterviewOutcome,
+}: {
+  readonly applicationStatus: string;
+  readonly latestHrRequest: VerificationAvailabilityRequest | null;
+  readonly hrInterviewOutcome: ReturnType<typeof readHrInterviewOutcome>;
+}): {
+  readonly statusLabel: string;
+  readonly description: string;
+  readonly handoff: string;
+} {
+  if (applicationStatus === "HIRED") {
+    return {
+      statusLabel: "Hired",
+      description:
+        "A human HR decision has marked this candidate as hired. Keep onboarding details in the decision trail.",
+      handoff:
+        "Candidate notification is handled by the existing decision-notification pipeline. Review the recorded outcome before any manual follow-up.",
+    };
+  }
+  if (applicationStatus === "REJECTED") {
+    return {
+      statusLabel: "Not selected",
+      description:
+        "A human HR decision has closed this application. The record remains available for audit and reporting.",
+      handoff:
+        "The candidate-facing portal will show neutral closure language. AI scores and monitoring warnings remain advisory context only.",
+    };
+  }
+  if (hrInterviewOutcome !== null) {
+    return {
+      statusLabel: "Outcome recorded",
+      description:
+        "An HR interview outcome is recorded. Update it only when HR has a new human-owned reason.",
+      handoff:
+        "Use the outcome controls to keep the application in interview, mark hired, or mark not selected.",
+    };
+  }
+  if (latestHrRequest !== null && latestHrRequest.selectedSlot !== null) {
+    return {
+      statusLabel: "Slot confirmed",
+      description:
+        "The candidate confirmed an HR interview slot. Complete the live interview, then record the human-owned result below.",
+      handoff:
+        "Final hire or not-selected decisions require a written HR reason and remain separate from AI evaluation output.",
+    };
+  }
+  if (latestHrRequest?.status === "ACTIVE") {
+    return {
+      statusLabel: "Booking active",
+      description:
+        "A secure booking link is active. The candidate can choose one of the available HR interview slots.",
+      handoff:
+        "Wait for the candidate to confirm a slot before recording a final HR interview outcome.",
+    };
+  }
+  if (applicationStatus === "INTERVIEW") {
+    return {
+      statusLabel: "Ready to schedule",
+      description:
+        "This candidate is approved for an HR interview. Add slots and send the secure booking link.",
+      handoff:
+        "After the candidate confirms a slot and the HR conversation happens, record the final decision here.",
+    };
+  }
+  return {
+    statusLabel: "Needs HR approval",
+    description:
+      "Approve the candidate for HR interview before sending a final-stage scheduling link.",
+    handoff:
+      "Use human verification first. Final HR outcomes are disabled until the application reaches interview stage.",
+  };
 }
 
 function availabilityRequestUrl(request: VerificationAvailabilityRequest): string {
